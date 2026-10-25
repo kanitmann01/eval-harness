@@ -53,6 +53,50 @@ serves `cell.json` or `answer.txt`, resolves the stored directory, and
 refuses any file outside the configured artifacts root or any other name. A
 missing file is a 404, as is a traversal attempt.
 
+## Spec editor
+
+The spec editor is the one write surface in the console: it edits, validates
+and saves YAML spec files under `EVALH_SPECS_DIR` (default `specs` beside the
+database; `EVALH_HOME/specs` when the database has no file). It writes no
+harness state to the database, so the file is the only source of truth and a
+run reads exactly the text the editor saved. Runs, artifacts and credentials
+stay read-only.
+
+| Route | What it does |
+| --- | --- |
+| `GET /specs` | Every `*.yaml` file with its parsed name, candidates, cell count, size, modified time and current validation state. |
+| `GET /specs/{name}/edit` | A textarea with the raw YAML, a Check button, inline errors under the field they name, and a summary panel with cells per candidate and the cost estimate. |
+| `POST /specs/{name}/edit` | Form body `yaml=` plus `action=check` or `action=save`. Check re-renders the editor with the errors and the estimate; Save validates, writes the file atomically and redirects to `/specs?saved={name}`. An invalid spec is never written. |
+| `POST /specs/{name}/duplicate` | Copies the file to the first free `<name>-copy`, `<name>-copy-2`, ... name and opens the copy in the editor. |
+| `GET /api/specs` | JSON array of the list rows, including `valid` and the first `error`. |
+| `GET /api/specs/{name}` | Raw `yaml`, the parsed `summary`, the current estimate and any errors. |
+| `POST /api/specs/validate` | Body is the YAML text, either a `text/plain` body or `{"yaml": "..."}` as JSON. 200 with `cells`, `cells_per_candidate`, `cases`, `cost_estimate`, `warnings` and an empty `errors`; 400 with the same shape and a field-named `errors` list. |
+| `PUT /api/specs/{name}` | Validates then writes atomically and returns `created: true` for a new file; 400 and no write when the document is invalid. |
+| `POST /api/specs/{name}/duplicate` | 201 with the new `name`, `path` and `duplicate_of`; 404 when the source is missing. |
+
+A name is a slug (`[a-z0-9][a-z0-9._-]*`) and the file is always
+`<name>.yaml`. The name and the resolved path are both checked, so a traversal
+(`../x`) or an absolute path is refused with an error naming `name`. The list
+shows only files whose stem is a valid slug, because no other name is
+addressable. The read routes accept `name` with or without the `.yaml` suffix;
+a write creates the file, so the editor starts from an existing spec or from
+`POST /api/specs/{name}/duplicate`.
+
+Validation calls `core.spec.validate_yaml_text`, the same loader behind
+`evalh validate`, so a field error reads identically in both places: the
+`field`, the rejected `value`, the `reason` and the `fix`. The estimate reuses
+the planner (`expand`, `per_candidate_counts`) and
+`core.cost.estimate_cost`, with the observed medians of an earlier run of the
+same spec when one exists and the 500 prompt / 200 completion token fallback
+otherwise. `cost_usd` therefore matches `evalh run --dry-run` for a spec that
+has not run yet.
+
+The page works without JavaScript: Check and Save are ordinary submit buttons,
+and the server re-renders the same error list and summary. A small debounced
+script on top posts the textarea to `/api/specs/validate` and updates the
+errors, cells per candidate, cost and the Save button, but it never replaces
+the form path.
+
 ## JSON API
 
 All JSON routes return 404 with a JSON detail for an unknown run. Datetimes are

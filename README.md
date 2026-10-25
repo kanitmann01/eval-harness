@@ -42,6 +42,7 @@ python -m evalharness run examples/specs/smoke.yaml
 python -m evalharness run examples/specs/stub-pack.yaml
 python -m evalharness run examples/specs/judges.yaml
 python -m evalharness serve
+# then open http://127.0.0.1:8000/specs to edit, validate and save a spec
 python -m evalharness conformance --all
 ~~~
 
