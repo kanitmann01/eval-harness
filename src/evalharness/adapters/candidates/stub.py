@@ -114,3 +114,14 @@ def build_fixed_prompt(identity: str, options: Mapping[str, Any]) -> StubCandida
         options,
         capabilities=Capabilities(supports_prompt_override=False),
     )
+
+
+CONFORMANCE_HOOKS: dict[str, dict[str, Any]] = {
+    "transport": {"fail": "transport"},
+    "wrong": {"answer": "__conformance_wrong_answer__"},
+}
+"""Fault-injection options the public conformance suite applies to a stub."""
+
+for _factory in (build, build_slow, build_failing, build_fixed_prompt):
+    _factory.CONFORMANCE_HOOKS = CONFORMANCE_HOOKS
+del _factory
