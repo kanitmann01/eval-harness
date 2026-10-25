@@ -146,8 +146,10 @@ jobs:
         run: |
           set -euo pipefail
           key="$(python -c 'import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())')"
+          # GITHUB_ENV only reaches later steps, so export for this one too.
           echo "EVALH_MASTER_KEY=$key" >> "$GITHUB_ENV"
-          echo "EVALH_POSTGRES_PASSWORD=ci-not-a-secret" >> "$GITHUB_ENV"
+          export EVALH_MASTER_KEY="$key"
+          export EVALH_POSTGRES_PASSWORD=ci-not-a-secret
           docker compose up -d --wait --wait-timeout 120
       - name: Smoke health and one end-to-end no-credential run
         run: |
