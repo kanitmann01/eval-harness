@@ -82,3 +82,18 @@ class Sink(Protocol):
     def close_run(self, run: RunRecord) -> None:
         """Finish the run's artifact location."""
         ...
+
+
+class VerificationResult(BaseModel):
+    """The outcome of one credential verification request."""
+
+    ok: bool
+    message: str = ""
+
+
+class CredentialVerifier(Protocol):
+    """Check one provider credential with a single request."""
+
+    async def verify(self, provider: str, secret: str) -> VerificationResult:
+        """Return the provider's verdict and its message verbatim."""
+        ...

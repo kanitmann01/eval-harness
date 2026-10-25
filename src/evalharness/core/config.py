@@ -18,6 +18,8 @@ class Settings:
     database_url: str
     artifacts_dir: Path
     master_key: str | None = None
+    master_key_file: str | None = None
+    verify_url: str | None = None
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> Settings:
@@ -33,6 +35,8 @@ class Settings:
             database_url=database_url,
             artifacts_dir=artifacts_dir,
             master_key=source.get("EVALH_MASTER_KEY"),
+            master_key_file=source.get("EVALH_MASTER_KEY_FILE"),
+            verify_url=source.get("EVALH_VERIFY_URL"),
         )
 
 

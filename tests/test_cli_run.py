@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import io
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -346,7 +348,21 @@ def test_broken_sink_factory_is_a_spec_error(evalh_home, workdir, capsys):
 def test_secret_is_redacted_from_cells_artifacts_and_events(
     evalh_home, workdir, capsys, monkeypatch
 ):
-    monkeypatch.setenv("EVALH_CREDENTIAL_STUB", "SECRET-CANARY")
+    monkeypatch.setattr(sys, "stdin", io.StringIO("SECRET-CANARY\n"))
+    assert (
+        main(
+            [
+                "credentials",
+                "add",
+                "stub",
+                "--provider",
+                "none",
+                "--secret-stdin",
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
     spec_data = base_spec()
     spec_data["candidates"] = [spec_data["candidates"][0]]
     spec_data["candidates"][0]["options"] = {"answer": "SECRET-CANARY"}

@@ -246,6 +246,22 @@ class CredentialSpec(BaseModel):
     provider: str = "none"
 
 
+class CredentialRecord(BaseModel):
+    """Metadata for one stored credential; the secret is never part of it."""
+
+    name: str
+    provider: str
+    created_at: datetime
+    last_ok_at: datetime | None = None
+    last_error: str | None = None
+
+
+class EncryptedCredential(CredentialRecord):
+    """A stored credential plus its ciphertext; only the vault decrypts it."""
+
+    ciphertext: bytes
+
+
 class Spec(BaseModel):
     """The whole YAML spec, structurally parsed before semantic validation."""
 

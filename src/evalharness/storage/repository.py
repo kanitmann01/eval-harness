@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import delete, func, select
@@ -11,14 +12,19 @@ from evalharness.core.models import (
     Aggregate,
     CellRecord,
     Check,
+    CredentialRecord,
+    EncryptedCredential,
     GateResult,
     RunRecord,
+    utc_now,
 )
+from evalharness.errors import SpecError
 from evalharness.storage.db import Database
 from evalharness.storage.models import (
     AggregateRow,
     CellRow,
     CheckRow,
+    CredentialRow,
     EventRow,
     GateRow,
     RunRow,
@@ -238,6 +244,103 @@ class Repository:
                 select(func.max(EventRow.seq)).where(EventRow.run_id == run_id)
             )
             return int(value or 0)
+
+    def add_credential(
+        self,
+        name: str,
+        provider: str,
+        ciphertext: bytes,
+        created_at: datetime | None = None,
+    ) -> CredentialRecord:
+        """Store one encrypted credential; a duplicate name is a spec error."""
+        with self._database.session() as session:
+            if session.get(CredentialRow, name) is not None:
+                raise SpecError(
+                    f"credentials.{name}",
+                    name,
+                    "a credential with this name already exists",
+                    "delete it first or choose another name",
+                )
+            row = CredentialRow(
+                name=name,
+                provider=provider,
+                ciphertext=ciphertext,
+                created_at=created_at or utc_now(),
+            )
+            session.add(row)
+            return _credential_record(row)
+
+    def get_credential(self, name: str) -> EncryptedCredential | None:
+        """Return one stored credential with its ciphertext, or None."""
+        with self._database.session() as session:
+            row = session.get(CredentialRow, name)
+            return None if row is None else _encrypted_credential(row)
+
+    def list_credentials(self) -> list[CredentialRecord]:
+        """Return every stored credential's metadata, never its secret."""
+        with self._database.session() as session:
+            rows = session.scalars(
+                select(CredentialRow).order_by(CredentialRow.name)
+            ).all()
+            return [_credential_record(row) for row in rows]
+
+    def test_credential(
+        self,
+        name: str,
+        *,
+        error: str | None = None,
+        tested_at: datetime | None = None,
+    ) -> CredentialRecord:
+        """Record one verification attempt against a stored credential.
+
+        A successful attempt stamps last_ok_at and clears last_error; a failed
+        one keeps the last successful time and records the provider message.
+        """
+        with self._database.session() as session:
+            row = session.get(CredentialRow, name)
+            if row is None:
+                raise SpecError(
+                    f"credentials.{name}",
+                    name,
+                    "unknown credential",
+                    "list the stored credentials with 'evalh credentials list'",
+                )
+            if error is None:
+                row.last_ok_at = tested_at or utc_now()
+                row.last_error = None
+            else:
+                row.last_error = error
+            return _credential_record(row)
+
+    def delete_credential(self, name: str) -> None:
+        """Delete one stored credential, or raise when it does not exist."""
+        with self._database.session() as session:
+            row = session.get(CredentialRow, name)
+            if row is None:
+                raise SpecError(
+                    f"credentials.{name}",
+                    name,
+                    "unknown credential",
+                    "list the stored credentials with 'evalh credentials list'",
+                )
+            session.delete(row)
+
+
+def _credential_record(row: CredentialRow) -> CredentialRecord:
+    return CredentialRecord(
+        name=row.name,
+        provider=row.provider,
+        created_at=row.created_at,
+        last_ok_at=row.last_ok_at,
+        last_error=row.last_error,
+    )
+
+
+def _encrypted_credential(row: CredentialRow) -> EncryptedCredential:
+    return EncryptedCredential(
+        **_credential_record(row).model_dump(),
+        ciphertext=bytes(row.ciphertext),
+    )
 
 
 def _run_row(run: RunRecord) -> RunRow:

@@ -1,22 +1,29 @@
-"""The command surface: run, validate, conformance and the read-back commands."""
+"""The command surface: run, validate, conformance, credentials and read-back."""
 
 from __future__ import annotations
 
 import argparse
 import asyncio
+import getpass
+import logging
+import os
 import signal
 import sys
 import uuid
 from dataclasses import replace
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
+from sqlalchemy.engine import make_url
+
 from evalharness import exit_codes
+from evalharness.adapters.verify.http_verifier import build as build_verifier
 from evalharness.conformance import KINDS, run_all, run_suite
 from evalharness.conformance.suite import ConformanceReport
 from evalharness.core.cancel import CancellationToken
 from evalharness.core.config import Settings, harness_revision
-from evalharness.core.context import EnvCredentialStore, RunContext
+from evalharness.core.context import CredentialStore, RunContext
 from evalharness.core.cost import (
     DEFAULT_MEDIAN_COMPLETION_TOKENS,
     DEFAULT_MEDIAN_PROMPT_TOKENS,
@@ -35,9 +42,20 @@ from evalharness.core.models import (
 )
 from evalharness.core.planner import PlannedCell, expand, per_candidate_counts
 from evalharness.core.protocols import Sink
-from evalharness.core.redaction import NoOpRedactor, Redactor, SecretRedactor
+from evalharness.core.redaction import (
+    NoOpRedactor,
+    RedactionFilter,
+    Redactor,
+    SecretRedactor,
+)
 from evalharness.core.scorer import aggregate_cells, evaluate_gates
 from evalharness.core.spec import ResolvedSpec, load_and_validate
+from evalharness.core.vault import (
+    MasterKeyError,
+    Vault,
+    VaultCredentialStore,
+    open_vault,
+)
 from evalharness.errors import HarnessError, SpecError
 from evalharness.storage.db import Database
 from evalharness.storage.repository import Repository
@@ -121,12 +139,114 @@ def _build_parser() -> argparse.ArgumentParser:
         help="protocol kind for --adapter (required with --adapter)",
     )
     conformance_parser.set_defaults(handler=_conformance)
+
+    credentials_parser = commands.add_parser(
+        "credentials",
+        help="add, list, test and delete encrypted provider keys",
+    )
+    credential_commands = credentials_parser.add_subparsers(
+        dest="credentials_command"
+    )
+    add_parser = credential_commands.add_parser(
+        "add", help="store one provider key, encrypted at rest"
+    )
+    add_parser.add_argument("name", help="logical credential name")
+    add_parser.add_argument("--provider", required=True, help="provider name")
+    secret_source = add_parser.add_mutually_exclusive_group()
+    secret_source.add_argument(
+        "--secret-stdin",
+        action="store_true",
+        help="read the secret from standard input without echoing it",
+    )
+    secret_source.add_argument(
+        "--secret-env",
+        metavar="VAR",
+        help="read the secret from an environment variable",
+    )
+    add_parser.set_defaults(handler=_credentials)
+    list_parser = credential_commands.add_parser(
+        "list", help="list stored credentials without their secrets"
+    )
+    list_parser.set_defaults(handler=_credentials)
+    test_parser = credential_commands.add_parser(
+        "test", help="verify one stored credential with one provider request"
+    )
+    test_parser.add_argument("name", help="logical credential name")
+    test_parser.add_argument(
+        "--verify-url",
+        help="override EVALH_VERIFY_URL for this request",
+    )
+    test_parser.set_defaults(handler=_credentials)
+    delete_parser = credential_commands.add_parser(
+        "delete", help="delete one stored credential"
+    )
+    delete_parser.add_argument("name", help="logical credential name")
+    delete_parser.add_argument(
+        "--yes", action="store_true", help="do not ask for confirmation"
+    )
+    delete_parser.set_defaults(handler=_credentials)
+    credentials_parser.set_defaults(
+        handler=_credentials,
+        credentials_parser=credentials_parser,
+    )
     return parser
 
 
 def _spec_failure(error: SpecError) -> int:
     print(f"spec error: {error}", file=sys.stderr)
     return exit_codes.SPEC_ERROR
+
+
+def _master_key_failure(error: MasterKeyError) -> int:
+    """Print a generated key exactly once and refuse to continue."""
+    if error.generated_key is not None:
+        print(
+            "no master key is configured; generated one (shown once, not saved):",
+            file=sys.stderr,
+        )
+        print(f"  EVALH_MASTER_KEY={error.generated_key}", file=sys.stderr)
+        print(
+            "store it in the environment, then re-run this command.",
+            file=sys.stderr,
+        )
+    return _spec_failure(error)
+
+
+def _stored_credential_names(settings: Settings) -> list[str]:
+    """Read stored credential names without creating an absent database."""
+    parsed = make_url(settings.database_url)
+    if parsed.get_backend_name() == "sqlite":
+        database_path = parsed.database or ""
+        if database_path in {"", ":memory:"} or not Path(database_path).exists():
+            return []
+    database = Database(settings.database_url)
+    try:
+        database.create_all()
+        return [record.name for record in Repository(database).list_credentials()]
+    finally:
+        database.dispose()
+
+
+def _redactor_for(store: CredentialStore) -> SecretRedactor:
+    """Build a redactor from every secret the store can resolve."""
+    secrets: dict[str, str] = {}
+    for name in store.names():
+        handle = store.get(name)
+        if handle is not None and handle.secret:
+            secrets[name] = handle.secret
+    return SecretRedactor(secrets)
+
+
+def _configure_logging(redactor: Redactor) -> None:
+    """Send harness logs to stderr through the redaction filter."""
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
+    handler.addFilter(RedactionFilter(redactor))
+    logger = logging.getLogger("evalharness")
+    logger.handlers.clear()
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
 
 
 def _load_cases(resolved: ResolvedSpec, run_id: str) -> list[Case]:
@@ -162,8 +282,12 @@ def _print_warnings(resolved: ResolvedSpec) -> None:
 
 
 def _validate(args: argparse.Namespace) -> int:
+    settings = Settings.from_env()
     try:
-        resolved = load_and_validate(args.spec)
+        resolved = load_and_validate(
+            args.spec,
+            stored_credentials=_stored_credential_names(settings),
+        )
     except SpecError as exc:
         return _spec_failure(exc)
     _print_warnings(resolved)
@@ -439,8 +563,16 @@ def _sigint_handler(token: CancellationToken) -> Callable[[int, Any], None]:
 
 def _run(args: argparse.Namespace) -> int:
     """Execute one spec or resume an existing run and return its exit code."""
+    settings = Settings.from_env()
+    if args.db:
+        settings = replace(settings, database_url=args.db)
+    if args.artifacts:
+        settings = replace(settings, artifacts_dir=Path(args.artifacts))
     try:
-        resolved = load_and_validate(args.spec)
+        resolved = load_and_validate(
+            args.spec,
+            stored_credentials=_stored_credential_names(settings),
+        )
     except SpecError as exc:
         return _spec_failure(exc)
     _print_warnings(resolved)
@@ -454,11 +586,10 @@ def _run(args: argparse.Namespace) -> int:
         _print_dry_run(resolved, cases, cells)
         return exit_codes.SUCCESS
 
-    settings = Settings.from_env()
-    if args.db:
-        settings = replace(settings, database_url=args.db)
-    if args.artifacts:
-        settings = replace(settings, artifacts_dir=Path(args.artifacts))
+    try:
+        vault = open_vault(settings)
+    except MasterKeyError as exc:
+        return _master_key_failure(exc)
     try:
         settings.home.mkdir(parents=True, exist_ok=True)
         sink = _build_sink(resolved, settings)
@@ -478,14 +609,12 @@ def _run(args: argparse.Namespace) -> int:
     database.create_all()
     try:
         repository = Repository(database)
-        credentials = EnvCredentialStore.from_spec(resolved.spec.credentials)
-        redactor = SecretRedactor(
-            {
-                name: handle.secret
-                for name in credentials.names()
-                if (handle := credentials.get(name)) is not None
-            }
-        )
+        store = VaultCredentialStore(vault, repository)
+        try:
+            redactor = _redactor_for(store)
+        except SpecError as exc:
+            return _spec_failure(exc)
+        _configure_logging(redactor)
         token = CancellationToken(cancel_after=args.cancel_after)
         resumed = args.resume is not None
         if resumed:
@@ -527,7 +656,7 @@ def _run(args: argparse.Namespace) -> int:
                     run=run,
                     repository=repository,
                     sink=sink,
-                    credentials=credentials,
+                    credentials=store,
                     redactor=redactor,
                     artifacts_root=settings.artifacts_dir,
                     cancel_token=token,
@@ -646,3 +775,178 @@ def _format_interval(low: float | None, high: float | None) -> str:
     if low is None or high is None:
         return "-"
     return f"{low * 100:.1f}% to {high * 100:.1f}%"
+
+
+def _format_time(value: datetime | None) -> str:
+    """Format a stored timestamp for the CLI, or a dash when absent."""
+    return value.isoformat(timespec="seconds") if value is not None else "-"
+
+
+def _credentials(args: argparse.Namespace) -> int:
+    """Dispatch one credentials subcommand against the vault."""
+    if args.credentials_command is None:
+        args.credentials_parser.print_help()
+        return exit_codes.SUCCESS
+    settings = Settings.from_env()
+    try:
+        vault = open_vault(settings)
+    except MasterKeyError as exc:
+        return _master_key_failure(exc)
+    try:
+        settings.home.mkdir(parents=True, exist_ok=True)
+        database = Database(settings.database_url)
+    except OSError as exc:
+        return _spec_failure(
+            SpecError(
+                "EVALH_HOME",
+                str(settings.home),
+                f"the harness home could not be created: {exc}",
+                "set EVALH_HOME to a writable directory",
+            )
+        )
+    database.create_all()
+    repository = Repository(database)
+    handlers = {
+        "add": _credentials_add,
+        "list": _credentials_list,
+        "test": _credentials_test,
+        "delete": _credentials_delete,
+    }
+    try:
+        return handlers[args.credentials_command](args, settings, vault, repository)
+    except SpecError as exc:
+        return _spec_failure(exc)
+    finally:
+        database.dispose()
+
+
+def _read_secret(args: argparse.Namespace) -> str:
+    """Read the secret from an env var, stdin, or a no-echo prompt."""
+    if args.secret_env:
+        secret = os.environ.get(args.secret_env, "")
+        if not secret:
+            raise SpecError(
+                "--secret-env",
+                args.secret_env,
+                "the environment variable is unset or empty",
+                "export the key in that variable or pass --secret-stdin",
+            )
+        return secret
+    if args.secret_stdin:
+        secret = sys.stdin.readline().strip()
+    else:
+        secret = getpass.getpass(f"secret for {args.name}: ")
+    if not secret:
+        raise SpecError(
+            "credentials",
+            args.name,
+            "the secret is empty",
+            "pass a non-empty key with --secret-stdin or --secret-env",
+        )
+    return secret
+
+
+def _credentials_add(
+    args: argparse.Namespace,
+    settings: Settings,
+    vault: Vault,
+    repository: Repository,
+) -> int:
+    """Encrypt and store one credential, never echoing the secret."""
+    secret = _read_secret(args)
+    record = repository.add_credential(
+        args.name, args.provider, vault.encrypt(secret)
+    )
+    print(
+        f"added credential {record.name} provider={record.provider} "
+        f"created={_format_time(record.created_at)}"
+    )
+    return exit_codes.SUCCESS
+
+
+def _credentials_list(
+    args: argparse.Namespace,
+    settings: Settings,
+    vault: Vault,
+    repository: Repository,
+) -> int:
+    """Print stored credential metadata; never the secret."""
+    records = repository.list_credentials()
+    if not records:
+        print("no credentials stored")
+        return exit_codes.SUCCESS
+    print(
+        f"{'name':<20} {'provider':<14} {'created':<22} "
+        f"{'last_verified':<22} last_error"
+    )
+    for record in records:
+        print(
+            f"{record.name:<20} {record.provider:<14} "
+            f"{_format_time(record.created_at):<22} "
+            f"{_format_time(record.last_ok_at):<22} "
+            f"{record.last_error or '-'}"
+        )
+    return exit_codes.SUCCESS
+
+
+def _credentials_test(
+    args: argparse.Namespace,
+    settings: Settings,
+    vault: Vault,
+    repository: Repository,
+) -> int:
+    """Verify one credential once and record the provider's verdict."""
+    store = VaultCredentialStore(vault, repository)
+    handle = store.get(args.name)
+    if handle is None:
+        raise SpecError(
+            f"credentials.{args.name}",
+            args.name,
+            "unknown credential",
+            "list the stored credentials with 'evalh credentials list'",
+        )
+    base_url = args.verify_url or settings.verify_url
+    if not base_url:
+        raise SpecError(
+            "EVALH_VERIFY_URL",
+            "",
+            "no verification endpoint is configured",
+            "set EVALH_VERIFY_URL to the provider base URL or pass --verify-url",
+        )
+    verifier = build_verifier("verifier", {"base_url": base_url})
+    result = asyncio.run(verifier.verify(handle.provider, handle.secret))
+    message = _redactor_for(store).redact(result.message)
+    repository.test_credential(
+        args.name,
+        error=None if result.ok else message,
+    )
+    if result.ok:
+        print(f"verified: {message}")
+        return exit_codes.SUCCESS
+    print(f"rejected: {message}")
+    return exit_codes.GATE_FAILURE
+
+
+def _credentials_delete(
+    args: argparse.Namespace,
+    settings: Settings,
+    vault: Vault,
+    repository: Repository,
+) -> int:
+    """Delete one credential after confirmation."""
+    if repository.get_credential(args.name) is None:
+        raise SpecError(
+            f"credentials.{args.name}",
+            args.name,
+            "unknown credential",
+            "list the stored credentials with 'evalh credentials list'",
+        )
+    if not args.yes:
+        print(f"delete credential {args.name}? [y/N] ", end="", flush=True)
+        answer = sys.stdin.readline().strip().lower()
+        if answer not in {"y", "yes"}:
+            print("not deleted")
+            return exit_codes.SUCCESS
+    repository.delete_credential(args.name)
+    print(f"deleted credential {args.name}")
+    return exit_codes.SUCCESS

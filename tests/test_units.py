@@ -167,6 +167,8 @@ def test_settings_defaults_and_overrides(monkeypatch):
     assert defaults.database_url.endswith("harness.db")
     assert defaults.artifacts_dir == defaults.home / "artifacts"
     assert defaults.master_key is None
+    assert defaults.master_key_file is None
+    assert defaults.verify_url is None
 
     overridden = Settings.from_env(
         {
@@ -174,11 +176,15 @@ def test_settings_defaults_and_overrides(monkeypatch):
             "EVALH_DATABASE_URL": "sqlite:///db.sqlite3",
             "EVALH_ARTIFACTS_DIR": str(Path("somewhere") / "artifacts"),
             "EVALH_MASTER_KEY": "master-key",
+            "EVALH_MASTER_KEY_FILE": "master.key",
+            "EVALH_VERIFY_URL": "http://verify.invalid",
         }
     )
     assert overridden.home == Path("somewhere")
     assert overridden.database_url == "sqlite:///db.sqlite3"
     assert overridden.master_key == "master-key"
+    assert overridden.master_key_file == "master.key"
+    assert overridden.verify_url == "http://verify.invalid"
     assert harness_revision({"EVALH_HARNESS_SHA": "abc123"}) == "abc123"
     assert harness_revision({}).startswith("evalharness/")
 

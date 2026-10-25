@@ -81,7 +81,7 @@ silently ignored.
 | source | mapping | yes | none | Where the cases come from. |
 | prompts | mapping string -> string | no | {} | Named prompt overrides. A candidate names one under options.prompt. |
 | contexts | mapping string -> list of chunks | no | {} | Named context sets. A candidate names one under options.context. |
-| credentials | list of credential declarations | no | [] | Logical credential names. Secrets come from the environment now and from the encrypted vault in issue #6. |
+| credentials | list of credential declarations | no | [] | Logical credential names. Secrets come from the encrypted vault (docs/credentials.md). |
 | candidates | list of candidates | yes | none | At least one. |
 | replicas | integer >= 1 | no | 1 | Repeats per candidate x case. |
 | concurrency | integer >= 1 | no | 1 | Cells in flight at once. Latency is only comparable at 1. |
@@ -120,9 +120,17 @@ credentials:
     provider: none
 ~~~
 
-The spec declares names and providers only. The secret is resolved at run time
-from CredentialStore (EVALH_CREDENTIAL_<NAME> now, the vault in issue #6). A
-candidate or judge that names an undeclared credential fails validation.
+The spec declares names and providers only; the secret is resolved at run time
+from the encrypted vault. A candidate or judge credential is valid when it is
+declared here **or** a credential with that name is stored in the vault:
+
+~~~bash
+evalh credentials add openai-prod --provider openai --secret-stdin
+~~~
+
+An undeclared name that is neither in the spec nor in the vault is a spec error
+naming the field, the name, and the `evalh credentials add` fix. Validation reads
+the vault's credential names (metadata only), never its secrets.
 
 ## candidates
 
@@ -182,6 +190,11 @@ evalh run SPEC --db URL --artifacts DIR
 evalh run SPEC --override-budget USD   replace the spec budget for this run and record it
 evalh run SPEC --cancel-after N     cancel once N cells have completed, between cells
 evalh run SPEC --resume RUN_ID      continue an unfinished run into the same record
+
+evalh credentials add NAME --provider P [--secret-stdin | --secret-env VAR]
+evalh credentials list
+evalh credentials test NAME [--verify-url URL]
+evalh credentials delete NAME [--yes]
 ~~~
 
 After the run table, the aggregates table prints candidate, metric, tier
@@ -190,8 +203,11 @@ the 95 percent Wilson interval, pass@k and pass^k. See
 [statistics.md](statistics.md) for the formulas and for why an empty
 proportion is undefined rather than zero.
 
-Exit codes: 0 success, 1 gate failure, 2 spec error, 3 budget abort.
+Exit codes: 0 success, 1 gate failure (or a rejected credential from
+`credentials test`), 2 spec error, 3 budget abort.
 Validation failures print spec error: <field>=<value>: <reason>. Fix: <fix>.
 A cancelled run exits 0 unless a gate failed or the budget abort already decided
 the code. [runs.md](runs.md) is the reference for budget, cancel, resume, the
-state x exit-code matrix and the one-run-at-a-time rule.
+state x exit-code matrix and the one-run-at-a-time rule. The credential vault,
+its master key and its redaction guarantees are in
+[docs/credentials.md](credentials.md).
