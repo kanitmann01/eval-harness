@@ -21,11 +21,32 @@ DEFAULT_TIMEOUT_S = 5.0
 """A verification probe must fail fast, so it never retries."""
 
 PROVIDER_AUTH: dict[str, tuple[str, str]] = {
+    "openai": (BEARER, "Authorization"),
     "anthropic": (HEADER, "x-api-key"),
     "azure-openai": (HEADER, "api-key"),
     "none": (NONE, ""),
 }
-"""Providers whose auth is not a bearer token; bearer is the default."""
+"""The auth shapes the verifier knows; an unlisted provider is bearer."""
+
+KNOWN_PROVIDERS: tuple[str, ...] = tuple(PROVIDER_AUTH)
+"""The provider names the console offers, in the table's order."""
+
+
+def provider_choices() -> list[tuple[str, str]]:
+    """Return (provider, auth label) pairs for the console's provider select.
+
+    The form reads this list instead of hard-coding providers, so a new row in
+    PROVIDER_AUTH reaches the browser without a second edit.
+    """
+    choices: list[tuple[str, str]] = []
+    for provider, (shape, header) in PROVIDER_AUTH.items():
+        if shape == BEARER:
+            choices.append((provider, "Bearer token"))
+        elif shape == NONE:
+            choices.append((provider, "no auth header"))
+        else:
+            choices.append((provider, header))
+    return choices
 
 
 class HttpVerifier:

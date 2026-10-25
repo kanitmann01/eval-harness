@@ -80,5 +80,24 @@
     </p>
   </aside>
 </div>
+
+<section class="panel">
+  <h2>Credentials</h2>
+  <p class="subtle">The editor offers only a credential that is enabled and has passed a test. A candidate or judge that names a disabled or never-tested credential fails validation with the field it is used on, so a spec cannot smuggle one in.</p>
+  {% if credentials %}
+  <ul class="credential-choices">
+    {% for credential in credentials %}
+    <li>
+      <code>{{ credential.name }}</code>
+      <span class="subtle">{{ credential.provider }}</span>
+      <span class="status {% if credential.usable %}status-ok{% else %}status-error{% endif %}">{{ credential.state }}</span>
+      {% if not credential.usable %}<span class="subtle">not selectable until you test or enable it</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="subtle">No credentials are stored. Add one at <a href="{{ url_for('credential_list') }}">/credentials</a>; a spec declaration alone works only for an adapter that needs no secret.</p>
+  {% endif %}
+</section>
 {% endblock %}
 {% block scripts %}<script src="{{ url_for('static', path='spec_editor.js') }}" defer></script>{% endblock %}

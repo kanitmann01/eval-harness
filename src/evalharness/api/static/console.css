@@ -513,6 +513,22 @@ tbody tr:hover { background: var(--surface-2); }
 .per-candidate li:last-child { border-bottom: 0; }
 .warnings { margin: 0.3rem 0 0; padding-left: 1.2rem; color: var(--error-ink); font-size: 0.88rem; }
 .warnings[hidden] { display: none; }
+
+.credential-form { display: flex; flex-wrap: wrap; align-items: end; gap: 0.8rem; }
+.credential-form label { display: grid; gap: 0.25rem; font-size: 0.78rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+.credential-form input, .credential-form select {
+  min-width: 13rem;
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font: inherit;
+}
+.fingerprint { font-family: var(--mono); font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
+.last-error { max-width: 24rem; overflow-wrap: anywhere; }
+.credential-choices, .state-legend { list-style: none; margin: 0.4rem 0 0; padding: 0; display: grid; gap: 0.45rem; }
+.credential-choices li, .state-legend li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
 .callout-ok { background: var(--pass-bg); color: var(--pass-ink); border: 1px solid transparent; border-radius: 8px; padding: 0.55rem 0.7rem; margin: 0.6rem 0; }
 
 @media (max-width: 900px) {

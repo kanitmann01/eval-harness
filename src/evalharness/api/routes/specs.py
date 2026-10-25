@@ -14,7 +14,12 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from evalharness.api.deps import get_repository, get_settings, render
 from evalharness.api.spec_store import SpecStore, copy_name, spec_stem
-from evalharness.api.spec_views import SpecCheck, check_document, row_for
+from evalharness.api.spec_views import (
+    SpecCheck,
+    check_document,
+    editor_credentials,
+    row_for,
+)
 from evalharness.core.config import Settings
 from evalharness.errors import SpecError
 from evalharness.storage.repository import Repository
@@ -61,7 +66,7 @@ def spec_edit(
     return render(
         request,
         "spec_editor.html",
-        _editor_context(stem, text, check, copied),
+        _editor_context(stem, text, check, copied, repository),
     )
 
 
@@ -89,7 +94,7 @@ async def spec_save(
     return render(
         request,
         "spec_editor.html",
-        _editor_context(stem, text, check, ""),
+        _editor_context(stem, text, check, "", repository),
         status_code=400 if action == "save" else 200,
     )
 
@@ -126,6 +131,7 @@ def _editor_context(
     text: str,
     check: SpecCheck,
     copied: str,
+    repository: Repository,
 ) -> dict[str, Any]:
     """Build the template context for one editor render."""
     return {
@@ -136,6 +142,7 @@ def _editor_context(
         "warnings": check.warnings,
         "estimate": check.estimate,
         "copied": copied,
+        "credentials": editor_credentials(repository),
     }
 
 
