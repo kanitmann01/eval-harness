@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ name }}.yaml &middot; evalharness console{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Breadcrumb">
+  <a href="{{ url_for('spec_list') }}">Specs</a>
+  <span aria-hidden="true">/</span>
+  <span>{{ name }}.yaml</span>
+</nav>
+
+<div class="page-head">
+  <div>
+    <h1>{{ name }}.yaml</h1>
+    <p class="lede">Validate and save this spec. The browser and the CLI share one validator, so an error here is the error <code>evalh validate</code> prints.</p>
+  </div>
+  <span class="status {% if check.valid %}status-ok{% else %}status-error{% endif %}" data-editor-status>{{ "valid" if check.valid else "invalid" }}</span>
+</div>
+
+{% if copied %}
+<p class="callout callout-ok" role="status">Duplicate of <code>{{ copied }}.yaml</code>. Saving writes this new file; the original is untouched.</p>
+{% endif %}
+
+<div class="editor-layout">
+  <form method="post" action="{{ url_for('spec_save', name=name) }}" class="spec-editor" data-spec-editor data-validate-url="{{ url_for('api_specs_validate') }}">
+    <label class="editor-label" for="yaml">Spec YAML <span class="subtle">The file is the only state.</span></label>
+    <textarea id="yaml" name="yaml" class="spec-source" rows="30" spellcheck="false" aria-describedby="spec-help spec-errors"{% if errors %} aria-invalid="true"{% endif %}>{{ text }}</textarea>
+    <p id="spec-help" class="subtle">Check validates the text below and shows the cells and cost before anything is saved. Save writes the file atomically and never writes a spec that fails validation.</p>
+    <div class="editor-actions">
+      <button type="submit" name="action" value="check" class="button-secondary">Check</button>
+      <button type="submit" name="action" value="save" class="button-primary" data-save-button{% if errors %} disabled{% endif %}>Save</button>
+      <span class="subtle">Works without JavaScript; the estimate updates as you type when it is on.</span>
+    </div>
+
+    <section id="spec-errors" class="error-panel" aria-live="polite" data-error-panel>
+      <h2>{{ "Validation errors" if errors else "Validation" }}</h2>
+      {% if errors %}
+      <ul class="error-list">
+        {% for error in errors %}
+        <li class="field-error" data-field="{{ error.field }}">
+          <code class="field-name">{{ error.field }}</code>
+          <span class="field-value">= {{ error.value }}</span>: {{ error.reason }}
+          <span class="fix">Fix: {{ error.fix }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="subtle">No validation errors.</p>
+      {% endif %}
+    </section>
+  </form>
+
+  <aside class="summary-panel" aria-live="polite">
+    <h2>Before you save</h2>
+    <dl class="facts">
+      <div><dt>Cells</dt><dd data-cells>{{ estimate.cells if estimate else "-" }}</dd></div>
+      <div><dt>Cases</dt><dd data-cases>{{ check.cases or "-" }}</dd></div>
+      <div><dt>Cost estimate</dt><dd data-cost>{% if estimate %}${{ "%.6f"|format(estimate.cost_usd) }}{% else %}-{% endif %}</dd></div>
+    </dl>
+
+    <h3>Cells per candidate</h3>
+    <ul class="per-candidate" data-per-candidate>
+      {% for candidate, count in (estimate.cells_per_candidate if estimate else {}).items() %}
+      <li><span>{{ candidate }}</span><span class="num">{{ count }}</span></li>
+      {% endfor %}
+    </ul>
+
+    <h3>Warnings</h3>
+    <ul class="warnings" data-warnings{% if not warnings %} hidden{% endif %}>
+      {% for warning in warnings %}<li>{{ warning }}</li>{% endfor %}
+    </ul>
+
+    <p class="subtle">
+      {% if estimate %}
+      Priced from {{ estimate.median_prompt_tokens }} prompt and
+      {{ estimate.median_completion_tokens }} completion tokens per cell
+      {% if estimate.observed %}(medians measured by an earlier run of this spec){% else %}(the fallback until a run of this spec supplies observed medians){% endif %}.
+      The launch estimate also compares this number with <code>budget_usd</code>.
+      {% else %}
+      Fix the errors to see the cell count and cost estimate.
+      {% endif %}
+    </p>
+  </aside>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='spec_editor.js') }}" defer></script>{% endblock %}

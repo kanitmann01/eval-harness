@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}Specs &middot; evalharness console{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <h1>Specs</h1>
+    <p class="lede">Every YAML spec in <code>{{ specs_dir }}</code>. Open one to edit, validate and save it. The file is the only source of truth: a run reads it, and the editor stores nothing the file does not.</p>
+  </div>
+  <span class="count">{{ specs|length }} spec{{ "" if specs|length == 1 else "s" }}</span>
+</div>
+
+{% if saved %}
+<p class="callout callout-ok" role="status">Saved <code>{{ saved }}.yaml</code>. A run started from this file uses exactly this text.</p>
+{% endif %}
+
+{% if specs %}
+<div class="table-wrap">
+  <table class="specs">
+    <caption class="sr-only">Spec files with their parsed name, candidates, cell count, size, modified time and validation state</caption>
+    <thead>
+      <tr>
+        <th scope="col">Spec file</th>
+        <th scope="col">Name</th>
+        <th scope="col" class="num">Candidates</th>
+        <th scope="col" class="num">Cells</th>
+        <th scope="col" class="num">Size</th>
+        <th scope="col" class="num">Modified</th>
+        <th scope="col">Validation</th>
+        <th scope="col">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in specs %}
+      <tr class="spec-row">
+        <td>
+          <a class="run-link" href="{{ url_for('spec_edit', name=row.name) }}">{{ row.name }}.yaml</a>
+        </td>
+        <td>{{ row.spec_name or "-" }}</td>
+        <td class="num">{{ row.candidates }}</td>
+        <td class="num">{{ row.check.estimate.cells if row.check.estimate else "-" }}</td>
+        <td class="num">{{ row.size }} B</td>
+        <td class="num subtle">{{ row.modified|timestamp }}</td>
+        <td>
+          {% if row.check.valid %}
+          <span class="status status-ok">valid</span>
+          {% else %}
+          <span class="status status-error">invalid</span>
+          <span class="subtle">{{ row.check.errors[0].field }}: {{ row.check.errors[0].reason }}</span>
+          {% endif %}
+        </td>
+        <td class="actions">
+          <a class="button-link" href="{{ url_for('spec_edit', name=row.name) }}">Edit</a>
+          <form method="post" action="{{ url_for('spec_duplicate', name=row.name) }}" class="inline-form">
+            <button type="submit" class="button-secondary">Duplicate</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p class="empty-state">
+  No spec files yet. Put a YAML spec in <code>{{ specs_dir }}</code> and reload this page,
+  or write one through <code>PUT /api/specs/&lt;name&gt;</code>. Nothing is stored in the
+  database: the directory is the state.
+</p>
+{% endif %}
+{% endblock %}
