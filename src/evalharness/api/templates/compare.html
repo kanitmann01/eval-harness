@@ -57,19 +57,19 @@
     </div>
     <span class="count">{{ "candidate mode" if comparison.mode == "candidates" else "run mode" }}</span>
   </div>
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Compared sides table">
     <table class="compare-sides">
       <caption class="sr-only">The two compared sides with cells, checks, cost and price table</caption>
       <thead>
         <tr>
           <th scope="col">Side</th>
           <th scope="col">Run</th>
-          <th scope="col">Status</th>
-          <th scope="col" class="num">Cells ok</th>
-          <th scope="col" class="num">Checks passed</th>
-          <th scope="col" class="num">Cost</th>
+          <th scope="col" class="col-md">Status</th>
+          <th scope="col" class="num col-lg">Cells ok</th>
+          <th scope="col" class="num col-lg">Checks passed</th>
+          <th scope="col" class="num col-md">Cost</th>
           <th scope="col" class="num">Cost per correct answer</th>
-          <th scope="col">Price table</th>
+          <th scope="col" class="col-lg">Price table</th>
         </tr>
       </thead>
       <tbody>
@@ -77,27 +77,27 @@
           <th scope="row">A &middot; {{ comparison.a.label }}</th>
           <td>
             <a href="/runs/{{ comparison.a.run_id }}">{{ comparison.a.spec_name }}</a>
-            <span class="mono subtle run-id">{{ comparison.a.run_id[:12] }}</span>
+            <span class="mono subtle run-id" title="{{ comparison.a.run_id }}">{{ comparison.a.run_id[:8] }}</span>
           </td>
-          <td><span class="status status-{{ comparison.a.status }}">{{ comparison.a.status }}</span></td>
-          <td class="num">{{ comparison.a.n_ok }}/{{ comparison.a.n_cells }}</td>
-          <td class="num">{{ comparison.a.n_passed }}/{{ comparison.a.n_checks }}</td>
-          <td class="num">{{ comparison.a.cost_text }}</td>
+          <td class="col-md"><span class="status status-{{ comparison.a.status }}">{{ comparison.a.status }}</span></td>
+          <td class="num col-lg">{{ comparison.a.n_ok }}/{{ comparison.a.n_cells }}</td>
+          <td class="num col-lg">{{ comparison.a.n_passed }}/{{ comparison.a.n_checks }}</td>
+          <td class="num col-md">{{ comparison.a.cost_text }}</td>
           <td class="num">{{ comparison.a.cost_per_correct_text }}</td>
-          <td><span class="mono">{{ comparison.a.price_table_short }}</span><span class="subtle price-models">{{ comparison.a.price_models }}</span></td>
+          <td class="col-lg"><span class="mono">{{ comparison.a.price_table_short }}</span><span class="subtle price-models">{{ comparison.a.price_models }}</span></td>
         </tr>
         <tr>
           <th scope="row">B &middot; {{ comparison.b.label }}</th>
           <td>
             <a href="/runs/{{ comparison.b.run_id }}">{{ comparison.b.spec_name }}</a>
-            <span class="mono subtle run-id">{{ comparison.b.run_id[:12] }}</span>
+            <span class="mono subtle run-id" title="{{ comparison.b.run_id }}">{{ comparison.b.run_id[:8] }}</span>
           </td>
-          <td><span class="status status-{{ comparison.b.status }}">{{ comparison.b.status }}</span></td>
-          <td class="num">{{ comparison.b.n_ok }}/{{ comparison.b.n_cells }}</td>
-          <td class="num">{{ comparison.b.n_passed }}/{{ comparison.b.n_checks }}</td>
-          <td class="num">{{ comparison.b.cost_text }}</td>
+          <td class="col-md"><span class="status status-{{ comparison.b.status }}">{{ comparison.b.status }}</span></td>
+          <td class="num col-lg">{{ comparison.b.n_ok }}/{{ comparison.b.n_cells }}</td>
+          <td class="num col-lg">{{ comparison.b.n_passed }}/{{ comparison.b.n_checks }}</td>
+          <td class="num col-md">{{ comparison.b.cost_text }}</td>
           <td class="num">{{ comparison.b.cost_per_correct_text }}</td>
-          <td><span class="mono">{{ comparison.b.price_table_short }}</span><span class="subtle price-models">{{ comparison.b.price_models }}</span></td>
+          <td class="col-lg"><span class="mono">{{ comparison.b.price_table_short }}</span><span class="subtle price-models">{{ comparison.b.price_models }}</span></td>
         </tr>
       </tbody>
     </table>
@@ -112,49 +112,49 @@
     </div>
   </div>
   {% if comparison.metrics %}
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Metric comparison table">
     <table class="compare-metrics">
       <caption class="sr-only">Per metric: sample size, value, delta, 95 percent interval, verdict, judge and cost per correct answer</caption>
       <thead>
         <tr>
           <th scope="col">Metric</th>
-          <th scope="col" class="num">A n</th>
-          <th scope="col" class="num">A value</th>
-          <th scope="col" class="num">B n</th>
-          <th scope="col" class="num">B value</th>
+          <th scope="col" class="num col-lg">A n</th>
+          <th scope="col" class="num col-sm">A value</th>
+          <th scope="col" class="num col-lg">B n</th>
+          <th scope="col" class="num col-sm">B value</th>
           <th scope="col" class="num">Delta (B &minus; A)</th>
-          <th scope="col" class="num">95% interval</th>
+          <th scope="col" class="num col-md">95% interval</th>
           <th scope="col">Verdict</th>
-          <th scope="col">Judge A</th>
-          <th scope="col">Judge B</th>
-          <th scope="col" class="num">A cost / correct</th>
-          <th scope="col" class="num">B cost / correct</th>
+          <th scope="col" class="col-lg">Judge A</th>
+          <th scope="col" class="col-lg">Judge B</th>
+          <th scope="col" class="num col-lg">A cost / correct</th>
+          <th scope="col" class="num col-lg">B cost / correct</th>
         </tr>
       </thead>
       <tbody>
         {% for row in comparison.metrics %}
         <tr{% if row.different_judge %} class="different-judge-row"{% endif %}>
           <th scope="row" class="mono">{{ row.metric }}</th>
-          <td class="num">{{ row.a_n }}</td>
-          <td class="num">{{ row.a_value_text }}</td>
-          <td class="num">{{ row.b_n }}</td>
-          <td class="num">{{ row.b_value_text }}</td>
+          <td class="num col-lg">{{ row.a_n }}</td>
+          <td class="num col-sm">{{ row.a_value_text }}</td>
+          <td class="num col-lg">{{ row.b_n }}</td>
+          <td class="num col-sm">{{ row.b_value_text }}</td>
           <td class="num">{{ row.delta_text }}</td>
-          <td class="num">{{ row.delta_interval_text }}</td>
+          <td class="num col-md">{{ row.delta_interval_text }}</td>
           <td>
             <span class="verdict verdict-{{ row.verdict_class }}"><span aria-hidden="true">{{ row.verdict_glyph }}</span> {{ row.verdict_label }}</span>
             <span class="subtle verdict-reason">{{ row.reason }}</span>
           </td>
-          <td>
+          <td class="col-lg">
             <span class="mono judge-name">{{ row.judge_a_name }}</span>
             <span class="subtle judge-detail">{{ row.judge_a_detail }}</span>
           </td>
-          <td>
+          <td class="col-lg">
             <span class="mono judge-name">{{ row.judge_b_name }}</span>
             <span class="subtle judge-detail">{{ row.judge_b_detail }}</span>
           </td>
-          <td class="num">{{ row.a_cost_text }}</td>
-          <td class="num">{{ row.b_cost_text }}</td>
+          <td class="num col-lg">{{ row.a_cost_text }}</td>
+          <td class="num col-lg">{{ row.b_cost_text }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -189,14 +189,14 @@
     <span class="count">{{ comparison.one_sided_cases|length }} case{{ "" if comparison.one_sided_cases|length == 1 else "s" }}</span>
   </div>
   {% if comparison.one_sided_cases %}
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Cases on one side table">
     <table class="compare-cases">
       <caption class="sr-only">Cases present on only one side, with side, cell count and links to each cell</caption>
       <thead>
         <tr>
           <th scope="col">Case</th>
           <th scope="col">Side</th>
-          <th scope="col" class="num">Cells</th>
+          <th scope="col" class="num col-sm">Cells</th>
           <th scope="col">Links</th>
         </tr>
       </thead>
@@ -205,7 +205,7 @@
         <tr>
           <th scope="row" class="mono">{{ item.case_id }}</th>
           <td><span class="side-badge">Side {{ item.side_label }}</span></td>
-          <td class="num">{{ item.count }}</td>
+          <td class="num col-sm">{{ item.count }}</td>
           <td class="cell-links">
             {% for cell in item.cells %}
             <a class="mono" href="{{ cell.url }}" title="Open the cell in run {{ cell.status }}">{{ cell.cell_id }}</a>{% if not loop.last %}, {% endif %}
