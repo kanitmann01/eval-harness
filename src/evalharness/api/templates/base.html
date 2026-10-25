@@ -10,6 +10,9 @@
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header">
     <a class="brand" href="{{ url_for('run_list') }}">evalharness <span>console</span></a>
+    <nav class="site-nav" aria-label="Primary">
+      <a href="{{ url_for('compare') }}"{% if request.url.path == '/compare' %} aria-current="page"{% endif %}>Compare</a>
+    </nav>
     <span class="badge badge-muted">read-only</span>
   </header>
   <main id="main" class="page">

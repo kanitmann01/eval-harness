@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+{% block title %}Compare &middot; evalharness console{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Breadcrumb">
+  <a href="{{ url_for('run_list') }}">Runs</a>
+  <span aria-hidden="true">/</span>
+  <span>Compare</span>
+</nav>
+
+<div class="page-head">
+  <div>
+    <h1>Compare</h1>
+    <p class="lede">Does B beat A, by how much, on how many samples, and at what cost per correct answer? Delta is B minus A and every delta carries a 95 percent interval. An interval that crosses zero is inconclusive, whatever the point delta says.</p>
+  </div>
+</div>
+
+<form class="filters compare-form" method="get" action="{{ url_for('compare') }}" aria-label="Choose two runs to compare">
+  <label>
+    <span>Run A</span>
+    <select name="a">
+      <option value="">Select run A</option>
+      {% for choice in run_choices %}
+      <option value="{{ choice.value }}"{% if choice.value == selected_a %} selected{% endif %}>{{ choice.label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <label>
+    <span>Run B</span>
+    <select name="b">
+      <option value="">Select run B</option>
+      {% for choice in run_choices %}
+      <option value="{{ choice.value }}"{% if choice.value == selected_b %} selected{% endif %}>{{ choice.label }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button type="submit">Compare</button>
+</form>
+<p class="subtle compare-hint">Candidate mode: <code>/compare?run=&lt;run id&gt;&amp;candidate_a=&lt;name&gt;&amp;candidate_b=&lt;name&gt;</code>. To compare candidates from two runs, add <code>a=</code> and <code>b=</code> too. The same query answers as JSON at <code>{{ json_url }}</code>.</p>
+
+{% if comparison %}
+{% if comparison.cross_judge_metrics %}
+<p class="callout callout-warn" role="alert">
+  <strong>Different judge:</strong> {{ comparison.cross_judge_metrics|join(", ") }} {{ "was" if comparison.cross_judge_metrics|length == 1 else "were" }} scored by different judge configurations. The delta is shown for context but is not presented as a win.
+</p>
+{% endif %}
+{% if not comparison.same_price_table %}
+<p class="callout callout-warn" role="alert">
+  <strong>Different price tables:</strong> the two sides did not use the same prices, so the cost figures are not directly comparable.
+</p>
+{% endif %}
+
+<section class="panel" aria-labelledby="sides-heading">
+  <div class="panel-head">
+    <div>
+      <h2 id="sides-heading">Sides</h2>
+      <p class="subtle">A is the baseline, B is the candidate. Cost per correct answer is the side's total cost divided by its passed checks.</p>
+    </div>
+    <span class="count">{{ "candidate mode" if comparison.mode == "candidates" else "run mode" }}</span>
+  </div>
+  <div class="table-wrap">
+    <table class="compare-sides">
+      <caption class="sr-only">The two compared sides with cells, checks, cost and price table</caption>
+      <thead>
+        <tr>
+          <th scope="col">Side</th>
+          <th scope="col">Run</th>
+          <th scope="col">Status</th>
+          <th scope="col" class="num">Cells ok</th>
+          <th scope="col" class="num">Checks passed</th>
+          <th scope="col" class="num">Cost</th>
+          <th scope="col" class="num">Cost per correct answer</th>
+          <th scope="col">Price table</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <th scope="row">A &middot; {{ comparison.a.label }}</th>
+          <td>
+            <a href="/runs/{{ comparison.a.run_id }}">{{ comparison.a.spec_name }}</a>
+            <span class="mono subtle run-id">{{ comparison.a.run_id[:12] }}</span>
+          </td>
+          <td><span class="status status-{{ comparison.a.status }}">{{ comparison.a.status }}</span></td>
+          <td class="num">{{ comparison.a.n_ok }}/{{ comparison.a.n_cells }}</td>
+          <td class="num">{{ comparison.a.n_passed }}/{{ comparison.a.n_checks }}</td>
+          <td class="num">{{ comparison.a.cost_text }}</td>
+          <td class="num">{{ comparison.a.cost_per_correct_text }}</td>
+          <td><span class="mono">{{ comparison.a.price_table_short }}</span><span class="subtle price-models">{{ comparison.a.price_models }}</span></td>
+        </tr>
+        <tr>
+          <th scope="row">B &middot; {{ comparison.b.label }}</th>
+          <td>
+            <a href="/runs/{{ comparison.b.run_id }}">{{ comparison.b.spec_name }}</a>
+            <span class="mono subtle run-id">{{ comparison.b.run_id[:12] }}</span>
+          </td>
+          <td><span class="status status-{{ comparison.b.status }}">{{ comparison.b.status }}</span></td>
+          <td class="num">{{ comparison.b.n_ok }}/{{ comparison.b.n_cells }}</td>
+          <td class="num">{{ comparison.b.n_passed }}/{{ comparison.b.n_checks }}</td>
+          <td class="num">{{ comparison.b.cost_text }}</td>
+          <td class="num">{{ comparison.b.cost_per_correct_text }}</td>
+          <td><span class="mono">{{ comparison.b.price_table_short }}</span><span class="subtle price-models">{{ comparison.b.price_models }}</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel" aria-labelledby="metrics-heading">
+  <div class="panel-head">
+    <div>
+      <h2 id="metrics-heading">Metrics</h2>
+      <p class="subtle">Delta is B minus A. The interval is the 95 percent Newcombe hybrid score interval for that difference, built from each side's Wilson bounds.</p>
+    </div>
+  </div>
+  {% if comparison.metrics %}
+  <div class="table-wrap">
+    <table class="compare-metrics">
+      <caption class="sr-only">Per metric: sample size, value, delta, 95 percent interval, verdict, judge and cost per correct answer</caption>
+      <thead>
+        <tr>
+          <th scope="col">Metric</th>
+          <th scope="col" class="num">A n</th>
+          <th scope="col" class="num">A value</th>
+          <th scope="col" class="num">B n</th>
+          <th scope="col" class="num">B value</th>
+          <th scope="col" class="num">Delta (B &minus; A)</th>
+          <th scope="col" class="num">95% interval</th>
+          <th scope="col">Verdict</th>
+          <th scope="col">Judge A</th>
+          <th scope="col">Judge B</th>
+          <th scope="col" class="num">A cost / correct</th>
+          <th scope="col" class="num">B cost / correct</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in comparison.metrics %}
+        <tr{% if row.different_judge %} class="different-judge-row"{% endif %}>
+          <th scope="row" class="mono">{{ row.metric }}</th>
+          <td class="num">{{ row.a_n }}</td>
+          <td class="num">{{ row.a_value_text }}</td>
+          <td class="num">{{ row.b_n }}</td>
+          <td class="num">{{ row.b_value_text }}</td>
+          <td class="num">{{ row.delta_text }}</td>
+          <td class="num">{{ row.delta_interval_text }}</td>
+          <td>
+            <span class="verdict verdict-{{ row.verdict_class }}"><span aria-hidden="true">{{ row.verdict_glyph }}</span> {{ row.verdict_label }}</span>
+            <span class="subtle verdict-reason">{{ row.reason }}</span>
+          </td>
+          <td>
+            <span class="mono judge-name">{{ row.judge_a_name }}</span>
+            <span class="subtle judge-detail">{{ row.judge_a_detail }}</span>
+          </td>
+          <td>
+            <span class="mono judge-name">{{ row.judge_b_name }}</span>
+            <span class="subtle judge-detail">{{ row.judge_b_detail }}</span>
+          </td>
+          <td class="num">{{ row.a_cost_text }}</td>
+          <td class="num">{{ row.b_cost_text }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty-state">Neither side declares a metric, so there is nothing to compare.</p>
+  {% endif %}
+
+  <h3>Which metrics are comparable</h3>
+  <p>
+    {% if comparison.comparable_metrics %}
+    Comparable: <strong>{{ comparison.comparable_metrics|join(", ") }}</strong>.
+    {% else %}
+    No metric is comparable: every row either has no samples on a side or was scored by a different judge.
+    {% endif %}
+    {% if comparison.one_sided_metrics %}
+    No samples on one side: <strong>{{ comparison.one_sided_metrics|join(", ") }}</strong> (shown as undefined, never zero).
+    {% endif %}
+    {% if comparison.cross_judge_metrics %}
+    Different judge: <strong>{{ comparison.cross_judge_metrics|join(", ") }}</strong>.
+    {% endif %}
+  </p>
+</section>
+
+<section class="panel" aria-labelledby="cases-heading">
+  <div class="panel-head">
+    <div>
+      <h2 id="cases-heading">Cases on only one side</h2>
+      <p class="subtle">The union of case ids decides which cases exist. A case recorded on one side is listed here rather than dropped, and it is never counted as a tie.</p>
+    </div>
+    <span class="count">{{ comparison.one_sided_cases|length }} case{{ "" if comparison.one_sided_cases|length == 1 else "s" }}</span>
+  </div>
+  {% if comparison.one_sided_cases %}
+  <div class="table-wrap">
+    <table class="compare-cases">
+      <caption class="sr-only">Cases present on only one side, with side, cell count and links to each cell</caption>
+      <thead>
+        <tr>
+          <th scope="col">Case</th>
+          <th scope="col">Side</th>
+          <th scope="col" class="num">Cells</th>
+          <th scope="col">Links</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in comparison.one_sided_cases %}
+        <tr>
+          <th scope="row" class="mono">{{ item.case_id }}</th>
+          <td><span class="side-badge">Side {{ item.side_label }}</span></td>
+          <td class="num">{{ item.count }}</td>
+          <td class="cell-links">
+            {% for cell in item.cells %}
+            <a class="mono" href="{{ cell.url }}" title="Open the cell in run {{ cell.status }}">{{ cell.cell_id }}</a>{% if not loop.last %}, {% endif %}
+            {% endfor %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty-state">Every case is present on both sides.</p>
+  {% endif %}
+</section>
+
+<section class="panel" aria-labelledby="rule-heading">
+  <h2 id="rule-heading">The rule</h2>
+  <p>The point delta is B minus A. The dependent 95 percent interval uses each side's Wilson score bounds (Newcombe's hybrid score method), so it stays sensible at small n and at 0 or 100 percent. When the interval crosses zero the verdict is <strong>inconclusive</strong>, whatever the point delta says. A comparison across different judges is flagged and never called a win.</p>
+  <p class="subtle">A side with no samples has no delta and no interval, so it is undefined rather than zero. Cost per correct answer divides the side's total cost by that metric's passed checks; it is undefined when nothing passed.</p>
+  <p><a href="{{ json_url }}">JSON for this comparison</a></p>
+</section>
+{% else %}
+<section class="panel empty-panel">
+  <h2>Nothing to compare yet</h2>
+  <p class="empty-state">{{ empty_message }}</p>
+</section>
+{% endif %}
+{% endblock %}

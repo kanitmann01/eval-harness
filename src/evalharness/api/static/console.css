@@ -350,3 +350,56 @@ tbody tr:hover { background: var(--surface-2); }
   body { background: #fff; color: #000; }
   .panel, .table-wrap { box-shadow: none; }
 }
+
+/* BEGIN issue #10: compare view. Keep this block delimited so later tickets
+   can add their own sections without merging this one. */
+.site-nav { display: flex; align-items: baseline; gap: 1rem; margin-left: auto; }
+.site-nav a { color: var(--muted); font-weight: 600; text-decoration: none; }
+.site-nav a:hover, .site-nav a[aria-current="page"] { color: var(--ink); }
+.site-nav a[aria-current="page"] { text-decoration: underline; text-underline-offset: 0.2em; }
+
+.compare-form { margin-bottom: 0.5rem; }
+.compare-hint { margin: 0 0 1rem; overflow-wrap: anywhere; }
+.compare-sides th[scope="row"] { white-space: nowrap; }
+.compare-metrics th[scope="row"] { white-space: nowrap; }
+.price-models { display: block; font-size: 0.75rem; }
+
+.verdict {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+.verdict-better { background: var(--pass-bg); color: var(--pass-ink); }
+.verdict-worse { background: var(--fail-bg); color: var(--fail-ink); }
+.verdict-inconclusive { background: var(--unknown-bg); color: var(--unknown-ink); }
+.verdict-undefined, .verdict-different-judge { background: var(--error-bg); color: var(--error-ink); }
+
+.judge-name { display: block; }
+.judge-detail, .verdict-reason { display: block; font-size: 0.75rem; }
+.different-judge-row { background: var(--error-bg); }
+.different-judge-row:hover { background: var(--error-bg); }
+
+.side-badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.76rem;
+  font-weight: 650;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--muted);
+}
+.cell-links { overflow-wrap: anywhere; }
+.callout-warn { background: var(--error-bg); color: var(--error-ink); border-color: var(--error-ink); }
+
+@media (max-width: 700px) {
+  .site-header { flex-wrap: wrap; }
+  .site-nav { margin-left: 0; }
+}
+/* END issue #10: compare view. */

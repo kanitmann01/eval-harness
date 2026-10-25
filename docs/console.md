@@ -156,3 +156,83 @@ hand.
   covers it.
 - **New display formatting** belongs in `api/templating.py` as a Jinja filter,
   and new JSON shapes belong in `api/views.py`, so pages and API stay in step.
+
+## Compare
+
+`GET /compare` answers the decision rather than drawing a chart: does B
+beat A, by how much, on how many samples, at what cost per correct answer, and
+under which judge. The same numbers are served as JSON at
+`GET /api/compare`.
+
+| Query form | Meaning |
+| --- | --- |
+| `/compare?a=<run id>&b=<run id>` | Compare two whole runs. Each side pools every candidate in that run. |
+| `/compare?run=<run id>&candidate_a=<name>&candidate_b=<name>` | Compare two candidates inside one run. |
+| `/compare?a=<run id>&b=<run id>&candidate_a=<name>&candidate_b=<name>` | Compare one candidate from each of two runs. |
+| `/api/compare` with any of the above | The same comparison as JSON. |
+
+The page also offers a form with two run selects. With no query parameters it
+renders an empty state that explains what to pick; with no runs at all it says
+how to start one. A missing or unknown run id, an unknown candidate, or a
+half-specified candidate query is a 404 with a message naming the argument to
+fix. A candidate name must have cells in the run it is paired with.
+
+The JSON shape is:
+
+~~~json
+{
+  "mode": "runs",
+  "a": {"run_id": "...", "spec_name": "...", "status": "ok",
+        "candidate": null, "cost_usd": 0.0001, "cost_per_correct": 0.000025,
+        "n_cells": 4, "n_ok": 4, "n_checks": 4, "n_passed": 4,
+        "candidates": ["stub-concise"],
+        "price_table": {"id": "<sha256>", "prices": {"stub-1": {"input": 0.15, "output": 0.6, "tool": 0.0}}}},
+  "b": {"...": "same fields"},
+  "same_price_table": true,
+  "metrics": [
+    {"metric": "exact_match",
+     "a": {"n": 4, "passed": 4, "value": 1.0, "ci_low": 0.5101, "ci_high": 1.0,
+           "cost_per_correct": 0.000025,
+           "judge": {"name": null, "adapter": null, "model": null,
+                     "config_hash": "<sha256>", "hash_source": "spec"}},
+     "b": {"...": "same fields"},
+     "delta": -1.0, "interval_low": -1.0, "interval_high": -0.18,
+     "verdict": "worse", "reason": "B is lower and the interval excludes zero",
+     "comparable": true, "different_judge": false}
+  ],
+  "one_sided_cases": [
+    {"case_id": "case-2", "side": "a", "count": 2,
+     "cells": [{"cell_id": "ab12", "run_id": "...", "status": "ok",
+                "url": "/runs/.../cells/ab12"}]}
+  ],
+  "comparable_metrics": ["exact_match"],
+  "cross_judge_metrics": [],
+  "one_sided_metrics": []
+}
+~~~
+
+`a` is the baseline and `b` the candidate, so the delta is always B minus A.
+Each metric row carries n, passed checks, value and the per-side Wilson
+interval, plus the delta, the 95 percent interval on the delta, a verdict, the
+judge identity on each side and the cost per correct answer. Cost per correct
+answer is the side's total cost divided by that metric's passed checks; it is
+`null` when nothing passed. Price table identity is the sha256 of the run's
+resolved price snapshot, and `same_price_table` is false when the two sides
+used different prices.
+
+The judge is named from the run's spec snapshot, with the adapter and model,
+and its `config_hash` is the stored check hash when one exists; otherwise it
+is derived from the snapshot and `hash_source` says `spec`. When the two
+sides' hashes differ for the same metric, `different_judge` is true, the
+page shows a prominent warning, and the verdict is `inconclusive`: a
+cross-judge difference is never presented as a win.
+
+The union of case ids decides which cases exist. Every case recorded on only
+one side is listed with its side, cell count and a link to each cell. It is
+never silently dropped from the denominator and never counted as a tie.
+
+The verdict follows the statistical rule in [statistics.md](statistics.md):
+`better` when the delta is positive and the interval lies above zero, `worse`
+when it is negative and the interval lies below zero, `inconclusive` when the
+interval crosses zero, and `undefined` when either side has no samples. A side
+with n = 0 is rendered as undefined, never as zero.
