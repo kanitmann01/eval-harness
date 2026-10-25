@@ -198,13 +198,15 @@ async def test_api_launch_lands_on_the_run_and_streams_to_a_finished_record(
         assert stream.text.count("event: run_finished") == 1
         assert "event: run_cancelled" not in stream.text
 
+        # The terminal event is emitted before the launch thread stores the
+        # final aggregates and gates, so wait for the lock to be released.
+        assert await _wait_for_idle(console.app)
         finished = (await client.get(f"/api/runs/{run_id}")).json()
         assert finished["status"] == "ok"
         assert finished["n_cells"] == 2 and finished["n_ok"] == 2
         assert finished["gates"][0]["passed"] is True
         assert finished["aggregates"][0]["n"] == 2
 
-        assert await _wait_for_idle(console.app)
         after = await client.get("/launch")
         assert "already running" not in after.text
 
@@ -643,3 +645,12 @@ async def test_the_specs_directory_defaults_next_to_the_database(
             assert str(specs.resolve()) in page.text
     finally:
         app.state.database.dispose()
+
+
+async def test_launch_page_shows_a_friendly_specs_path(console: Console) -> None:
+    specs_dir = _specs_dir().resolve()
+    relative = specs_dir.relative_to(Path.cwd().resolve()).as_posix()
+    async with _client(console.app) as client:
+        page = await client.get("/launch")
+        assert f'<code title="{specs_dir}">{relative}</code>' in page.text
+        assert f">{specs_dir}<" not in page.text

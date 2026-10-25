@@ -25,7 +25,7 @@
   <div class="panel-head">
     <div>
       <h2 id="launch-heading">Spec and budget</h2>
-      <p class="subtle">Specs are read from <code>{{ specs_root }}</code>. A launch is refused before anything executes when the estimate is over the cap.</p>
+      <p class="subtle">Specs are read from <code title="{{ specs_root }}">{{ specs_root|shortpath }}</code>. A launch is refused before anything executes when the estimate is over the cap.</p>
     </div>
   </div>
   <form class="launch-form" method="post" action="{{ url_for('launch_submit') }}">
@@ -39,13 +39,13 @@
     {% else %}
     <label for="spec">Spec path</label>
     <input id="spec" name="spec" type="text" value="{{ selected }}" placeholder="my-spec.yaml" aria-describedby="spec-hint">
-    <p class="subtle" id="spec-hint">No specs were found in <code>{{ specs_root }}</code>. Write a YAML spec there, or type its path relative to that directory. Set <code>EVALH_SPECS_DIR</code> to point the console at another directory.</p>
+    <p class="subtle" id="spec-hint">No specs were found in <code title="{{ specs_root }}">{{ specs_root|shortpath }}</code>. Write a YAML spec there, or type its path relative to that directory. Set <code>EVALH_SPECS_DIR</code> to point the console at another directory.</p>
     {% endif %}
     <label for="budget">Budget override (USD)</label>
     <input id="budget" name="budget_override_usd" type="number" min="0" step="0.000001" inputmode="decimal" value="{{ budget_override }}" aria-describedby="estimate-hint">
     <p class="subtle" id="estimate-hint">
       {% if estimate %}
-      Estimate: <strong>{{ estimate.cost_usd|usd }}</strong> over {{ estimate.cells }} cell{{ "" if estimate.cells == 1 else "s" }} for <span class="mono">{{ spec_name }}</span> ({{ estimate.prompt_tokens }} prompt + {{ estimate.completion_tokens }} completion tokens per cell; spec budget {{ spec_budget_usd|usd }}). Leave the override empty to use the spec budget.
+      Estimate: <strong title="{{ estimate.cost_usd|usdexact }}">{{ estimate.cost_usd|usd }}</strong> over {{ estimate.cells }} cell{{ "" if estimate.cells == 1 else "s" }} for <span class="mono">{{ spec_name }}</span> ({{ estimate.prompt_tokens }} prompt + {{ estimate.completion_tokens }} completion tokens per cell; spec budget <span title="{{ spec_budget_usd|usdexact }}">{{ spec_budget_usd|usd }}</span>). Leave the override empty to use the spec budget.
       {% elif estimate_error %}
       The estimate is unavailable: {{ estimate_error }}
       {% else %}

@@ -588,3 +588,45 @@ def test_serve_cli_builds_the_app_and_calls_uvicorn(
     assert default_host == "127.0.0.1"
     assert default_port == 8000
     assert second.state.settings.database_url == Settings.from_env().database_url
+
+
+def _table_row(text: str, spec_name: str) -> str:
+    """Return the HTML of the run-list row that names one spec."""
+    start = text.index(spec_name)
+    return text[start : text.index("</tr>", start)]
+
+
+async def test_run_detail_breadcrumb_uses_a_short_run_id(console: Console) -> None:
+    run_id = console.runs["alpha"]
+    async with _client(console.app) as client:
+        text = (await client.get(f"/runs/{run_id}")).text
+        crumbs = text.split('class="crumbs"', 1)[1].split("</nav>", 1)[0]
+        assert f'title="{run_id}"' in crumbs
+        assert f">{run_id[:8]}<" in crumbs
+        assert f">{run_id}<" not in crumbs
+
+
+async def test_pages_declare_an_inline_favicon_and_an_accurate_badge(
+    console: Console,
+) -> None:
+    async with _client(console.app) as client:
+        text = (await client.get("/")).text
+        assert 'rel="icon"' in text
+        assert "data:image/svg+xml" in text
+        assert "%231f5e4b" in text
+        assert "single user" in text
+        assert "read-only results" not in text
+
+
+async def test_run_list_formats_tiny_costs_without_a_fake_zero(
+    console: Console,
+) -> None:
+    async with _client(console.app) as client:
+        text = (await client.get("/")).text
+        alpha = _table_row(text, "alpha-spec")
+        beta = _table_row(text, "beta-spec")
+        gamma = _table_row(text, "gamma-spec")
+        assert "$0.000026" in alpha
+        assert "$0.0000066" in beta
+        assert "$0.00" in gamma
+        assert "$0.000000" not in text

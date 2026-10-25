@@ -512,3 +512,30 @@ def test_the_cli_runs_a_spec_saved_by_the_editor(
     assert run is not None
     assert run.status == "ok"
     assert run.spec_snapshot["name"] == "test-spec"
+
+
+async def test_specs_page_shows_a_friendly_specs_path(editor: Console) -> None:
+    specs_dir = editor.settings.specs_dir
+    specs_dir.mkdir(parents=True)
+    (specs_dir / "smoke.yaml").write_text(_yaml(), encoding="utf-8")
+    relative = specs_dir.resolve().relative_to(Path.cwd().resolve()).as_posix()
+    async with _client(editor.app) as client:
+        page = await client.get("/specs")
+        assert f'<code title="{specs_dir}">{relative}</code>' in page.text
+        assert f">{specs_dir}<" not in page.text
+
+
+async def test_specs_path_falls_back_to_the_directory_name_outside_the_cwd(
+    editor: Console,
+    workdir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    specs_dir = editor.settings.specs_dir
+    specs_dir.mkdir(parents=True)
+    (specs_dir / "smoke.yaml").write_text(_yaml(), encoding="utf-8")
+    elsewhere = workdir / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+    async with _client(editor.app) as client:
+        page = await client.get("/specs")
+        assert f'<code title="{specs_dir}">{specs_dir.name}</code>' in page.text
