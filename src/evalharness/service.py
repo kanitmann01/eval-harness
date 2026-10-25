@@ -27,6 +27,7 @@ from evalharness.core.cost import (
     CostEstimate,
     estimate_cost,
     observed_medians,
+    provider_cost_rows,
 )
 from evalharness.core.events import EventEmitter
 from evalharness.core.executor import (
@@ -43,6 +44,7 @@ from evalharness.core.models import (
     CredentialRecord,
     CredentialState,
     GateResult,
+    ProviderCost,
     RunRecord,
     utc_now,
 )
@@ -85,6 +87,7 @@ class RunOutcome:
     summaries: list[CandidateSummary]
     aggregates: list[Aggregate]
     gates: list[GateResult]
+    provider_costs: list[ProviderCost]
     exit_code: int
     reason: str
 
@@ -234,6 +237,8 @@ def execute(
         repository.record_aggregates(aggregates)
         gates = evaluate_gates(resolved.spec.gates, aggregates)
         repository.record_gates(run.run_id, gates)
+        provider_costs = provider_cost_rows(run.run_id, all_cells)
+        repository.record_provider_costs(run.run_id, provider_costs)
         result = ExecutionResult(
             run=execution.run,
             cells=all_cells,
@@ -247,6 +252,7 @@ def execute(
             summaries=result.summaries,
             aggregates=aggregates,
             gates=gates,
+            provider_costs=provider_costs,
             exit_code=exit_codes.for_run(
                 status=result.run.status,
                 gate_failed=any(not gate.passed for gate in gates),
@@ -297,7 +303,7 @@ def _estimate(
     )
     return estimate_cost(
         resolved.spec,
-        resolved.prices,
+        resolved.candidate_prices,
         per_candidate_counts(cells),
         median_prompt_tokens=prompt,
         median_completion_tokens=completion,
@@ -377,9 +383,7 @@ def _launch_run(
         spec_id=spec_id,
         spec_name=resolved.spec.name,
         spec_snapshot=resolved.spec.model_dump(mode="json"),
-        prices_snapshot={
-            model: price.model_dump() for model, price in resolved.prices.items()
-        },
+        prices_snapshot=resolved.price_table.snapshot(),
         harness_sha=harness_revision(),
         seed=resolved.spec.seed,
         status="running",

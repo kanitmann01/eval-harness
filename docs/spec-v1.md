@@ -89,7 +89,8 @@ silently ignored.
 | metrics | list of metrics | yes | none | At least one; keys are unique. |
 | judges | list of judges | no | [] | Named judges a metric may name. |
 | gates | list of gates | no | [] | Thresholds on metric aggregates, run-wide or for one named candidate. |
-| prices | mapping model -> price | no | {} | Every candidate model, and every declared judge model, needs a price. |
+| prices | mapping model -> price | no | {} | Model-only price overrides, USD per million tokens. Every candidate model, and every declared judge model, needs a price from here, provider_prices, or the shipped table. |
+| provider_prices | mapping provider -> model -> price | no | {} | Provider-specific price overrides; wins over prices and over the shipped table. |
 | sink | mapping | no | JSON artifact sink | Optional sink override with adapter and options. |
 
 ## source
@@ -142,13 +143,14 @@ stored keeps its old behaviour, which is what lets a non-credential adapter run
 without a vault entry. See [credentials.md](credentials.md) and
 [console.md#credentials](console.md#credentials).
 
-There is a stronger rule for a candidate whose adapter needs a secret, such as
-the HTTP candidate with `auth: bearer` or `auth: header`. Declaring the name in
-the spec is not enough: the name must be **stored in the vault**, because a spec
-declaration cannot supply a secret. Validation fails before any cell and names
-`candidates[i].credential`. A candidate with `auth: none` needs no credential,
-and may omit the field entirely. See
-[http-candidate.md](http-candidate.md) for the auth shapes.
+There is a stronger rule for a candidate or judge whose adapter needs a secret,
+such as the HTTP candidate with `auth: bearer` or `auth: header`, or either
+provider adapter. Declaring the name in the spec is not enough: the name must be
+**stored in the vault**, because a spec declaration cannot supply a secret.
+Validation fails before any cell and names `candidates[i].credential` or
+`judges[i].credential`. An adapter with `auth: none` needs no credential, and
+may omit the field entirely. See [http-candidate.md](http-candidate.md) and
+[providers.md](providers.md) for the auth shapes.
 
 ## candidates
 
@@ -157,8 +159,8 @@ and may omit the field entirely. See
 | name | string | yes | Unique. Recorded on every cell. |
 | adapter | string | yes | Registered name or module:attr dotted path. |
 | credential | string | no | A name declared under credentials or stored in the vault. Optional only when the adapter needs no secret, for example an HTTP candidate with `auth: none`. |
-| model | string | yes | Must have an entry under prices. |
-| options | mapping | no | Adapter options. prompt, context and answers are the ones this ticket uses. The HTTP candidate's options are base_url, path, timeout_s, auth and header_name. |
+| model | string | yes | Must have a resolved price (see prices). A provider adapter uses it as the model it calls and reports its provider's price. |
+| options | mapping | no | Adapter options. prompt, context and answers are the ones this ticket uses. The HTTP candidate's options are base_url, path, timeout_s, auth and header_name; the provider candidates add system, temperature and max_tokens. |
 
 The candidate name is the identity passed to its factory. Prompt and context
 are ambient: the candidate reads them from RunContext, not from settings.
@@ -171,10 +173,14 @@ the spec key. `Metric.check` is async, so a judge-backed metric can await its
 judge; [judges.md](judges.md) covers the wiring, hashing and cost split.
 
 A judge has a unique name, an adapter, an optional credential and an optional
-`model`. When `model` is set it needs a price and it is the key used to price
-the judge's tokens; when it is omitted the judge costs zero. Everything else
-that changes judge behaviour (temperature, instructions, claims) belongs under
-`options` and is covered by the check's `judge_config_hash`.
+`model`. When `model` is set it needs a resolved price and it is the key used
+to price the judge's tokens; when it is omitted the judge costs zero. A judge
+adapter that declares `requires_model` (both provider judges do) must be given a
+model, and validation names `judges[i].model` when it is missing. A judge
+adapter that declares `requires_credential` must name a **stored** credential;
+validation names `judges[i].credential` otherwise. Everything else that changes
+judge behaviour (temperature, instructions, claims) belongs under `options` and
+is covered by the check's `judge_config_hash`.
 
 ~~~yaml
 metrics:
@@ -210,20 +216,34 @@ detail. See [runs.md](runs.md) for the exit-code contract.
 
 ## prices
 
-USD per million tokens, keyed by model:
+USD per million tokens. Every price is resolved from three sources, most
+specific first: a spec `provider_prices` entry, a spec `prices` entry, then the
+shipped table at `config/prices.yaml` (packaged as
+`evalharness/config/prices.yaml`), keyed by provider then model.
 
 ~~~yaml
 prices:
   stub-1: {input: 0.15, output: 0.60, tool: 0.0}
+provider_prices:
+  openai-compatible:
+    gpt-4o-mini: {input: 0.10, output: 0.40}
 ~~~
 
-Missing prices are a validation error naming prices.<model>, including the model
-of a declared judge. The resolved table is snapshotted on the run. Cost is split
-into answer, judge and tool parts; every cell stores `answer_cost_usd`,
+`prices` is the model-only syntax every earlier spec uses and still wins over a
+shipped default; `provider_prices` lets the same model carry two prices at two
+providers and wins over both. A declared model with no price anywhere is a
+validation error naming `prices.<model>` and, for a provider adapter, the
+provider it was looked up under, including the model of a declared judge.
+
+The resolved table is snapshotted on the run as version 2, nested by provider;
+the empty provider key is the provider-agnostic bucket. Cost is split into
+answer, judge and tool parts; every cell stores `answer_cost_usd`,
 `judge_cost_usd`, `tool_cost_usd` and their sum in `cost_usd`, plus the judge
 prompt and completion tokens it triggered. Judge cost is charged to the cell
-that triggered it. A candidate records `usage_source` as provider or estimated;
-a verdict records its own.
+that triggered it, and separately attributed to the judge's provider in the
+run's `provider_costs` rows. A candidate records `usage_source` as provider or
+estimated; a verdict records its own. [providers.md](providers.md) has the full
+price and attribution contract.
 
 ## Adapter factory contract
 
@@ -238,9 +258,12 @@ keys before anything runs. The executor builds one candidate instance per
 worker and reuses it for that worker's cells.
 
 `Capabilities` also declares `requires_credential` (validation needs a stored
-secret, not just a declared name) and `max_attempts` (the total attempt budget
-for a typed transport failure; the default 2 means one call plus one retry, and
-the HTTP candidate declares 3). See [adapters.md](adapters.md).
+secret, not just a declared name), `requires_model` (a judge that calls a
+provider must be given a model), `provider` (the pricing and attribution
+identity) and `max_attempts` (the total attempt budget for a typed transport
+failure; the default 2 means one call plus one retry, and the HTTP and provider
+adapters declare 3). Judges expose the same declaration; a deterministic judge
+keeps the defaults. See [adapters.md](adapters.md).
 
 ## One validator
 
@@ -272,9 +295,12 @@ evalh credentials delete NAME [--yes]
 ~~~
 
 After the run table, a cost line prints the split from the stored cells:
-`cost: answer $x, judge $y, tools $z`. The aggregates table then prints
-candidate, metric, tier (`all` for the overall row), n, the value as a
-percentage or `undefined`, the 95 percent Wilson interval, pass@k and pass^k.
+`cost: answer $x, judge $y, tools $z`. One provider line then prints the
+cells, candidate tokens, judge tokens and total cost per provider, so a
+multi-provider run attributes its spend without opening the database. The
+aggregates table then prints candidate, metric, tier (`all` for the overall
+row), n, the value as a percentage or `undefined`, the 95 percent Wilson
+interval, pass@k and pass^k.
 See [statistics.md](statistics.md) for the formulas and for why an empty
 proportion is undefined rather than zero.
 

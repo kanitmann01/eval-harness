@@ -20,20 +20,25 @@ from sqlalchemy.engine import Connection, Engine
 from evalharness.errors import SchemaMigrationError
 from evalharness.storage.models import AggregateRow, Base
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
 """The schema this build writes; bump it when a new migration is added.
 
 Version 2 adds the nullable runs.budget_override_usd column from issue #3.
 Version 3 adds the nullable gates.candidate, comparison, threshold, observed
 and n columns from issue #8. Version 4 adds the nullable cells cost-split and
 judge-token columns from issue #7. Version 5 adds credentials.disabled from
-issue #13. The first four need no hand-written step: a database recorded below
-the current version goes through the generic nullable-column pass, which adds
+issue #13. Version 6 adds the nullable cells.provider and
+cells.judge_provider_usage columns from issue #17 plus the new provider_costs
+table. The first four need no hand-written step: a database recorded below the
+current version goes through the generic nullable-column pass, which adds
 whatever the ORM maps and the database lacks, then records the current version.
 The issue #7 columns are nullable because a stored cell predates them; the
 repository reads NULL as zero, and every new cell writes an explicit value.
 disabled is NOT NULL, so it is added by a dedicated step that supplies the
-false default an existing row needs.
+false default an existing row needs. The issue #17 columns are nullable for the
+same reason, and provider_costs needs no ALTER at all: `Database.create_all`
+creates it on the next open, and its rows are rolled up per run rather than
+migrated from data that never existed.
 """
 
 _STAGING_TABLE = "aggregates_rebuild"

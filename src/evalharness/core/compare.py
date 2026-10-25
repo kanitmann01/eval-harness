@@ -278,11 +278,28 @@ def _side(
 
 
 def _price_table(run: RunRecord) -> PriceTable:
-    """Return the run's price snapshot with a sha256 identity over its content."""
-    prices = {
-        str(model): {str(key): float(value) for key, value in dict(price).items()}
-        for model, price in run.prices_snapshot.items()
-    }
+    """Return the run's price snapshot with a sha256 identity over its content.
+
+    A version 2 snapshot nests the table by provider and is flattened to
+    `provider/model` keys; a provider-agnostic entry keeps the bare model key,
+    so the display stays readable. A snapshot written before issue #17 is
+    already flat and is read as it stands.
+    """
+    snapshot = dict(run.prices_snapshot)
+    if snapshot.get("version") == 2:
+        providers = snapshot.get("providers") or {}
+        prices = {
+            (
+                f"{provider}/{model}" if provider else str(model)
+            ): {str(key): float(value) for key, value in dict(price).items()}
+            for provider, models in providers.items()
+            for model, price in models.items()
+        }
+    else:
+        prices = {
+            str(model): {str(key): float(value) for key, value in dict(price).items()}
+            for model, price in snapshot.items()
+        }
     identity = hashlib.sha256(
         json.dumps(prices, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()

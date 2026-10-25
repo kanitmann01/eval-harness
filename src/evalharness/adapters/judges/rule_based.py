@@ -10,10 +10,13 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from evalharness.core.models import JudgeRequest, Verdict
+from evalharness.core.protocols import Capabilities
 
 
 class RuleBasedJudge:
     """Pass when the expected answer appears in the candidate's answer."""
+
+    capabilities = Capabilities()
 
     def __init__(self, name: str, expected_key: str = "answer") -> None:
         self.name = name

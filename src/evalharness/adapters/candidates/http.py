@@ -8,14 +8,13 @@ from settings.
 
 from __future__ import annotations
 
-import math
 import time
-from dataclasses import dataclass
-from typing import Any, Literal, Mapping
+from typing import Any, Mapping
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from evalharness.adapters.transport import map_usage, post_json
 from evalharness.core.context import RunContext
 from evalharness.core.models import CandidateOutput, Case
 from evalharness.core.protocols import Capabilities
@@ -41,9 +40,6 @@ DEFAULT_TIMEOUT_S = 30.0
 
 ATTEMPT_BUDGET = 3
 """One first attempt plus two retries for a typed transport failure."""
-
-CHARS_PER_TOKEN = 4
-"""The documented estimation rule for an endpoint that does not report usage."""
 
 WRONG_ANSWER = "conformance-wrong-answer"
 """The deliberately wrong answer the conformance suite asks this adapter to return."""
@@ -79,15 +75,6 @@ class _RunResponse(BaseModel):
     tool_calls: int = 0
     artifacts: dict[str, Any] = Field(default_factory=dict)
     model: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class _MappedUsage:
-    """Token counts and where they came from, after the estimation rule."""
-
-    prompt_tokens: int
-    completion_tokens: int
-    source: Literal["provider", "estimated"]
 
 
 class HttpCandidate:
@@ -162,7 +149,22 @@ class HttpCandidate:
         response = await self._post(payload, headers)
         latency_ms = int((time.perf_counter() - started) * 1000)
         parsed = _parse_response(response)
-        usage = _map_usage(parsed, case, ctx)
+        prompt_text = (
+            ctx.prompt_override
+            if ctx.prompt_override is not None
+            else case.prompt
+        )
+        prompt_chars = prompt_text + "".join(chunk.text for chunk in ctx.chunks)
+        usage = map_usage(
+            prompt_tokens=(
+                parsed.usage.prompt_tokens if parsed.usage is not None else None
+            ),
+            completion_tokens=(
+                parsed.usage.completion_tokens if parsed.usage is not None else None
+            ),
+            prompt_text=prompt_chars,
+            completion_text=parsed.answer,
+        )
         return CandidateOutput(
             answer=parsed.answer,
             tool_calls=parsed.tool_calls,
@@ -197,25 +199,14 @@ class HttpCandidate:
         payload: dict[str, Any],
         headers: dict[str, str],
     ) -> httpx.Response:
-        """POST one request and classify the status into retry, error or success."""
-        try:
-            async with httpx.AsyncClient(timeout=self._timeout_s) as client:
-                response = await client.post(
-                    self._url, json=payload, headers=headers
-                )
-        except httpx.HTTPError as exc:
-            raise TransportError(f"request to {self._url} failed: {exc}") from exc
-        if response.status_code == 429 or response.status_code >= 500:
-            raise TransportError(
-                f"{self._url} returned HTTP {response.status_code}: "
-                f"{_provider_message(response)}"
-            )
-        if not response.is_success:
-            raise HttpCandidateError(
-                f"{self._url} returned HTTP {response.status_code}: "
-                f"{_provider_message(response) or response.reason_phrase}"
-            )
-        return response
+        """POST one request, sharing the provider retry and error policy."""
+        return await post_json(
+            self._url,
+            payload,
+            headers,
+            timeout_s=self._timeout_s,
+            error_type=HttpCandidateError,
+        )
 
 
 def _parse_response(response: httpx.Response) -> _RunResponse:
@@ -236,59 +227,6 @@ def _parse_response(response: httpx.Response) -> _RunResponse:
             f"{response.url} returned a response that does not match "
             f"candidate-v1 at {field}: {error.get('msg', 'invalid value')}"
         ) from exc
-
-
-def _map_usage(
-    parsed: _RunResponse,
-    case: Case,
-    ctx: RunContext,
-) -> _MappedUsage:
-    """Use provider-reported usage when both counts are present, else estimate.
-
-    The estimate is `ceil(characters / 4)`: prompt characters are the prompt
-    text (or its override) plus every injected chunk, completion characters are
-    the answer. A response missing one count keeps the reported count and
-    estimates only the missing one, but the source is still `estimated`.
-    """
-    prompt_text = (
-        ctx.prompt_override if ctx.prompt_override is not None else case.prompt
-    )
-    prompt_chars = len(prompt_text) + sum(len(chunk.text) for chunk in ctx.chunks)
-    estimated_prompt = math.ceil(prompt_chars / CHARS_PER_TOKEN)
-    estimated_completion = math.ceil(len(parsed.answer) / CHARS_PER_TOKEN)
-    usage = parsed.usage
-    if usage is None:
-        return _MappedUsage(estimated_prompt, estimated_completion, "estimated")
-    prompt_tokens = usage.prompt_tokens
-    completion_tokens = usage.completion_tokens
-    if prompt_tokens is None or completion_tokens is None:
-        return _MappedUsage(
-            estimated_prompt if prompt_tokens is None else prompt_tokens,
-            (
-                estimated_completion
-                if completion_tokens is None
-                else completion_tokens
-            ),
-            "estimated",
-        )
-    return _MappedUsage(prompt_tokens, completion_tokens, "provider")
-
-
-def _provider_message(response: httpx.Response) -> str:
-    """Return the provider's error text verbatim, or an empty string."""
-    try:
-        payload = response.json()
-    except ValueError:
-        return response.text.strip()
-    if not isinstance(payload, dict):
-        return ""
-    error = payload.get("error")
-    if isinstance(error, dict):
-        error = error.get("message")
-    if isinstance(error, str):
-        return error
-    message = payload.get("message")
-    return message if isinstance(message, str) else ""
 
 
 def build(identity: str, options: Mapping[str, Any]) -> HttpCandidate:

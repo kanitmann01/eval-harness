@@ -9,10 +9,12 @@ from sqlalchemy import text
 
 import tests.adapters  # noqa: F401 - importing registers the test adapters
 from evalharness.cli import main
+from evalharness.core.cost import provider_cost_rows
 from evalharness.core.models import (
     Aggregate,
     CellRecord,
     GateResult,
+    ProviderCost,
     RunRecord,
     utc_now,
 )
@@ -280,7 +282,7 @@ def test_migration_adds_gate_arithmetic_columns(evalh_home, workdir):
             version = connection.exec_driver_sql(
                 "SELECT MAX(version) FROM schema_version"
             ).scalar()
-        assert version == 5
+        assert version == 6
     finally:
         reopened.dispose()
 
@@ -368,7 +370,6 @@ def test_migration_adds_the_cost_split_to_a_version_3_database(evalh_home, workd
     finally:
         reopened.dispose()
 
-
 def test_migration_adds_credentials_disabled(evalh_home, workdir):
     url = _database_url(workdir, "version-4.db")
     database = Database(url)
@@ -394,6 +395,87 @@ def test_migration_adds_credentials_disabled(evalh_home, workdir):
             version = connection.exec_driver_sql(
                 "SELECT MAX(version) FROM schema_version"
             ).scalar()
-        assert version == 5
+        assert version == 6
+    finally:
+        reopened.dispose()
+
+
+def test_migration_adds_provider_attribution_to_a_version_4_database(
+    evalh_home, workdir
+):
+    url = _database_url(workdir, "version-4-provider.db")
+    database = Database(url)
+    database.create_all()
+    repository = Repository(database)
+    repository.save_spec("spec-old", "old-spec", "yaml", "sha", utc_now())
+    repository.create_run(
+        RunRecord(
+            run_id="run-old",
+            spec_id="spec-old",
+            status="ok",
+            started_at=utc_now(),
+        )
+    )
+    repository.record_cell(
+        CellRecord(
+            cell_id="cell-old",
+            run_id="run-old",
+            candidate="cand",
+            case_id="case",
+            replica=1,
+            judge_cost_usd=0.25,
+            judge_prompt_tokens=4,
+            judge_completion_tokens=2,
+        )
+    )
+    with database.engine.begin() as connection:
+        connection.exec_driver_sql("ALTER TABLE cells DROP COLUMN provider")
+        connection.exec_driver_sql(
+            "ALTER TABLE cells DROP COLUMN judge_provider_usage"
+        )
+        connection.exec_driver_sql("DROP TABLE provider_costs")
+        connection.execute(text("UPDATE schema_version SET version = 4"))
+    database.dispose()
+
+    reopened = Database(url)
+    reopened.create_all()
+    repository = Repository(reopened)
+    try:
+        old = repository.list_cells("run-old")[0]
+        assert old.provider == ""
+        assert old.judge_provider_usage == {}
+        # The legacy cell still attributes its judge cost to its own provider.
+        costs = provider_cost_rows("run-old", [old])
+        assert [(row.provider, row.judge_cost_usd) for row in costs] == [
+            ("", 0.25)
+        ]
+
+        repository.record_provider_costs(
+            "run-old",
+            [
+                ProviderCost(
+                    run_id="run-old",
+                    provider="openai-compatible",
+                    n_cells=1,
+                    prompt_tokens=10,
+                    completion_tokens=5,
+                    judge_prompt_tokens=4,
+                    judge_completion_tokens=2,
+                    answer_cost_usd=0.5,
+                    judge_cost_usd=0.25,
+                    tool_cost_usd=0.0,
+                    cost_usd=0.75,
+                )
+            ],
+        )
+        written = repository.list_provider_costs("run-old")
+        assert [(row.provider, row.cost_usd) for row in written] == [
+            ("openai-compatible", 0.75)
+        ]
+        with reopened.engine.begin() as connection:
+            version = connection.execute(
+                text("SELECT MAX(version) FROM schema_version")
+            ).scalar()
+        assert version == 6
     finally:
         reopened.dispose()

@@ -98,9 +98,40 @@ class CellRow(Base):
         Integer, nullable=True
     )
     usage_source: Mapped[str] = mapped_column(String(20), nullable=False)
+    # Issue #17 attributes cost per provider. Both columns are nullable so a
+    # database written before provider support gains them in place; an old row
+    # reads back as the provider-agnostic bucket with no judge split.
+    provider: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    judge_provider_usage: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     answer: Mapped[str] = mapped_column(Text, nullable=False, default="")
     output: Mapped[dict] = mapped_column(JSON, nullable=False)
     artifact_dir: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class ProviderCostRow(Base):
+    """One provider's share of one run: cells, tokens and the cost split.
+
+    A new table rather than columns on `runs`: a run has a variable number of
+    providers, and a wide `provider_1_*`, `provider_2_*` shape would cap it.
+    `cost_usd` is the sum of the three parts, so the rows always add up to the
+    run's stored cost.
+    """
+
+    __tablename__ = "provider_costs"
+
+    run_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("runs.run_id"), primary_key=True
+    )
+    provider: Mapped[str] = mapped_column(String(80), primary_key=True)
+    n_cells: Mapped[int] = mapped_column(Integer, nullable=False)
+    prompt_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+    completion_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+    judge_prompt_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+    judge_completion_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
+    answer_cost_usd: Mapped[float] = mapped_column(Float, nullable=False)
+    judge_cost_usd: Mapped[float] = mapped_column(Float, nullable=False)
+    tool_cost_usd: Mapped[float] = mapped_column(Float, nullable=False)
+    cost_usd: Mapped[float] = mapped_column(Float, nullable=False)
 
 
 class CheckRow(Base):

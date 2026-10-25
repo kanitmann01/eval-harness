@@ -4,9 +4,12 @@ from __future__ import annotations
 
 from evalharness.adapters.manifest import (
     DEFAULT_HTTP_CONFORMANCE_BASE_URL,
+    DEFAULT_PROVIDER_CONFORMANCE_BASE_URL,
     HTTP_CANDIDATE,
     HTTP_CONFORMANCE_ENV,
     MANIFEST,
+    PROVIDER_CONFORMANCE_ENV,
+    PROVIDER_OPENAI_CANDIDATE,
     ManifestEntry,
     conformance_options,
     first_party_factories,
@@ -45,8 +48,34 @@ def test_http_conformance_endpoint_comes_from_the_environment():
     assert explicit["base_url"] == "http://stub:9"
 
 
+def _provider_entry(base_url: str | None = None) -> ManifestEntry:
+    options: dict[str, object] = {"auth": "none"}
+    if base_url is not None:
+        options["base_url"] = base_url
+    return ManifestEntry(PROVIDER_OPENAI_CANDIDATE, "candidate", options)
+
+
+def test_provider_conformance_endpoint_comes_from_the_environment():
+    overridden = conformance_options(
+        _provider_entry(None),
+        {PROVIDER_CONFORMANCE_ENV: "http://127.0.0.1:9912"},
+    )
+    default = conformance_options(
+        _provider_entry(DEFAULT_PROVIDER_CONFORMANCE_BASE_URL), {}
+    )
+    explicit = conformance_options(
+        _provider_entry("http://stub:9"),
+        {PROVIDER_CONFORMANCE_ENV: "http://127.0.0.1:9912"},
+    )
+
+    assert overridden["base_url"] == "http://127.0.0.1:9912"
+    assert default["base_url"] == DEFAULT_PROVIDER_CONFORMANCE_BASE_URL
+    assert default["auth"] == "none"
+    assert explicit["base_url"] == "http://stub:9"
+
+
 def test_every_manifest_adapter_passes_the_public_suite(
-    evalh_home, http_conformance_stub
+    evalh_home, http_conformance_stub, provider_conformance_stub
 ):
     reports = run_all()
 

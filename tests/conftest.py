@@ -13,9 +13,12 @@ from typing import Iterator
 
 import pytest
 
-from evalharness.adapters.manifest import HTTP_CONFORMANCE_OPTIONS
+from evalharness.adapters.manifest import (
+    HTTP_CONFORMANCE_OPTIONS,
+    PROVIDER_CONFORMANCE_OPTIONS,
+)
 from tests.helpers import TEST_MASTER_KEY
-from tests.http_stub import CandidateStubServer
+from tests.http_stub import CandidateStubServer, provider_response
 
 _ENV_KEYS = (
     "EVALH_DATABASE_URL",
@@ -94,6 +97,37 @@ def http_conformance_stub() -> Iterator[CandidateStubServer]:
             HTTP_CONFORMANCE_OPTIONS.pop("base_url", None)
         else:
             HTTP_CONFORMANCE_OPTIONS["base_url"] = previous
+        server.close()
+
+
+@pytest.fixture
+def provider_stub() -> Iterator[CandidateStubServer]:
+    """Serve both provider dialects on a fresh loopback port for one test."""
+    server = CandidateStubServer(path_responder=provider_response)
+    try:
+        yield server
+    finally:
+        server.close()
+
+
+@pytest.fixture(scope="session")
+def provider_conformance_stub() -> Iterator[CandidateStubServer]:
+    """Point the four provider manifest rows at a real local stub.
+
+    Same rule as the HTTP row: conformance must run against a server, not a
+    mock, so the fixture writes the live URL into the shared row options and
+    restores them afterwards.
+    """
+    server = CandidateStubServer(path_responder=provider_response)
+    previous = PROVIDER_CONFORMANCE_OPTIONS.get("base_url")
+    PROVIDER_CONFORMANCE_OPTIONS["base_url"] = server.base_url
+    try:
+        yield server
+    finally:
+        if previous is None:
+            PROVIDER_CONFORMANCE_OPTIONS.pop("base_url", None)
+        else:
+            PROVIDER_CONFORMANCE_OPTIONS["base_url"] = previous
         server.close()
 
 

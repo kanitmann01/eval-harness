@@ -178,6 +178,18 @@ class RaisingJudge(_Judge):
         raise RuntimeError("judge exploded")
 
 
+class BadUsageJudge(_Judge):
+    async def verdict(self, request: JudgeRequest) -> Any:
+        return Verdict.model_construct(
+            passed=True,
+            reason="ok",
+            evidence={},
+            prompt_tokens=1,
+            completion_tokens=1,
+            usage_source="guessed",
+        )
+
+
 class _Metric:
     """Base broken metric."""
 
@@ -315,6 +327,7 @@ build_empty_reason_judge = _factory(EmptyReasonJudge)
 build_bad_evidence_judge = _factory(BadEvidenceJudge)
 build_toggling_judge = _factory(TogglingJudge)
 build_raising_judge = _factory(RaisingJudge)
+build_bad_usage_judge = _factory(BadUsageJudge)
 build_dict_checks_metric = _factory(DictChecksMetric)
 build_empty_checks_metric = _factory(EmptyChecksMetric)
 build_wrong_key_metric = _factory(WrongKeyMetric)
@@ -344,6 +357,7 @@ BROKEN_CASES = [
     ("build_empty_reason_judge", "judge", "judge/3"),
     ("build_bad_evidence_judge", "judge", "judge/4"),
     ("build_toggling_judge", "judge", "judge/5"),
+    ("build_bad_usage_judge", "judge", "judge/6"),
     ("build_dict_checks_metric", "metric", "metric/1"),
     ("build_empty_checks_metric", "metric", "metric/2"),
     ("build_wrong_key_metric", "metric", "metric/3"),

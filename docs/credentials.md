@@ -182,6 +182,22 @@ missing-credential validation error are specified in
 [http-candidate.md](http-candidate.md); this file remains the reference for the
 vault itself.
 
+## Credentials for a provider adapter
+
+The two provider families use the same vault and the same resolution rule, for
+candidates and for judges:
+
+| Adapter family | `auth` default | Header sent | Credential arrives as |
+| --- | --- | --- | --- |
+| OpenAI-compatible | `bearer` | `Authorization: Bearer <secret>` | `RunContext.credential` for a candidate, `JudgeRequest.credential` for a judge |
+| Anthropic-style | `header` | `x-api-key: <secret>` plus `anthropic-version` | same |
+
+`auth: none` sends no auth header and needs no stored secret, which is how the
+provider demo and the conformance suite run without a paid key. A missing
+credential for a judge is a spec error naming `judges[i].credential`, before any
+cell; the provider judge does not fail at request time. The full matrix is in
+[providers.md](providers.md).
+
 ## Rotation
 
 Provider keys: a duplicate name is rejected, so rotate with `delete` then `add`, or add a
