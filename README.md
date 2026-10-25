@@ -11,7 +11,8 @@ the cell that triggered it and split from the answer's cost. Provider keys are a
 listed, verified and deleted from the command line, encrypted at rest and redacted
 everywhere. The console serves the run list, the candidate by case heatmap and per-cell
 evidence and a side-by-side compare view with deltas, intervals and cost per
-correct answer.
+correct answer. A saved spec can be launched and cancelled from the console, one
+run per container at a time.
 The spec of record is issue #1 in this repository.
 
 ## What it will be

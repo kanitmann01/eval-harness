@@ -131,10 +131,12 @@ A run id is driven by exactly one `evalh run` invocation at a time.
 - A finished run's cells, aggregates and gates are rewritten only by its own
   resume. Nobody appends cells to an `ok` run.
 
-Issue #12 (the console's rerun and resume surface) must rely on this rule: one
-active driver per run id, a "rerun" action starts a new run id, and "resume" is
-offered only for a run that is not `ok` and is not currently driven by another
-process.
+The console implements one process-wide launch lock on top of this rule: one
+run at a time per container, a second launch is refused with 409 rather than
+queued, and the lock is released on finish, cancel and error. See
+[console.md](console.md#one-run-at-a-time). The cancel token contract above is
+unchanged; the console sets the token with the reason
+`cancelled from the console`.
 
 <!-- BEGIN issue #8: gate aggregates and their storage. Keep this block
      delimited so later runs tickets can add sections around it. -->

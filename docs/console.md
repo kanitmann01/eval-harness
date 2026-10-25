@@ -1,11 +1,16 @@
-# Read-only console
+# Console
 
-A run launched from a terminal is legible in a browser: the whole matrix, one
-cell, and the raw artifact behind that cell. Pages are Jinja2 templates served
-by FastAPI; there is no Node build, no CDN and no client-side state.
+A run is legible and launchable in a browser: the whole matrix, one cell, the
+raw artifact behind that cell, and a launch and cancel surface. Pages are Jinja2
+templates served by FastAPI; there is no Node build, no CDN and no client-side
+state.
 
-The console is read-only. It never launches, cancels or edits a run. The CLI
-owns execution; the console reads the same database and artifacts directory.
+The results pages are read-only: they never edit a run, a cell or a stored
+record. Launch and cancel, described under
+[Launch and cancel](#launch-and-cancel), are the write actions on runs; they use
+the CLI's orchestration, so a console run and a command line run of one spec
+produce the same record. The [spec editor](#spec-editor) is the write surface
+for spec files.
 
 ## Run it
 
@@ -55,9 +60,9 @@ missing file is a 404, as is a traversal attempt.
 
 ## Spec editor
 
-The spec editor is the one write surface in the console: it edits, validates
-and saves YAML spec files under `EVALH_SPECS_DIR` (default `specs` beside the
-database; `EVALH_HOME/specs` when the database has no file). It writes no
+The spec editor is the console's write surface for spec files: it edits,
+validates and saves YAML spec files under `EVALH_SPECS_DIR` (default `specs`
+beside the database; `EVALH_HOME/specs` when the database has no file). It writes no
 harness state to the database, so the file is the only source of truth and a
 run reads exactly the text the editor saved. Runs, artifacts and credentials
 stay read-only.
@@ -153,6 +158,92 @@ data: {"kind": "cell_completed", "payload": {...}, "run_id": "...", "seq": 4, "t
 The detail page opens an `EventSource` for this route and closes it on
 `run_finished`. The page also renders the stored event history in a
 `<details>` element for readers without JavaScript.
+
+## Launch and cancel
+
+A saved spec can be started and stopped from the browser. Both actions call the
+same orchestration as `evalh run` (`src/evalharness/service.py`): the load and
+validation, the budget estimate and override, the planning, the executor with
+the vault, redactor, sink and repository, the aggregates and the gates. A
+console launch and a command line launch of one spec therefore record the same
+status, cell ids, checks, cost, aggregates and gates, differing only in the run
+id and the timestamps.
+
+| Route | What it does |
+| --- | --- |
+| `GET /launch` | The launch page: spec picker, the estimate for the selected spec, a budget override field and a Launch button. `?spec=<name>` loads an estimate. |
+| `POST /launch` | The page form. Launches, then redirects (303) to `/runs/{run_id}`. A refusal re-renders the page with the reason and a 400 or 409 status. |
+| `POST /api/runs` | JSON launch: `{"spec": "<name-or-path>", "budget_override_usd": 1.5}` returns 202 with `{"run_id": "...", "url": "/runs/..."}`. |
+| `POST /api/runs/{run_id}/cancel` | Sets the in-flight run's cancel token; 200 with `{"run_id", "cancelling": true}`. 409 when this console is not driving that run. |
+| `POST /runs/{run_id}/cancel` | The run page's Cancel button. 303 back to the run when it accepted; a 409 page explaining the refusal otherwise. |
+
+### Specs directory
+
+The console launches from `Settings.specs_dir`, the same directory the
+[spec editor](#spec-editor) writes. `EVALH_SPECS_DIR` overrides it; the default
+is `specs` beside the database, or `EVALH_HOME/specs` when the database has no
+file. The picker lists `*.yaml` and `*.yml` files there, and a bare name
+resolves to `<name>.yaml` then `<name>.yml`. A path that resolves outside the
+directory is refused with 400, so the console only reads what an operator put
+there. When the directory is missing or empty the page explains that and falls
+back to a plain text field.
+
+### What a launch does
+
+- The spec is loaded, validated, planned and estimated exactly as `evalh run`
+  does. The estimate uses the medians an earlier run of the same spec measured,
+  falling back to 500 prompt and 200 completion tokens per cell. Showing the
+  estimate loads the spec, so a broken spec is named on the page before anyone
+  presses Launch.
+- `budget_override_usd` replaces the cap for this run only and is stored in
+  `runs.budget_override_usd` with a `budget_overridden` event, exactly like
+  `--override-budget`. An override that is not a finite positive number is a
+  400. A spec whose estimate exceeds its cap is refused with 400 and nothing is
+  recorded, matching exit code 2 on the command line.
+- The run executes in a daemon thread with its own asyncio loop. It creates the
+  run row first, then writes cells and events as they finish, so
+  `GET /runs/{run_id}` and its SSE stream show progress while the run is still
+  in flight.
+- `POST /api/runs` answers 202 only once the run row exists, so the returned
+  `url` always lands on a page that renders. A launch that fails before that
+  (invalid spec, over-budget estimate, a sink that cannot be built) answers 400
+  with the reason.
+
+### One run at a time
+
+The console process holds one launch lock in `app.state.launches`, created in
+`api/launch.py`. A second launch while one is in flight is refused with 409 and
+a message naming the running run id and its cancel route; it is never queued.
+The lock is released when the run finishes, when it is cancelled (once the
+current cells drain), and on every error path, including a crashed run loop.
+A finished or cancelled console run does not block the next launch.
+
+### Cancel
+
+The cancel token contract is unchanged from [runs.md](runs.md#cancel): the token
+is honoured between cells, work already in flight finishes and is recorded,
+unstarted cells are stored as `cancelled` with the reason, completed cells and
+their checks are kept, and the run closes as `cancelled` with `run_cancelled`
+before `run_finished`. The console cancels with the reason
+`cancelled from the console`, so a cell record says where the stop came from.
+
+Cancelling a run this console is not driving is a 409, including a run started
+by a terminal process and a run that already finished. The Cancel button on a
+run page is rendered by the shared navigation partial while the stored status is
+`running`; pressing it on a run another process owns shows the refusal page
+rather than pretending to stop it. The JSON route is the scriptable form.
+
+### Shutdown
+
+The route module registers a shutdown handler. When the application stops
+(uvicorn on Ctrl-C, or a test that closes the application) it cancels an
+in-flight launch and joins its thread with a ten second timeout, so a run is
+left cancelled rather than `running` and a test does not leak a thread.
+
+The read-only pages are untouched by this feature. `base.html` carries the
+primary navigation (Specs, Compare, Launch) and, when the page context has a
+`run` whose status is `running`, the cancel form; `api/routes/launch.py` is
+one more discovered route module.
 
 ## How tests build the app
 
