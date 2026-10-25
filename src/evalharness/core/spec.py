@@ -104,10 +104,22 @@ def spec_sha(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def load_and_validate(path: str | Path) -> ResolvedSpec:
-    """Load a spec file and validate it in one step."""
+def load_and_validate(
+    path: str | Path,
+    *,
+    stored_credentials: Iterable[str] = (),
+) -> ResolvedSpec:
+    """Load a spec file and validate it in one step.
+
+    `stored_credentials` names credentials present in the vault; a candidate or
+    judge may use one without declaring it again in the spec.
+    """
     raw_text = read_spec(path)
-    return validate_spec(parse_spec(raw_text), raw_text=raw_text)
+    return validate_spec(
+        parse_spec(raw_text),
+        raw_text=raw_text,
+        stored_credentials=stored_credentials,
+    )
 
 
 def _resolve_factory(path: str, field: str) -> AdapterFactory:
@@ -164,7 +176,8 @@ def _declared_credential(
             field,
             name,
             "unknown credential",
-            f"declare it under credentials: or use one of: {choices}",
+            "declare it under credentials:, add it with 'evalh credentials "
+            f"add', or use one of: {choices}",
         )
 
 
@@ -249,8 +262,17 @@ def _candidate_axes(
     return override, chunks
 
 
-def validate_spec(spec: Spec, raw_text: str = "") -> ResolvedSpec:
-    """Validate every declarative reference before anything executes."""
+def validate_spec(
+    spec: Spec,
+    raw_text: str = "",
+    *,
+    stored_credentials: Iterable[str] = (),
+) -> ResolvedSpec:
+    """Validate every declarative reference before anything executes.
+
+    A credential is known when the spec declares it or the vault stores it.
+    `stored_credentials` is the vault's name list, never its secrets.
+    """
     _unique(
         (candidate.name for candidate in spec.candidates), "candidates", "candidate"
     )
@@ -263,6 +285,7 @@ def validate_spec(spec: Spec, raw_text: str = "") -> ResolvedSpec:
     )
 
     known_credentials = {credential.name for credential in spec.credentials}
+    known_credentials.update(stored_credentials)
 
     for index, candidate in enumerate(spec.candidates):
         _declared_credential(

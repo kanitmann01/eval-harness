@@ -12,6 +12,9 @@ from evalharness.core.config import Settings
 from evalharness.storage.db import Database
 from evalharness.storage.repository import Repository
 
+TEST_MASTER_KEY = "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY="
+"""A fixed, valid 32-byte Fernet key used by tests; never a real secret."""
+
 INLINE_SOURCE = "evalharness.adapters.sources.inline:build"
 STUB = "evalharness.adapters.candidates.stub:build"
 STUB_SLOW = "evalharness.adapters.candidates.stub:build_slow"

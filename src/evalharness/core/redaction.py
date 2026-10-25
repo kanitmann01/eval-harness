@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Mapping, Protocol
 
 
@@ -56,3 +57,19 @@ class SecretRedactor:
         if isinstance(value, tuple):
             return tuple(self.redact_data(item) for item in value)
         return value
+
+
+class RedactionFilter(logging.Filter):
+    """A logging filter that redacts every record before a handler writes it."""
+
+    def __init__(self, redactor: Redactor) -> None:
+        super().__init__()
+        self._redactor = redactor
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Redact the message and its arguments, keeping the record."""
+        if isinstance(record.msg, str):
+            record.msg = self._redactor.redact(record.msg)
+        if record.args:
+            record.args = self._redactor.redact_data(record.args)
+        return True

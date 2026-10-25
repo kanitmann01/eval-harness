@@ -388,7 +388,7 @@ class _Execution:
             candidate=cell.candidate,
             cases=self.cases_by_id,
         )
-        checks = checks_for_cell(record, self.metrics, score_ctx)
+        checks = self._redact_checks(checks_for_cell(record, self.metrics, score_ctx))
         self._store(record, checks)
         self.spend_usd += split.total_usd
         self.emitter.emit(
@@ -406,6 +406,18 @@ class _Execution:
         """Advance the cancel limit and re-check the budget after one cell."""
         self.cancel_token.record_completion()
         self._check_budget()
+
+    def _redact_checks(self, checks: list[Check]) -> list[Check]:
+        """Redact metric evidence before it reaches storage or a sink."""
+        return [
+            check.model_copy(
+                update={
+                    "reason": self.redactor.redact(check.reason),
+                    "evidence": self.redactor.redact_data(check.evidence),
+                }
+            )
+            for check in checks
+        ]
 
     def _store(self, cell: CellRecord, checks: list[Check]) -> None:
         self.repository.record_cell(cell)

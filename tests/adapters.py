@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import signal
 from typing import Any, Mapping
 
@@ -139,6 +140,39 @@ class InterruptingCandidate:
         )
 
 
+class CredentialEchoCandidate:
+    """Echo the run credential, proving the context carries it and no settings."""
+
+    capabilities = Capabilities()
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    async def run(self, case: Case, ctx: RunContext) -> CandidateOutput:
+        credential = ctx.credential
+        secret = credential.secret if credential is not None else ""
+        logging.getLogger("evalharness.tests.credential").info(
+            "candidate saw credential %s", secret
+        )
+        ctx.events.emit("candidate_note", {"credential": secret})
+        return CandidateOutput(
+            answer=secret or "no-credential",
+            prompt_tokens=10,
+            completion_tokens=5,
+            model=ctx.model,
+            usage_source="provider",
+            artifacts={
+                "credential_name": (
+                    credential.name if credential is not None else None
+                ),
+                "provider": (
+                    credential.provider if credential is not None else None
+                ),
+                "secret_length": len(secret),
+            },
+        )
+
+
 class StubJudge:
     """A judge that always passes, used to exercise judge validation."""
 
@@ -205,6 +239,12 @@ def _interrupting(
     return InterruptingCandidate(identity)
 
 
+def _credential_echo(
+    identity: str, options: Mapping[str, Any]
+) -> CredentialEchoCandidate:
+    return CredentialEchoCandidate(identity)
+
+
 def _judge(identity: str, options: Mapping[str, Any]) -> StubJudge:
     return StubJudge(identity)
 
@@ -232,6 +272,7 @@ register("test:no_context", _no_context)
 register("test:no_capabilities", _no_capabilities)
 register("test:replica_mix", _replica_mix)
 register("test:interrupting", _interrupting)
+register("test:credential_echo", _credential_echo)
 register("test:judge", _judge)
 register("test:wrong_key_metric", _wrong_key)
 register("test:failing_source", _failing_source)
