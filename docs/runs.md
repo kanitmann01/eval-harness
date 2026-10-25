@@ -207,7 +207,10 @@ their gates pass.
 Gate evaluation is exercised end to end with no paid credential by
 [`examples/specs/gated.yaml`](../examples/specs/gated.yaml) (exit 0) and
 [`examples/specs/gated-failing.yaml`](../examples/specs/gated-failing.yaml)
-(exit 1). CI asserts both codes.
+(exit 1). CI asserts both codes. Every run opens the credential vault, so the
+master key from [credentials.md](credentials.md) must be in the environment;
+CI generates an ephemeral one for its disposable database. That key is not a
+paid credential.
 
 <!-- END issue #8: gate aggregates and their storage. -->
 

@@ -43,6 +43,10 @@ jobs:
           EVALH_HOME: ${{ runner.temp }}/evalh
         run: |
           set -euo pipefail
+          # The vault needs a key before any run. This one is ephemeral and
+          # unlocks only the disposable CI database; it is not a paid
+          # credential and it is never reused outside this job.
+          export EVALH_MASTER_KEY="$(python -c 'import base64, os; print(base64.urlsafe_b64encode(os.urandom(32)).decode())')"
           python -m evalharness run examples/specs/smoke.yaml --db sqlite:///ci.db
           python -m evalharness run examples/specs/gated.yaml --db sqlite:///ci.db
           set +e

@@ -76,7 +76,9 @@ which kind of failure it was. A metric with no samples is undefined, so its
 gate fails with `no samples` in the detail. Gate failure always exits 1; there
 is no flag to turn it off. See [docs/runs.md](docs/runs.md) for the full
 contract and [examples/specs/gated.yaml](examples/specs/gated.yaml) for a spec
-that passes its gate without a paid credential.
+that passes its gate without a paid credential. A run still needs the vault
+master key described below; CI generates an ephemeral one for its disposable
+database.
 
 ## Credentials
 
