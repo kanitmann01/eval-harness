@@ -1,0 +1,62 @@
+spec_version: 1
+name: smoke
+description: >
+  Walking-skeleton smoke spec. Two stub candidates share one case and differ
+  only in prompt variant and context, so the matrix proves both axes are real.
+seed: 7
+
+source:
+  adapter: evalharness.adapters.sources.inline:build
+  options:
+    cases:
+      - case_id: case-1
+        prompt: What is 6 times 7?
+        expected: {answer: "42"}
+        tier: 1
+
+prompts:
+  concise: Answer with digits only, no other words.
+  explained: Answer with the number and one short clause.
+
+contexts:
+  none: []
+  policy:
+    - chunk_id: policy-1
+      text: The answer must be a bare number.
+
+credentials:
+  - name: stub
+    provider: none
+
+candidates:
+  - name: stub-concise
+    adapter: evalharness.adapters.candidates.stub:build
+    credential: stub
+    model: stub-1
+    options:
+      prompt: concise
+      context: none
+  - name: stub-explained
+    adapter: evalharness.adapters.candidates.stub:build
+    credential: stub
+    model: stub-1
+    options:
+      prompt: explained
+      context: policy
+
+replicas: 1
+concurrency: 1
+budget_usd: 1.00
+
+metrics:
+  - key: exact_match
+    adapter: evalharness.adapters.metrics.exact_match:build
+    options: {}
+
+judges: []
+gates: []
+
+prices:
+  stub-1:
+    input: 0.15
+    output: 0.60

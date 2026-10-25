@@ -2,7 +2,9 @@
 
 Adapter-based evaluation harness. The harness is the product; pipelines, agents and corpora are candidates behind adapters.
 
-Status: design. No code yet. The spec of record is issue #1 in this repository.
+Status: walking skeleton. One command validates a spec, expands it into cells, executes
+them sequentially, and writes a run with cells, checks and artifact paths that read back.
+Console, vault and intervals follow. The spec of record is issue #1 in this repository.
 
 ## What it will be
 
@@ -13,7 +15,24 @@ Credentials are BYOK. One container per person, keys verified on save, encrypted
 ## Start here
 
 - `docs/design-adapter-harness.md` — the design note: layering, protocols, spec schema, credential and cost model, executor semantics, storage schema, migration phases.
+- `docs/spec-v1.md` — the spec schema as implemented, field by field.
 - Issue #1 — the spec: problem, solution, 58 user stories, implementation decisions, testing decisions, out of scope.
+
+## Quick start
+
+~~~bash
+python -m pip install -e .
+python -m evalharness validate examples/specs/smoke.yaml
+python -m evalharness run examples/specs/smoke.yaml --dry-run
+python -m evalharness run examples/specs/smoke.yaml
+~~~
+
+The smoke spec needs no keys and no network. It declares a stub candidate and a
+stub price, expands to two cells (one per prompt variant), and writes artifacts
+under `$EVALH_HOME/artifacts/<run_id>/<cell_id>/` with only paths in the database.
+Set `EVALH_HOME` to choose where the SQLite database and artifacts live;
+`EVALH_DATABASE_URL` and `EVALH_ARTIFACTS_DIR` override them individually.
+Exit codes are 0 success, 1 gate failure, 2 spec error, 3 budget abort.
 
 ## Provenance
 
