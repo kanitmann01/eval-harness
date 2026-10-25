@@ -105,6 +105,17 @@ async def Sink.open_run(run: RunRecord) / record_cell(cell) / close_run(run)
    for an endpoint author who never reads this repository; the provider families are in
    [providers.md](providers.md).
 
+## Parity with the RAG pipeline
+
+`examples/parity/fixture/` is the recorded minirag three-arm scoreboard, copied
+from `kenmann01/minirag` at commit `10e2103`; its README records the expected
+totals and pins the sha256 of `expected.json`.
+`examples/parity/minirag_replay_server.py` is the recorded pipeline speaking
+candidate-v1, not a mock of the harness. `tests/test_parity_minirag.py` builds the
+three-candidate spec from the fixture, runs it through the CLI against that server,
+and asserts task totals, per-tier pass counts, tool calls, token totals and cost, so
+a scorer, metric or cost regression fails the suite.
+
 ## Runs
 
 - Cell id is deterministic: `sha1(candidate|case_id|replica)` truncated. Ordering is

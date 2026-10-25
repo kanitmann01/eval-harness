@@ -36,6 +36,16 @@ Credentials are BYOK. One container per person, keys verified on demand, encrypt
 - `contract/candidate-v1.schema.json` — the same contract as JSON Schema (append-compatible only).
 - Issue #1 — the spec: problem, solution, 58 user stories, implementation decisions, testing decisions, out of scope.
 
+## Parity with the RAG pipeline
+
+`examples/parity/fixture/` is the recorded three-arm minirag scoreboard (bare, map,
+map plus rules), copied from `kenmann01/minirag` at commit `10e2103` with a pinned
+sha256 for `expected.json`. `examples/parity/minirag_replay_server.py` serves those
+recorded answers over the candidate-v1 contract, and `tests/test_parity_minirag.py`
+rebuilds the three-candidate spec, runs it through the CLI against that server, and
+asserts the committed scoreboard, so a scorer or cost change that breaks parity fails
+the suite. The fixture README records the provenance and the expected totals.
+
 ## Quick start: the stranger's path
 
 This is the whole path from a clean machine to a result: no maintainer, no paid
