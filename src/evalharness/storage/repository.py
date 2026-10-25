@@ -69,6 +69,16 @@ class Repository:
     def __init__(self, database: Database) -> None:
         self._database = database
 
+    def ping(self) -> None:
+        """Execute a trivial query, raising when the database does not answer.
+
+        The health endpoint calls this instead of opening a second connection
+        or parsing the engine URL, so the probe proves the same path the
+        console uses and never echoes a password embedded in the URL.
+        """
+        with self._database.engine.connect() as connection:
+            connection.execute(select(1)).scalar_one()
+
     def save_spec(
         self,
         spec_id: str,

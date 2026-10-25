@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Callable, Sequence
 
 import uvicorn
+from sqlalchemy.exc import SQLAlchemyError
 
 from evalharness import exit_codes, service
 from evalharness.api.app import create_app
@@ -275,9 +276,38 @@ def _settings_for(args: argparse.Namespace) -> Settings:
 
 
 def _serve(args: argparse.Namespace) -> int:
-    """Serve the read-only console against the CLI's database and artifacts."""
+    """Serve the console, refusing to start without a usable master key.
+
+    Opening the vault before the app is what makes a container's first start
+    print the generated key exactly once and exit 2, so the operator can put
+    it in the environment and start again. A malformed key is refused here
+    instead of surfacing later as a failed console launch.
+    """
     settings = _settings_for(args)
-    app = create_app(settings)
+    try:
+        settings.home.mkdir(parents=True, exist_ok=True)
+        open_vault(settings)
+    except MasterKeyError as exc:
+        return _master_key_failure(exc)
+    except OSError as exc:
+        return _spec_failure(
+            SpecError(
+                "EVALH_HOME",
+                str(settings.home),
+                f"the harness home could not be created: {exc}",
+                "set EVALH_HOME to a writable directory",
+            )
+        )
+    try:
+        app = create_app(settings)
+    except SQLAlchemyError as exc:
+        print(
+            f"serve error: the database could not be opened "
+            f"({type(exc).__name__}); check EVALH_DATABASE_URL and that the "
+            "database is running",
+            file=sys.stderr,
+        )
+        return exit_codes.SPEC_ERROR
     try:
         uvicorn.run(
             app,

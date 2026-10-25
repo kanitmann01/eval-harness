@@ -31,9 +31,9 @@ expected 44 urlsafe base64 characters that decode to 32 bytes. Fix: set EVALH_MA
 to an unmodified key printed by the first run
 ```
 
-Commands that open the vault (`run` and every `credentials` subcommand) require a key.
-`run --dry-run` and `validate` do not: they read credential metadata only, and they do
-not create the database.
+Commands that open the vault (`run`, `serve` and every `credentials` subcommand)
+require a key. `run --dry-run` and `validate` do not: they read credential metadata
+only, and they do not create the database.
 
 Generate a key by hand when provisioning a container:
 
