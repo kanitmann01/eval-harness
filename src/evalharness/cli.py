@@ -20,7 +20,13 @@ from evalharness.core.cost import (
 )
 from evalharness.core.events import EventEmitter
 from evalharness.core.executor import ExecutionResult, execute_run
-from evalharness.core.models import Case, GateResult, RunRecord, utc_now
+from evalharness.core.models import (
+    Aggregate,
+    Case,
+    GateResult,
+    RunRecord,
+    utc_now,
+)
 from evalharness.core.planner import PlannedCell, expand, per_candidate_counts
 from evalharness.core.protocols import Sink
 from evalharness.core.redaction import NoOpRedactor, SecretRedactor
@@ -243,11 +249,18 @@ def _run(args: argparse.Namespace) -> int:
                 artifacts_root=settings.artifacts_dir,
             )
         )
-        aggregates = aggregate_cells(run.run_id, execution.cells, execution.checks)
+        aggregates = aggregate_cells(
+            run_id=run.run_id,
+            cases={case.case_id: case for case in cases},
+            cells=execution.cells,
+            checks_by_cell=execution.checks,
+            metric_keys=list(resolved.metrics),
+            replicas=resolved.spec.replicas,
+        )
         repository.record_aggregates(aggregates)
         gates = evaluate_gates(resolved.spec.gates, execution.checks)
         repository.record_gates(run.run_id, gates)
-        _print_run_table(execution, gates)
+        _print_run_table(execution, aggregates, gates)
     finally:
         database.dispose()
     if execution.run.status == "budget_exceeded":
@@ -257,7 +270,12 @@ def _run(args: argparse.Namespace) -> int:
     return exit_codes.SUCCESS
 
 
-def _print_run_table(result: ExecutionResult, gates: list[GateResult]) -> None:
+def _print_run_table(
+    result: ExecutionResult,
+    aggregates: list[Aggregate],
+    gates: list[GateResult],
+) -> None:
+    """Print the candidate table, the run line, the aggregates and the gates."""
     print(
         f"{'candidate':<24} {'cells':>5} {'ok':>4} {'fail':>5} "
         f"{'cost_usd':>10} {'duration_s':>10}"
@@ -273,8 +291,42 @@ def _print_run_table(result: ExecutionResult, gates: list[GateResult]) -> None:
         f"run {run.run_id} status={run.status} cells={run.n_cells} "
         f"ok={run.n_ok} cost=${run.cost_usd:.6f}"
     )
+    _print_aggregates(aggregates)
     for gate in gates:
         print(
             f"gate {gate.name}: {'pass' if gate.passed else 'FAIL'} "
-            f"value={gate.detail.get('value')} n={gate.detail.get('n')}"
+            f"value={_format_percent(gate.detail.get('value'), missing='undefined')} "
+            f"n={gate.detail.get('n')}"
         )
+
+
+def _print_aggregates(aggregates: list[Aggregate]) -> None:
+    """Print one overall row per candidate and metric, then one row per tier."""
+    print(
+        f"{'candidate':<24} {'metric':<20} {'tier':>5} {'n':>5} {'value':>9} "
+        f"{'95% interval':>16} {'pass@k':>8} {'pass^k':>8}"
+    )
+    for aggregate in aggregates:
+        tier = "all" if aggregate.tier is None else str(aggregate.tier)
+        value = _format_percent(aggregate.value, missing="undefined")
+        interval = _format_interval(aggregate.ci_low, aggregate.ci_high)
+        print(
+            f"{aggregate.candidate:<24} {aggregate.metric:<20} {tier:>5} "
+            f"{aggregate.n:>5} {value:>9} {interval:>16} "
+            f"{_format_percent(aggregate.pass_at_k):>8} "
+            f"{_format_percent(aggregate.pass_k):>8}"
+        )
+
+
+def _format_percent(value: float | None, missing: str = "-") -> str:
+    """Format a proportion as a one-decimal percentage, or the missing marker."""
+    if value is None:
+        return missing
+    return f"{value * 100:.1f}%"
+
+
+def _format_interval(low: float | None, high: float | None) -> str:
+    """Format a confidence interval as two percentages, or a dash."""
+    if low is None or high is None:
+        return "-"
+    return f"{low * 100:.1f}% to {high * 100:.1f}%"

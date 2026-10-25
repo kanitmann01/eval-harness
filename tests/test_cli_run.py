@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 import tests.adapters  # noqa: F401 - importing registers the test adapters
 from evalharness.cli import main
 from tests.helpers import (
@@ -89,8 +91,11 @@ def test_run_smoke_end_to_end(evalh_home, workdir, capsys):
         ]
 
         aggregates = repository.list_aggregates(run_id)
-        assert len(aggregates) == 2
+        assert len(aggregates) == 4
+        assert [row.tier for row in aggregates] == [None, 1, None, 1]
         assert all(row.value == 1.0 and row.n == 1 for row in aggregates)
+        assert all(row.ci_low is not None and row.ci_high == 1.0 for row in aggregates)
+        assert all(row.pass_at_k is None and row.pass_k is None for row in aggregates)
         assert repository.list_gates(run_id) == []
 
         events = repository.list_events(run_id)
@@ -369,6 +374,114 @@ def test_secret_is_redacted_from_cells_artifacts_and_events(
             for event in repository.list_events(run_id)
         ]
         assert "SECRET-CANARY" not in json.dumps(events)
+    finally:
+        database.dispose()
+
+
+def test_aggregates_carry_intervals_tiers_and_both_pass_claims(
+    evalh_home, workdir, capsys
+):
+    spec_data = base_spec()
+    spec_data["candidates"] = [spec_data["candidates"][0]]
+    spec_data["candidates"][0]["adapter"] = "test:replica_mix"
+    spec_data["candidates"][0]["options"] = {}
+    spec_data["source"]["options"]["cases"] = [
+        {
+            "case_id": "case-1",
+            "prompt": "What is 6 times 7?",
+            "expected": {"answer": "42"},
+            "tier": 1,
+        },
+        {
+            "case_id": "case-2",
+            "prompt": "What is 6 times 7?",
+            "expected": {"answer": "42"},
+            "tier": 2,
+        },
+    ]
+    spec_data["replicas"] = 2
+    spec = write_spec(workdir / "tiers.yaml", spec_data)
+
+    code = main(["run", str(spec)])
+
+    captured = capsys.readouterr()
+    assert code == 0, captured.err
+    assert "95% interval" in captured.out
+    assert "pass@k" in captured.out and "pass^k" in captured.out
+    assert "all" in captured.out
+    run_id = run_id_from(captured.out)
+
+    database, repository = open_repository()
+    try:
+        rows = repository.list_aggregates(run_id)
+        assert [(row.tier, row.n) for row in rows] == [(None, 4), (1, 2), (2, 2)]
+        overall = rows[0]
+        assert overall.value == 0.5
+        assert overall.ci_low == pytest.approx(0.15, abs=1e-3)
+        assert overall.ci_high == pytest.approx(0.85, abs=1e-3)
+        assert overall.pass_at_k == 1.0
+        assert overall.pass_k == 0.0
+        for tier_row in rows[1:]:
+            assert tier_row.value == 0.5
+            assert tier_row.pass_at_k == 1.0
+            assert tier_row.pass_k == 0.0
+    finally:
+        database.dispose()
+
+
+def test_undefined_aggregates_print_and_persist_without_failing_the_run(
+    evalh_home, workdir, capsys
+):
+    spec_data = base_spec()
+    spec_data["candidates"] = [spec_data["candidates"][0]]
+    spec_data["candidates"][0]["adapter"] = STUB_FAILING
+    spec_data["candidates"][0]["options"] = {}
+    spec = write_spec(workdir / "empty.yaml", spec_data)
+
+    code = main(["run", str(spec)])
+
+    captured = capsys.readouterr()
+    assert code == 0, captured.err
+    assert "undefined" in captured.out
+    assert "status=partial" in captured.out
+    run_id = run_id_from(captured.out)
+
+    database, repository = open_repository()
+    try:
+        rows = repository.list_aggregates(run_id)
+        assert [(row.tier, row.n, row.value) for row in rows] == [
+            (None, 0, None),
+            (1, 0, None),
+        ]
+        assert all(row.ci_low is None and row.ci_high is None for row in rows)
+        assert all(row.pass_at_k is None and row.pass_k is None for row in rows)
+    finally:
+        database.dispose()
+
+
+def test_gate_on_a_metric_with_no_samples_says_no_samples(
+    evalh_home, workdir, capsys
+):
+    spec_data = base_spec()
+    spec_data["candidates"] = [spec_data["candidates"][0]]
+    spec_data["candidates"][0]["adapter"] = STUB_FAILING
+    spec_data["candidates"][0]["options"] = {}
+    spec_data["gates"] = [{"metric": "exact_match", "min": 0.9}]
+    spec = write_spec(workdir / "gate-empty.yaml", spec_data)
+
+    code = main(["run", str(spec)])
+
+    captured = capsys.readouterr()
+    assert code == 1
+    assert "FAIL" in captured.out
+    run_id = run_id_from(captured.out)
+    database, repository = open_repository()
+    try:
+        gate = repository.list_gates(run_id)[0]
+        assert gate.passed is False
+        assert gate.detail["value"] is None
+        assert gate.detail["n"] == 0
+        assert gate.detail["reason"] == "no samples"
     finally:
         database.dispose()
 
