@@ -598,3 +598,68 @@ tbody tr:hover { background: var(--surface-2); }
 }
 /* END issue #12: launch and cancel. */
 
+
+/* --- Console polish: responsive tables and readable outcomes ------------- */
+/* Every cell may wrap: long ids and judge hashes are the usual reason a
+   table refuses to shrink below the viewport. */
+th, td { overflow-wrap: anywhere; }
+.table-wrap { max-width: 100%; }
+.table-wrap:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.badge-muted { background: var(--surface-2); }
+.run-id { white-space: nowrap; }
+
+/* A failed gate is a separate outcome from the run status, so it gets its
+   own outlined chip rather than borrowing the status pill. */
+.run-status { display: flex; flex-wrap: wrap; align-items: center; gap: 0.35rem; }
+.gate-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.22rem;
+  border: 1px solid var(--fail-ink);
+  border-radius: 4px;
+  padding: 0.02rem 0.4rem;
+  background: var(--surface);
+  color: var(--fail-ink);
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* Let the wide comparison cells break at spaces before the table grows. */
+.compare-sides .num, .compare-metrics .num { white-space: normal; }
+/* The cases table has one wide links column; fix the others so a case id
+   does not get squeezed to a couple of characters. */
+.compare-cases { table-layout: fixed; }
+.compare-cases th:nth-child(1),
+.compare-cases td:nth-child(1) { width: 14%; }
+.compare-cases th:nth-child(2),
+.compare-cases td:nth-child(2) { width: 10%; }
+.compare-cases th:nth-child(3),
+.compare-cases td:nth-child(3) { width: 8%; }
+
+@media (max-width: 900px) {
+  .col-lg { display: none; }
+}
+@media (max-width: 700px) {
+  .col-md { display: none; }
+  .compare-sides { table-layout: fixed; }
+  .compare-sides th[scope="row"] { white-space: normal; }
+  .compare-sides th:nth-child(1),
+  .compare-sides td:nth-child(1) { width: 34%; }
+  .compare-sides th:nth-child(2),
+  .compare-sides td:nth-child(2) { width: 30%; }
+  .compare-sides th:nth-child(7),
+  .compare-sides td:nth-child(7) { width: 36%; }
+}
+@media (max-width: 520px) {
+  .col-sm { display: none; }
+  .validation-reason { display: none; }
+  .compare-cases th:nth-child(1),
+  .compare-cases td:nth-child(1) { width: 30%; }
+  .compare-cases th:nth-child(2),
+  .compare-cases td:nth-child(2) { width: 20%; }
+  th, td { padding: 0.45rem 0.4rem; }
+  thead th { font-size: 0.68rem; letter-spacing: 0.04em; }
+  table { font-size: 0.88rem; }
+  .panel { padding: 0.7rem; }
+}
