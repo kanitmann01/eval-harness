@@ -6,6 +6,7 @@ import hashlib
 import json
 from typing import Iterable, Mapping
 
+from evalharness.core.context import CredentialStore
 from evalharness.core.models import JudgeSession, JudgeSpec, Price
 from evalharness.core.protocols import Judge
 
@@ -39,19 +40,36 @@ def build_judge_sessions(
     judge_specs: Iterable[JudgeSpec],
     judges: Mapping[str, Judge],
     prices: Mapping[str, Price],
+    *,
+    providers: Mapping[str, str] | None = None,
+    credentials: CredentialStore | None = None,
 ) -> dict[str, JudgeSession]:
     """Build one fresh session per declared judge for a single cell.
 
     The adapter instance is shared; the session is not, so counters and cost
     stay attributed to the cell that triggered them even under concurrency.
+    The session carries the judge's resolved credential handle, its pricing
+    provider and its price, which `prices` maps by judge name because two
+    declarations may use the same model at two different providers.
+
+    A deterministic judge declares no credential, so `credential` stays None
+    and the judge keeps working exactly as before.
     """
+    providers_by_name = providers or {}
     sessions: dict[str, JudgeSession] = {}
     for spec in judge_specs:
+        credential = (
+            credentials.get(spec.credential)
+            if credentials is not None and spec.credential is not None
+            else None
+        )
         sessions[spec.name] = JudgeSession(
             name=spec.name,
             judge=judges[spec.name],
             model=spec.model or "",
+            provider=providers_by_name.get(spec.name, ""),
             config_hash=judge_config_hash(spec),
-            price=prices[spec.model] if spec.model is not None else None,
+            price=prices.get(spec.name),
+            credential=credential,
         )
     return sessions

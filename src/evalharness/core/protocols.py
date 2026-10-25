@@ -23,9 +23,13 @@ from evalharness.core.models import (
 class Capabilities(BaseModel):
     """What a candidate can accept, what it needs, and how often it may be retried.
 
-    `requires_credential` lets validation refuse a candidate whose auth shape
-    needs a secret no vault can resolve; `max_attempts` is the attempt budget
-    the executor honours for a typed transport failure (one call plus retries).
+    `requires_credential` lets validation refuse a candidate or judge whose auth
+    shape needs a secret no vault can resolve; `requires_model` does the same
+    for a judge that must name the model it calls; `max_attempts` is the
+    attempt budget the executor honours for a typed transport failure (one call
+    plus retries). `provider` is the pricing and attribution identity a
+    provider adapter declares, empty for an adapter that is not tied to one
+    provider.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -33,6 +37,8 @@ class Capabilities(BaseModel):
     supports_prompt_override: bool = True
     supports_context_injection: bool = True
     requires_credential: bool = False
+    requires_model: bool = False
+    provider: str = ""
     max_attempts: int = 2
 
 
@@ -48,9 +54,15 @@ class Candidate(Protocol):
 
 
 class Judge(Protocol):
-    """A judge turns an answer into a verdict; a metric depends on it."""
+    """A judge turns an answer into a verdict; a metric depends on it.
+
+    `capabilities` declares whether the judge needs a credential or a model,
+    and which provider prices its usage; a deterministic judge declares the
+    defaults, so it keeps working with no credential at all.
+    """
 
     name: str
+    capabilities: Capabilities
 
     async def verdict(self, request: JudgeRequest) -> Verdict:
         """Judge one candidate answer."""

@@ -53,6 +53,42 @@ mechanism carries it to every clause. Nothing here is a mock: without a live
 server the HTTP clauses fail.
 """
 
+PROVIDER_OPENAI_CANDIDATE = "evalharness.adapters.candidates.openai_compat:build"
+PROVIDER_ANTHROPIC_CANDIDATE = "evalharness.adapters.candidates.anthropic:build"
+PROVIDER_OPENAI_JUDGE = "evalharness.adapters.judges.openai_compat:build"
+PROVIDER_ANTHROPIC_JUDGE = "evalharness.adapters.judges.anthropic:build"
+
+PROVIDER_ADAPTERS: frozenset[str] = frozenset(
+    {
+        PROVIDER_OPENAI_CANDIDATE,
+        PROVIDER_ANTHROPIC_CANDIDATE,
+        PROVIDER_OPENAI_JUDGE,
+        PROVIDER_ANTHROPIC_JUDGE,
+    }
+)
+"""The four provider adapters whose conformance rows need a live provider stub."""
+
+PROVIDER_CONFORMANCE_ENV = "EVALH_PROVIDER_CONFORMANCE_BASE_URL"
+"""Environment variable that names the provider stub for those four rows."""
+
+DEFAULT_PROVIDER_CONFORMANCE_BASE_URL = "http://127.0.0.1:8770"
+"""The reference provider stub's default loopback address."""
+
+PROVIDER_CONFORMANCE_OPTIONS: dict[str, object] = {
+    "auth": "none",
+    "base_url": DEFAULT_PROVIDER_CONFORMANCE_BASE_URL,
+}
+"""Mutable suite options shared by the four provider adapters.
+
+The default points at `examples/provider_server.py`, which answers both the
+chat-completions and the messages path, so `evalh conformance --all` works
+after starting that process. `EVALH_PROVIDER_CONFORMANCE_BASE_URL` replaces
+`base_url` when CI starts the stub elsewhere; tests replace it with an
+ephemeral stub before `run_all()`. Nothing here is a mock: without a live
+server the provider clauses fail. `auth: none` is what lets the suite run
+without a stored credential; the auth shapes are covered by the tests.
+"""
+
 
 MANIFEST: tuple[ManifestEntry, ...] = (
     ManifestEntry("evalharness.adapters.sources.inline:build", "source"),
@@ -67,12 +103,25 @@ MANIFEST: tuple[ManifestEntry, ...] = (
         "evalharness.adapters.candidates.stub:build_fixed_prompt", "candidate"
     ),
     ManifestEntry(HTTP_CANDIDATE, "candidate", HTTP_CONFORMANCE_OPTIONS),
+    ManifestEntry(
+        PROVIDER_OPENAI_CANDIDATE, "candidate", PROVIDER_CONFORMANCE_OPTIONS
+    ),
+    ManifestEntry(
+        PROVIDER_ANTHROPIC_CANDIDATE, "candidate", PROVIDER_CONFORMANCE_OPTIONS
+    ),
     ManifestEntry("evalharness.adapters.judges.rule_based:build", "judge"),
     ManifestEntry("evalharness.adapters.judges.scripted:build", "judge"),
+    ManifestEntry(PROVIDER_OPENAI_JUDGE, "judge", PROVIDER_CONFORMANCE_OPTIONS),
+    ManifestEntry(PROVIDER_ANTHROPIC_JUDGE, "judge", PROVIDER_CONFORMANCE_OPTIONS),
     ManifestEntry("evalharness.adapters.metrics.exact_match:build", "metric"),
     ManifestEntry("evalharness.adapters.metrics.contains:build", "metric"),
     ManifestEntry(
         "evalharness.adapters.metrics.citation_support:build",
+        "metric",
+        {"judge": "conformance-judge"},
+    ),
+    ManifestEntry(
+        "evalharness.adapters.metrics.judge_pass:build",
         "metric",
         {"judge": "conformance-judge"},
     ),
@@ -109,11 +158,18 @@ def conformance_options(
     """
     options = dict(entry.options or {})
     if entry.adapter == HTTP_CANDIDATE:
-        source = os.environ if env is None else env
-        override = source.get(HTTP_CONFORMANCE_ENV)
-        current = options.get("base_url")
-        if override and current in (None, "", DEFAULT_HTTP_CONFORMANCE_BASE_URL):
-            options["base_url"] = override
+        variable = HTTP_CONFORMANCE_ENV
+        default = DEFAULT_HTTP_CONFORMANCE_BASE_URL
+    elif entry.adapter in PROVIDER_ADAPTERS:
+        variable = PROVIDER_CONFORMANCE_ENV
+        default = DEFAULT_PROVIDER_CONFORMANCE_BASE_URL
+    else:
+        return options
+    source = os.environ if env is None else env
+    override = source.get(variable)
+    current = options.get("base_url")
+    if override and current in (None, "", default):
+        options["base_url"] = override
     return options
 
 

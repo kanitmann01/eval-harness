@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from evalharness.core.models import JudgeRequest, Verdict
+from evalharness.core.protocols import Capabilities
 
 DEFAULT_MODEL = "scripted-judge"
 """The model a scripted judge reports when options.model is not set."""
@@ -19,6 +20,8 @@ DEFAULT_MODEL = "scripted-judge"
 
 class ScriptedJudge:
     """Judge an answer against a deterministic set of claims."""
+
+    capabilities = Capabilities()
 
     def __init__(
         self,

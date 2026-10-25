@@ -454,6 +454,27 @@ def _judge_determinism(target: ConformanceContext) -> None:
     )
 
 
+def _judge_usage(target: ConformanceContext) -> None:
+    verdict = _verdict(target)
+    _expect(
+        isinstance(verdict, Verdict),
+        "a Verdict instance",
+        type(verdict).__name__,
+    )
+    for name in ("prompt_tokens", "completion_tokens"):
+        value = getattr(verdict, name, None)
+        _expect(
+            isinstance(value, int) and not isinstance(value, bool) and value >= 0,
+            f"{name} to be a non-negative integer",
+            repr(value),
+        )
+    _expect(
+        verdict.usage_source in ("provider", "estimated"),
+        "usage_source to be 'provider' or 'estimated'",
+        repr(verdict.usage_source),
+    )
+
+
 def _checks(target: ConformanceContext) -> Any:
     return asyncio.run(target.build().check(_cell(), _score_context(target)))
 
@@ -693,6 +714,12 @@ JUDGE_CASES: tuple[ConformanceCase, ...] = (
         JUDGE,
         "the same request gives the same verdict",
         _judge_determinism,
+    ),
+    ConformanceCase(
+        clause(JUDGE, 6),
+        JUDGE,
+        "the verdict reports its token usage",
+        _judge_usage,
     ),
 )
 

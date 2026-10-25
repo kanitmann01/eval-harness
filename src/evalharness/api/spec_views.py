@@ -290,7 +290,7 @@ def _estimate(
     counts = per_candidate_counts(cells)
     cost = estimate_cost(
         resolved.spec,
-        resolved.prices,
+        resolved.candidate_prices,
         counts,
         median_prompt_tokens=prompt,
         median_completion_tokens=completion,

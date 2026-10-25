@@ -7,7 +7,14 @@ from typing import Iterable
 
 from pydantic import BaseModel
 
-from evalharness.core.models import CandidateOutput, CellRecord, Price, Spec
+from evalharness.core.models import (
+    CandidateOutput,
+    CellRecord,
+    Price,
+    ProviderCost,
+    ProviderUsage,
+    Spec,
+)
 
 __all__ = [
     "DEFAULT_MEDIAN_COMPLETION_TOKENS",
@@ -17,6 +24,7 @@ __all__ = [
     "Price",
     "estimate_cost",
     "observed_medians",
+    "provider_cost_rows",
     "split_cost",
     "usage_cost",
 ]
@@ -105,13 +113,17 @@ def estimate_cost(
     median_prompt_tokens: int = DEFAULT_MEDIAN_PROMPT_TOKENS,
     median_completion_tokens: int = DEFAULT_MEDIAN_COMPLETION_TOKENS,
 ) -> CostEstimate:
-    """Estimate run cost from per-candidate cell counts and median tokens."""
+    """Estimate run cost from per-candidate cell counts and median tokens.
+
+    `prices` is keyed by candidate name, not by model, because two candidates
+    may use the same model at two providers with two different prices.
+    """
     total_cells = sum(cells_per_candidate.values())
     prompt_tokens = total_cells * median_prompt_tokens
     completion_tokens = total_cells * median_completion_tokens
     total = 0.0
     for candidate in spec.candidates:
-        price = prices[candidate.model]
+        price = prices[candidate.name]
         total += cells_per_candidate.get(candidate.name, 0) * usage_cost(
             price,
             prompt_tokens=median_prompt_tokens,
@@ -124,3 +136,49 @@ def estimate_cost(
         completion_tokens=completion_tokens,
         cost_usd=total,
     )
+
+
+def provider_cost_rows(
+    run_id: str,
+    cells: Iterable[CellRecord],
+) -> list[ProviderCost]:
+    """Sum a run's cells into one row per provider, sorted by provider name.
+
+    Answer and tool cost belong to the provider that ran the candidate; judge
+    cost belongs to the provider that served the judge, which is why a cell
+    stores the judge usage it triggered per provider. A cell recorded before
+    that split existed falls back to attributing its judge cost to its own
+    provider, so an old run still totals correctly. Every row's `cost_usd` is
+    its three parts, so the rows sum to the run's stored cost.
+    """
+    rows: dict[str, ProviderCost] = {}
+
+    def row_for(provider: str) -> ProviderCost:
+        return rows.setdefault(
+            provider, ProviderCost(run_id=run_id, provider=provider)
+        )
+
+    for cell in cells:
+        row = row_for(cell.provider or "")
+        row.n_cells += 1
+        row.prompt_tokens += cell.prompt_tokens
+        row.completion_tokens += cell.completion_tokens
+        row.answer_cost_usd += cell.answer_cost_usd
+        row.tool_cost_usd += cell.tool_cost_usd
+        if cell.judge_provider_usage:
+            for provider, usage in cell.judge_provider_usage.items():
+                _add_judge_usage(row_for(provider), usage)
+        else:
+            row.judge_prompt_tokens += cell.judge_prompt_tokens
+            row.judge_completion_tokens += cell.judge_completion_tokens
+            row.judge_cost_usd += cell.judge_cost_usd
+    for row in rows.values():
+        row.cost_usd = row.answer_cost_usd + row.judge_cost_usd + row.tool_cost_usd
+    return sorted(rows.values(), key=lambda item: item.provider)
+
+
+def _add_judge_usage(row: ProviderCost, usage: ProviderUsage) -> None:
+    """Add one cell's judge usage to its provider's row."""
+    row.judge_prompt_tokens += usage.prompt_tokens
+    row.judge_completion_tokens += usage.completion_tokens
+    row.judge_cost_usd += usage.cost_usd

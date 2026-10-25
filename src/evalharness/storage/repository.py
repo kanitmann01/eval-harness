@@ -18,6 +18,7 @@ from evalharness.core.models import (
     CredentialRecord,
     EncryptedCredential,
     GateResult,
+    ProviderCost,
     RunRecord,
     utc_now,
 )
@@ -30,6 +31,7 @@ from evalharness.storage.models import (
     CredentialRow,
     EventRow,
     GateRow,
+    ProviderCostRow,
     RunRow,
     SpecRow,
 )
@@ -320,6 +322,27 @@ class Repository:
             ),
         )
 
+    def record_provider_costs(
+        self, run_id: str, costs: list[ProviderCost]
+    ) -> None:
+        """Replace a run's per-provider rows, keeping repeated scoring idempotent."""
+        with self._database.session() as session:
+            session.execute(
+                delete(ProviderCostRow).where(ProviderCostRow.run_id == run_id)
+            )
+            for cost in costs:
+                session.add(_provider_cost_row(cost))
+
+    def list_provider_costs(self, run_id: str) -> list[ProviderCost]:
+        """Return a run's per-provider cost rows ordered by provider name."""
+        with self._database.session() as session:
+            rows = session.scalars(
+                select(ProviderCostRow)
+                .where(ProviderCostRow.run_id == run_id)
+                .order_by(ProviderCostRow.provider)
+            ).all()
+            return [_provider_cost_record(row) for row in rows]
+
     def record_gates(self, run_id: str, gates: list[GateResult]) -> None:
         """Replace a run's gate outcomes."""
         with self._database.session() as session:
@@ -607,6 +630,11 @@ def _cell_row(cell: CellRecord) -> CellRow:
         judge_prompt_tokens=cell.judge_prompt_tokens,
         judge_completion_tokens=cell.judge_completion_tokens,
         usage_source=cell.usage_source,
+        provider=cell.provider,
+        judge_provider_usage={
+            provider: dict(usage)
+            for provider, usage in cell.judge_provider_usage.items()
+        },
         answer=cell.answer,
         output=dict(cell.output),
         artifact_dir=cell.artifact_dir,
@@ -633,9 +661,43 @@ def _cell_record(row: CellRow) -> CellRecord:
         judge_prompt_tokens=row.judge_prompt_tokens or 0,
         judge_completion_tokens=row.judge_completion_tokens or 0,
         usage_source=row.usage_source,
+        provider=row.provider or "",
+        judge_provider_usage=dict(row.judge_provider_usage or {}),
         answer=row.answer,
         output=dict(row.output),
         artifact_dir=row.artifact_dir,
+    )
+
+
+def _provider_cost_row(cost: ProviderCost) -> ProviderCostRow:
+    return ProviderCostRow(
+        run_id=cost.run_id,
+        provider=cost.provider,
+        n_cells=cost.n_cells,
+        prompt_tokens=cost.prompt_tokens,
+        completion_tokens=cost.completion_tokens,
+        judge_prompt_tokens=cost.judge_prompt_tokens,
+        judge_completion_tokens=cost.judge_completion_tokens,
+        answer_cost_usd=cost.answer_cost_usd,
+        judge_cost_usd=cost.judge_cost_usd,
+        tool_cost_usd=cost.tool_cost_usd,
+        cost_usd=cost.cost_usd,
+    )
+
+
+def _provider_cost_record(row: ProviderCostRow) -> ProviderCost:
+    return ProviderCost(
+        run_id=row.run_id,
+        provider=row.provider,
+        n_cells=row.n_cells,
+        prompt_tokens=row.prompt_tokens,
+        completion_tokens=row.completion_tokens,
+        judge_prompt_tokens=row.judge_prompt_tokens,
+        judge_completion_tokens=row.judge_completion_tokens,
+        answer_cost_usd=row.answer_cost_usd,
+        judge_cost_usd=row.judge_cost_usd,
+        tool_cost_usd=row.tool_cost_usd,
+        cost_usd=row.cost_usd,
     )
 
 

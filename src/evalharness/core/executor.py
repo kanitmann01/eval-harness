@@ -18,6 +18,7 @@ from evalharness.core.models import (
     Case,
     CellRecord,
     Check,
+    ProviderUsage,
     RunRecord,
     ScoreContext,
     utc_now,
@@ -314,6 +315,7 @@ class _Execution:
             if self.run_record.budget_usd is None
             else max(0.0, self.run_record.budget_usd - self.spend_usd)
         )
+        provider = self.resolved.candidate_providers.get(cell.candidate, "")
         ctx = RunContext(
             run_id=self.run_record.run_id,
             seed=self.run_record.seed,
@@ -342,39 +344,10 @@ class _Execution:
         try:
             output = await _call_with_retries(candidate, cell.case, ctx)
         except Exception as exc:  # adapter failure is a cell outcome, not a run crash
-            wall_ms = int((time.perf_counter() - started) * 1000)
-            failed = CellRecord(
-                cell_id=cell.cell_id,
-                run_id=self.run_record.run_id,
-                candidate=cell.candidate,
-                case_id=cell.case.case_id,
-                replica=cell.replica,
-                variant=cell.variant,
-                status="error",
-                wall_ms=wall_ms,
-                usage_source="estimated",
-                output={
-                    "error": self.redactor.redact(str(exc)),
-                    "error_type": type(exc).__name__,
-                },
-                artifact_dir=str(
-                    self.artifacts_root / self.run_record.run_id / cell.cell_id
-                ),
-            )
-            self.errors += 1
-            self._store(failed, [])
-            self.emitter.emit(
-                "cell_failed",
-                {
-                    "cell_id": cell.cell_id,
-                    "error_type": type(exc).__name__,
-                    "error": self.redactor.redact(str(exc)),
-                },
-            )
-            self._finish_cell()
+            self._fail_cell(cell, exc, started, provider)
             return
         wall_ms = int((time.perf_counter() - started) * 1000)
-        price = self.resolved.prices[candidate_spec.model]
+        price = self.resolved.candidate_prices[cell.candidate]
         split = split_cost(price, output)
         output_data = self.redactor.redact_data(output.model_dump())
         record = CellRecord(
@@ -394,6 +367,7 @@ class _Execution:
             judge_cost_usd=split.judge_usd,
             tool_cost_usd=split.tool_usd,
             usage_source=output.usage_source,
+            provider=provider,
             answer=str(output_data.get("answer", "")),
             output=output_data,
             artifact_dir=str(
@@ -407,13 +381,19 @@ class _Execution:
             judges=build_judge_sessions(
                 self.resolved.spec.judges,
                 self.resolved.judges,
-                self.resolved.prices,
+                self.resolved.judge_prices,
+                providers=self.resolved.judge_providers,
+                credentials=self.credentials,
             ),
             redactor=self.redactor,
         )
-        checks = self._redact_checks(
-            await checks_for_cell(record, self.metrics, score_ctx)
-        )
+        try:
+            checks = self._redact_checks(
+                await checks_for_cell(record, self.metrics, score_ctx)
+            )
+        except Exception as exc:  # a judge transport failure is a cell error
+            self._fail_cell(cell, exc, started, provider)
+            return
         record = self._with_judge_usage(record, score_ctx)
         self._store(record, checks)
         self.spend_usd += record.cost_usd
@@ -433,8 +413,23 @@ class _Execution:
         record: CellRecord,
         ctx: ScoreContext,
     ) -> CellRecord:
-        """Fold the judge usage a cell triggered into its stored cost split."""
-        judge_usd = sum(session.usage_usd() for session in ctx.judges.values())
+        """Fold the judge usage a cell triggered into its cost split.
+
+        The same tokens are also grouped by the provider that served the
+        judge, so the run can attribute judge cost to that provider instead of
+        to the candidate's provider. A judge this cell never consulted adds
+        nothing and creates no provider entry.
+        """
+        judge_usd = 0.0
+        provider_usage: dict[str, ProviderUsage] = {}
+        for session in ctx.judges.values():
+            cost = session.usage_usd()
+            judge_usd += cost
+            if session.prompt_tokens or session.completion_tokens or cost:
+                bucket = provider_usage.setdefault(session.provider, ProviderUsage())
+                bucket.prompt_tokens += session.prompt_tokens
+                bucket.completion_tokens += session.completion_tokens
+                bucket.cost_usd += cost
         judge_prompt = sum(session.prompt_tokens for session in ctx.judges.values())
         judge_completion = sum(
             session.completion_tokens for session in ctx.judges.values()
@@ -444,11 +439,52 @@ class _Execution:
                 "judge_cost_usd": judge_usd,
                 "judge_prompt_tokens": judge_prompt,
                 "judge_completion_tokens": judge_completion,
+                "judge_provider_usage": provider_usage,
                 "cost_usd": (
                     record.answer_cost_usd + judge_usd + record.tool_cost_usd
                 ),
             }
         )
+
+    def _fail_cell(
+        self,
+        cell: PlannedCell,
+        exc: Exception,
+        started: float,
+        provider: str,
+    ) -> None:
+        """Record one failed cell, whether the candidate or a judge raised."""
+        wall_ms = int((time.perf_counter() - started) * 1000)
+        failed = CellRecord(
+            cell_id=cell.cell_id,
+            run_id=self.run_record.run_id,
+            candidate=cell.candidate,
+            case_id=cell.case.case_id,
+            replica=cell.replica,
+            variant=cell.variant,
+            status="error",
+            wall_ms=wall_ms,
+            usage_source="estimated",
+            provider=provider,
+            output={
+                "error": self.redactor.redact(str(exc)),
+                "error_type": type(exc).__name__,
+            },
+            artifact_dir=str(
+                self.artifacts_root / self.run_record.run_id / cell.cell_id
+            ),
+        )
+        self.errors += 1
+        self._store(failed, [])
+        self.emitter.emit(
+            "cell_failed",
+            {
+                "cell_id": cell.cell_id,
+                "error_type": type(exc).__name__,
+                "error": self.redactor.redact(str(exc)),
+            },
+        )
+        self._finish_cell()
 
     def _finish_cell(self) -> None:
         """Advance the cancel limit and re-check the budget after one cell."""
@@ -485,6 +521,7 @@ class _Execution:
             replica=cell.replica,
             variant=cell.variant,
             status="cancelled",
+            provider=self.resolved.candidate_providers.get(cell.candidate, ""),
             output={"reason": reason},
             artifact_dir=str(
                 self.artifacts_root / self.run_record.run_id / cell.cell_id

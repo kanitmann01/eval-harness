@@ -109,6 +109,34 @@ class GateResult(BaseModel):
     detail: dict[str, Any] = Field(default_factory=dict)
 
 
+class ProviderUsage(BaseModel):
+    """Tokens and cost one judge provider spent while scoring one cell."""
+
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    cost_usd: float = 0.0
+
+
+class ProviderCost(BaseModel):
+    """One provider's share of a run: cells, tokens and the three cost parts.
+
+    cost_usd is answer_cost_usd + judge_cost_usd + tool_cost_usd, exactly as
+    on a cell, so per-provider rows always sum to the run's stored total.
+    """
+
+    run_id: str
+    provider: str = ""
+    n_cells: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    judge_prompt_tokens: int = 0
+    judge_completion_tokens: int = 0
+    answer_cost_usd: float = 0.0
+    judge_cost_usd: float = 0.0
+    tool_cost_usd: float = 0.0
+    cost_usd: float = 0.0
+
+
 class CellRecord(BaseModel):
     """One executed cell: identity, usage, cost split, answer and artifacts.
 
@@ -135,6 +163,8 @@ class CellRecord(BaseModel):
     judge_prompt_tokens: int = 0
     judge_completion_tokens: int = 0
     usage_source: str = "estimated"
+    provider: str = ""
+    judge_provider_usage: dict[str, ProviderUsage] = Field(default_factory=dict)
     answer: str = ""
     output: dict[str, Any] = Field(default_factory=dict)
     artifact_dir: str | None = None
@@ -162,7 +192,14 @@ class RunRecord(BaseModel):
 
 
 class JudgeRequest(BaseModel):
-    """The material a judge sees when producing a verdict."""
+    """The material a judge sees when producing a verdict.
+
+    The session fills `model` and `credential` from the judge declaration just
+    before the call, so a provider judge can name its model and authenticate
+    while a deterministic judge simply ignores both. The secret is excluded
+    from every dump by CredentialHandle, so a request never carries it into a
+    log or an artifact.
+    """
 
     case_id: str
     prompt: str
@@ -170,6 +207,8 @@ class JudgeRequest(BaseModel):
     rubric: str | None = None
     expected: dict[str, Any] | None = None
     evidence: dict[str, Any] = Field(default_factory=dict)
+    model: str = ""
+    credential: Any = None
 
 
 class Verdict(BaseModel):
@@ -213,21 +252,32 @@ class JudgeSession(BaseModel):
     """One judge resolved for one cell, with the usage this cell accumulated.
 
     The judge instance is shared across cells; the counters are not, so a
-    concurrent run attributes every verdict to the cell that triggered it. A
-    judge without a declared model has no price and costs zero.
+    concurrent run attributes every verdict to the cell that triggered it. The
+    session carries the declaration's model, provider, price and resolved
+    credential; a deterministic judge without a model has no price and costs
+    zero while still recording whatever tokens it reports.
     """
 
     name: str
     judge: Any
     model: str = ""
+    provider: str = ""
     config_hash: str = ""
     price: Price | None = None
+    credential: Any = None
     prompt_tokens: int = 0
     completion_tokens: int = 0
 
     async def verdict(self, request: JudgeRequest) -> Verdict:
-        """Ask the wrapped judge and add the verdict's usage to this cell."""
-        verdict = await self.judge.verdict(request)
+        """Ask the wrapped judge and add the verdict's usage to this cell.
+
+        The request is copied, never mutated, so two metrics naming two judges
+        for one cell each see their own model and credential.
+        """
+        resolved = request.model_copy(
+            update={"model": self.model, "credential": self.credential}
+        )
+        verdict = await self.judge.verdict(resolved)
         self.prompt_tokens += verdict.prompt_tokens
         self.completion_tokens += verdict.completion_tokens
         return verdict
@@ -383,4 +433,5 @@ class Spec(BaseModel):
     judges: list[JudgeSpec] = Field(default_factory=list)
     gates: list[GateSpec] = Field(default_factory=list)
     prices: dict[str, Price] = Field(default_factory=dict)
+    provider_prices: dict[str, dict[str, Price]] = Field(default_factory=dict)
     sink: SinkSpec | None = None

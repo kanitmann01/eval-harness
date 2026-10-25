@@ -385,6 +385,16 @@ def _print_run_table(outcome: service.RunOutcome) -> None:
         f"cost: answer ${answer_cost:.6f}, judge ${judge_cost:.6f}, "
         f"tools ${tool_cost:.6f}"
     )
+    for provider in outcome.provider_costs:
+        label = provider.provider or "-"
+        print(
+            f"provider {label}: cells={provider.n_cells} "
+            f"prompt_tokens={provider.prompt_tokens} "
+            f"completion_tokens={provider.completion_tokens} "
+            f"judge_tokens="
+            f"{provider.judge_prompt_tokens + provider.judge_completion_tokens} "
+            f"cost=${provider.cost_usd:.6f}"
+        )
     if outcome.reason:
         print(f"reason: {outcome.reason}")
     _print_aggregates(outcome.aggregates)

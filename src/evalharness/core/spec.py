@@ -17,6 +17,12 @@ from evalharness.core.models import (
     Price,
     Spec,
 )
+from evalharness.core.prices import (
+    PriceTable,
+    load_default_prices,
+    resolve_price,
+    resolved_price_table,
+)
 from evalharness.core.protocols import Capabilities, Judge, Metric, Source
 from evalharness.core.registry import AdapterFactory, resolve
 from evalharness.errors import RegistryError, SpecError
@@ -36,6 +42,11 @@ class ResolvedSpec:
     raw_text: str
     sha: str
     prices: dict[str, Price]
+    price_table: PriceTable
+    candidate_prices: dict[str, Price]
+    candidate_providers: dict[str, str]
+    judge_prices: dict[str, Price]
+    judge_providers: dict[str, str]
     candidates: dict[str, CandidateSpec]
     candidate_factories: dict[str, AdapterFactory]
     source: Source
@@ -167,14 +178,38 @@ def _unique(values: Iterable[str], field: str, noun: str) -> None:
         seen.add(value)
 
 
-def _require_price(spec: Spec, model: str) -> None:
-    if model not in spec.prices:
-        raise SpecError(
-            f"prices.{model}",
-            model,
-            "no price is declared for this model",
-            f"add prices.{model}: {{input: <usd_per_mtok>, output: <usd_per_mtok>}}",
+def _require_price(
+    spec: Spec,
+    provider: str,
+    model: str,
+    defaults: PriceTable,
+) -> Price:
+    """Return the resolved price, or fail naming the model and where to add one.
+
+    The shipped table and the spec's provider_prices both count as a price; a
+    model absent from all three sources is a validation error before any spend.
+    """
+    price = resolve_price(spec, provider, model, defaults)
+    if price is not None:
+        return price
+    where = f" at provider {provider!r}" if provider else ""
+    if provider:
+        fix = (
+            f"add provider_prices.{provider}.{model}: "
+            "{input: <usd_per_mtok>, output: <usd_per_mtok>}, or an entry "
+            f"for {model!r} in the shipped config/prices.yaml"
         )
+    else:
+        fix = (
+            f"add prices.{model}: "
+            "{input: <usd_per_mtok>, output: <usd_per_mtok>}"
+        )
+    raise SpecError(
+        f"prices.{model}",
+        model,
+        f"no price is declared for this model{where}",
+        fix,
+    )
 
 
 def _declared_credential(
@@ -314,17 +349,23 @@ def validate_spec(
     stored_credentials: Iterable[str] = (),
     credential_states: Iterable[CredentialState] = (),
     require_verified_credentials: bool = False,
+    default_prices: PriceTable | None = None,
 ) -> ResolvedSpec:
     """Validate every declarative reference before anything executes.
 
     A credential is known when the spec declares it or the vault stores it.
     `stored_credentials` is the vault's name list, never its secrets;
-    `credential_states` is its usability state. A candidate that declares
-    `requires_credential` needs its name in the vault, because a spec
-    declaration alone cannot supply the secret. A stored credential that is
+    `credential_states` is its usability state. A candidate or judge that
+    declares `requires_credential` needs its name in the vault, because a spec
+    declaration alone cannot supply the secret; a judge that declares
+    `requires_model` needs a declared model. A stored credential that is
     disabled is always refused; one that has never passed a test is refused
     when `require_verified_credentials` is set, which is what the console does.
+
+    `default_prices` is the shipped provider table. Tests pass one explicitly;
+    production loads `config/prices.yaml` from the installed package.
     """
+    defaults = default_prices if default_prices is not None else load_default_prices()
     _unique(
         (candidate.name for candidate in spec.candidates), "candidates", "candidate"
     )
@@ -351,7 +392,6 @@ def validate_spec(
             field,
             require_verified=require_verified_credentials,
         )
-        _require_price(spec, candidate.model)
 
     for index, judge in enumerate(spec.judges):
         field = f"judges[{index}].credential"
@@ -362,8 +402,6 @@ def validate_spec(
             field,
             require_verified=require_verified_credentials,
         )
-        if judge.model is not None:
-            _require_price(spec, judge.model)
 
     source = _build(
         spec.source.adapter,
@@ -375,6 +413,8 @@ def validate_spec(
     candidate_factories: dict[str, AdapterFactory] = {}
     prompt_overrides: dict[str, str | None] = {}
     chunks_by_candidate: dict[str, list[ContextChunk]] = {}
+    candidate_prices: dict[str, Price] = {}
+    candidate_providers: dict[str, str] = {}
     for index, candidate in enumerate(spec.candidates):
         factory = _resolve_factory(candidate.adapter, f"candidates[{index}].adapter")
         instance = _build(
@@ -407,6 +447,10 @@ def validate_spec(
         candidate_factories[candidate.name] = factory
         prompt_overrides[candidate.name] = override
         chunks_by_candidate[candidate.name] = chunks
+        candidate_providers[candidate.name] = capabilities.provider
+        candidate_prices[candidate.name] = _require_price(
+            spec, capabilities.provider, candidate.model, defaults
+        )
 
     metrics: dict[str, Metric] = {}
     for index, metric_spec in enumerate(spec.metrics):
@@ -437,13 +481,43 @@ def validate_spec(
         metrics[metric_spec.key] = instance
 
     judges: dict[str, Judge] = {}
+    judge_prices: dict[str, Price] = {}
+    judge_providers: dict[str, str] = {}
     for index, judge_spec in enumerate(spec.judges):
-        judges[judge_spec.name] = _build(
+        instance = _build(
             judge_spec.adapter,
             judge_spec.name,
             judge_spec.options,
             f"judges[{index}].adapter",
         )
+        capabilities = getattr(instance, "capabilities", None)
+        if not isinstance(capabilities, Capabilities):
+            capabilities = Capabilities()
+        if capabilities.requires_model and judge_spec.model is None:
+            raise SpecError(
+                f"judges[{index}].model",
+                None,
+                f"judge {judge_spec.name!r} calls a provider but declares no model",
+                "set model: <the provider model id> and give it a price",
+            )
+        if (
+            capabilities.requires_credential
+            and judge_spec.credential not in stored_names
+        ):
+            raise SpecError(
+                f"judges[{index}].credential",
+                judge_spec.credential,
+                f"judge {judge_spec.name!r} needs a credential resolved from "
+                "the vault, but none is stored under that name",
+                "add it with 'evalh credentials add' or use a judge that needs "
+                "no credential",
+            )
+        judge_providers[judge_spec.name] = capabilities.provider
+        if judge_spec.model is not None:
+            judge_prices[judge_spec.name] = _require_price(
+                spec, capabilities.provider, judge_spec.model, defaults
+            )
+        judges[judge_spec.name] = instance
 
     metric_keys = set(metrics)
     candidate_names = {candidate.name for candidate in spec.candidates}
@@ -496,11 +570,20 @@ def validate_spec(
         "sink.adapter" if spec.sink is not None else "sink",
     )
 
+    price_table = resolved_price_table(spec, defaults)
+    flat_prices: dict[str, Price] = {}
+    for models in price_table.providers.values():
+        flat_prices.update(models)
     return ResolvedSpec(
         spec=spec,
         raw_text=raw_text,
         sha=spec_sha(raw_text),
-        prices=dict(spec.prices),
+        prices=flat_prices,
+        price_table=price_table,
+        candidate_prices=candidate_prices,
+        candidate_providers=candidate_providers,
+        judge_prices=judge_prices,
+        judge_providers=judge_providers,
         candidates={candidate.name: candidate for candidate in spec.candidates},
         candidate_factories=candidate_factories,
         source=source,
