@@ -1,0 +1,5 @@
+# The image is built for Linux even from a Windows checkout, so the files
+# Docker reads keep LF endings regardless of core.autocrlf.
+Dockerfile text eol=lf
+compose.yaml text eol=lf
+*.sh text eol=lf

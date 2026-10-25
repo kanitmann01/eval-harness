@@ -21,11 +21,15 @@ evalh serve --db sqlite:///tmp/harness.db --artifacts tmp/artifacts
 ~~~
 
 `serve` reads the same `EVALH_*` environment as `evalh run`:
-`EVALH_HOME`, `EVALH_DATABASE_URL` and `EVALH_ARTIFACTS_DIR`. The two path
-flags override the environment for this process only. Uvicorn's access log is
-off because its default line includes the query string; the application logs
-method, path and status through its own middleware and never logs the query,
-headers or bodies.
+`EVALH_HOME`, `EVALH_DATABASE_URL`, `EVALH_ARTIFACTS_DIR` and the vault's
+`EVALH_MASTER_KEY`. It opens the vault before it binds the port, so a first
+start without a key prints one once and exits 2, exactly like `run`; the
+container bootstrap relies on that. The two path flags override the environment
+for this process only. `GET /healthz` and `GET /api/health` report the
+harness version, database reachability, artifacts writability and whether the
+vault is configured, never the key. Uvicorn's access log is off because its
+default line includes the query string; the application logs method, path and
+status through its own middleware and never logs the query, headers or bodies.
 
 ## Page map
 
