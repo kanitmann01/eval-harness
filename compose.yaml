@@ -25,6 +25,9 @@ services:
   harness:
     build:
       context: .
+      args:
+        # Ties every run the container records to a commit; defaults to dev.
+        EVALH_HARNESS_SHA: ${EVALH_HARNESS_SHA:-dev}
     image: evalharness:local
     depends_on:
       db:

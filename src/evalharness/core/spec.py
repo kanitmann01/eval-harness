@@ -25,13 +25,11 @@ from evalharness.core.prices import (
 )
 from evalharness.core.protocols import Capabilities, Judge, Metric, Source
 from evalharness.core.registry import AdapterFactory, resolve
+from evalharness.defaults import DEFAULT_SINK_ADAPTER
 from evalharness.errors import RegistryError, SpecError
 
 SPEC_VERSION = 1
 """The only spec version this harness understands."""
-
-DEFAULT_SINK_ADAPTER = "evalharness.adapters.sinks.json_sink:build"
-"""The artifact sink used when a spec does not override it."""
 
 
 @dataclass(frozen=True, slots=True)

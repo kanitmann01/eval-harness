@@ -124,7 +124,8 @@ jobs:
         with:
           python-version: "3.12"
       - name: Build the image
-        run: docker build -t evalharness:local .
+        # The commit goes into the image so a run record names its revision.
+        run: docker build --build-arg EVALH_HARNESS_SHA="${{ github.sha }}" -t evalharness:local .
       - name: Validate the compose file without a daemon dependency
         env:
           EVALH_POSTGRES_PASSWORD: ci-not-a-secret

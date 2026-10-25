@@ -315,6 +315,21 @@ async def test_a_failed_test_stores_the_redacted_provider_message(
     assert record.last_ok_at is not None
 
 
+async def test_a_huge_provider_error_is_stored_bounded(
+    console: Console, verify_stub: Any
+) -> None:
+    """A provider that returns a whole HTML page must not fill the column."""
+    verify_stub.routes["/"] = (500, {"error": {"message": "x" * 5000}})
+    async with _client(console.app) as client:
+        assert (await _add(client)).status_code == 201
+        tested = await client.post("/api/credentials/openai/test")
+        assert tested.status_code == 200
+        rows = (await client.get("/api/credentials")).json()
+        stored = next(row for row in rows if row["name"] == "openai")
+        assert stored["last_error"] is not None
+        assert len(stored["last_error"]) == 500
+
+
 async def test_disable_and_enable_round_trip(
     console: Console, verify_stub: Any
 ) -> None:

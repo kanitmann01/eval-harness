@@ -90,6 +90,11 @@ next to `EVALH_MASTER_KEY=` (the file is gitignored), then start the stack for r
 ~~~bash
 docker compose up -d
 docker compose ps                 # db and harness are healthy
+
+# Every run records the revision it came from. Compose forwards
+# EVALH_HARNESS_SHA into the image build (default "dev"); set it to the
+# commit you built from, for example:
+EVALH_HARNESS_SHA=$(git rev-parse HEAD) docker compose build
 curl -s http://127.0.0.1:8000/healthz
 ~~~
 
