@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}evalharness console{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='console.css') }}">
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="{{ url_for('run_list') }}">evalharness <span>console</span></a>
+    <span class="badge badge-muted">read-only</span>
+  </header>
+  <main id="main" class="page">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="site-footer">
+    <p>Server-rendered console. No client build step, no CDN, no secrets in logs or HTML.</p>
+  </footer>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
