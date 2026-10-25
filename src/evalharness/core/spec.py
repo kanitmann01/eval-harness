@@ -373,7 +373,8 @@ def validate_spec(
         )
 
     metric_keys = set(metrics)
-    gate_metrics: set[str] = set()
+    candidate_names = {candidate.name for candidate in spec.candidates}
+    gate_keys: set[tuple[str | None, str]] = set()
     warnings: list[str] = []
     for index, gate in enumerate(spec.gates):
         if gate.metric not in metric_keys:
@@ -384,6 +385,14 @@ def validate_spec(
                 "the gate names an undeclared metric",
                 f"use one of: {choices}",
             )
+        if gate.candidate is not None and gate.candidate not in candidate_names:
+            choices = ", ".join(sorted(candidate_names)) or "none declared"
+            raise SpecError(
+                f"gates[{index}].candidate",
+                gate.candidate,
+                "the gate names an undeclared candidate",
+                f"use one of: {choices}, or omit candidate for the run-wide gate",
+            )
         if gate.min is None and gate.max is None:
             raise SpecError(
                 f"gates[{index}]",
@@ -391,14 +400,16 @@ def validate_spec(
                 "the gate has neither min nor max",
                 "set min, max, or both",
             )
-        if gate.metric in gate_metrics:
+        key = (gate.candidate, gate.metric)
+        if key in gate_keys:
+            scope = f"candidate {gate.candidate!r}" if gate.candidate else "the run"
             raise SpecError(
                 f"gates[{index}].metric",
                 gate.metric,
-                "duplicate gate for this metric",
+                f"duplicate gate for this metric on {scope}",
                 "combine the bounds into one gate",
             )
-        gate_metrics.add(gate.metric)
+        gate_keys.add(key)
         if "latency" in gate.metric and spec.concurrency > 1:
             warnings.append(
                 "latency gate with concurrency > 1: latency measures queueing, "

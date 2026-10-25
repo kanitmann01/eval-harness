@@ -87,11 +87,23 @@ class Aggregate(BaseModel):
 
 
 class GateResult(BaseModel):
-    """The stored outcome of one spec gate."""
+    """The stored outcome of one spec gate.
+
+    The gate's arithmetic is explicit and stored, not left inside the detail
+    blob: comparison is the operator the gate applied, threshold is the bound
+    it applied, observed is the aggregate value it saw and n is the number of
+    checks behind that value. observed is None only when the aggregate is
+    undefined, which always fails the gate with "no samples" in the detail.
+    """
 
     name: str
     metric: str
     passed: bool
+    candidate: str | None = None
+    comparison: str = ""
+    threshold: float | None = None
+    observed: float | None = None
+    n: int = 0
     detail: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -219,13 +231,19 @@ class JudgeSpec(BaseModel):
 
 
 class GateSpec(BaseModel):
-    """A threshold on one metric's aggregate."""
+    """A threshold on one metric's aggregate, overall or for one candidate.
+
+    candidate is optional: when it is set the gate reads that candidate's
+    overall aggregate row; when it is None the gate pools every candidate's
+    overall row for the metric into the run-wide figure.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     metric: str
     min: float | None = None
     max: float | None = None
+    candidate: str | None = None
 
 
 class SinkSpec(BaseModel):

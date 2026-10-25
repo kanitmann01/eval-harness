@@ -9,7 +9,7 @@ from sqlalchemy import text
 
 import tests.adapters  # noqa: F401 - importing registers the test adapters
 from evalharness.cli import main
-from evalharness.core.models import Aggregate, RunRecord, utc_now
+from evalharness.core.models import Aggregate, GateResult, RunRecord, utc_now
 from evalharness.errors import SchemaMigrationError
 from evalharness.storage.db import Database
 from evalharness.storage.repository import Repository
@@ -208,6 +208,73 @@ def test_migration_adds_the_budget_override_to_a_version_1_database(
             run.model_copy(update={"budget_override_usd": 2.5})
         )
         assert repository.get_run("run-old").budget_override_usd == 2.5
+    finally:
+        reopened.dispose()
+
+
+def test_migration_adds_gate_arithmetic_columns(evalh_home, workdir):
+    url = _database_url(workdir)
+    database = Database(url)
+    database.create_all()
+    repository = Repository(database)
+    repository.save_spec("spec-old", "old-spec", "yaml", "sha", utc_now())
+    repository.create_run(
+        RunRecord(
+            run_id="run-old",
+            spec_id="spec-old",
+            status="ok",
+            started_at=utc_now(),
+        )
+    )
+    repository.record_gates(
+        "run-old",
+        [
+            GateResult(
+                name="exact_match",
+                metric="exact_match",
+                passed=False,
+                detail={"reason": "old shape"},
+            )
+        ],
+    )
+    with database.engine.begin() as connection:
+        for column in ("candidate", "comparison", "threshold", "observed", "n"):
+            connection.exec_driver_sql(f"ALTER TABLE gates DROP COLUMN {column}")
+        connection.exec_driver_sql("DROP TABLE schema_version")
+    database.dispose()
+
+    reopened = Database(url)
+    reopened.create_all()
+    repository = Repository(reopened)
+    try:
+        old_gate = repository.list_gates("run-old")[0]
+        assert old_gate.passed is False
+        assert old_gate.detail["reason"] == "old shape"
+        assert old_gate.comparison == ""
+        assert old_gate.observed is None
+        assert old_gate.n == 0
+        repository.record_gates(
+            "run-old",
+            [
+                GateResult(
+                    name="exact_match",
+                    metric="exact_match",
+                    passed=True,
+                    comparison=">=",
+                    threshold=0.9,
+                    observed=1.0,
+                    n=2,
+                )
+            ],
+        )
+        gate = repository.list_gates("run-old")[0]
+        assert (gate.comparison, gate.threshold) == (">=", 0.9)
+        assert (gate.observed, gate.n) == (1.0, 2)
+        with reopened.engine.begin() as connection:
+            version = connection.exec_driver_sql(
+                "SELECT MAX(version) FROM schema_version"
+            ).scalar()
+        assert version == 3
     finally:
         reopened.dispose()
 

@@ -188,9 +188,144 @@ def test_gate_failure_exits_one(evalh_home, workdir, capsys):
     try:
         gates = repository.list_gates(run_id)
         assert len(gates) == 1
-        assert gates[0].passed is False
-        assert gates[0].detail["value"] == 0.0
+        gate = gates[0]
+        assert gate.passed is False
+        assert gate.detail["value"] == 0.0
+        assert gate.candidate is None
+        assert gate.comparison == ">="
+        assert gate.threshold == 0.9
+        assert gate.observed == 0.0
+        assert gate.n == 1
         assert repository.list_aggregates(run_id)[0].value == 0.0
+    finally:
+        database.dispose()
+
+
+def test_passing_gate_exits_zero_and_stores_its_arithmetic(
+    evalh_home, workdir, capsys
+):
+    spec_data = base_spec()
+    spec_data["gates"] = [{"metric": "exact_match", "min": 0.9}]
+    spec = write_spec(workdir / "gate-pass.yaml", spec_data)
+
+    code = main(["run", str(spec)])
+
+    captured = capsys.readouterr()
+    assert code == 0, captured.err
+    assert "gate exact_match: pass" in captured.out
+    assert "observed=100.0% >= 90.0% n=2" in captured.out
+    run_id = run_id_from(captured.out)
+    database, repository = open_repository()
+    try:
+        gate = repository.list_gates(run_id)[0]
+        assert gate.name == "exact_match"
+        assert gate.passed is True
+        assert gate.metric == "exact_match"
+        assert gate.candidate is None
+        assert gate.comparison == ">="
+        assert gate.threshold == 0.9
+        assert gate.observed == 1.0
+        assert gate.n == 2
+        assert gate.detail["value"] == 1.0
+    finally:
+        database.dispose()
+
+
+def test_gate_naming_a_candidate_uses_that_candidates_aggregate(
+    evalh_home, workdir, capsys
+):
+    spec_data = base_spec()
+    spec_data["candidates"][1]["options"]["answer"] = "wrong"
+    spec_data["gates"] = [
+        {"metric": "exact_match", "candidate": "stub-concise", "min": 0.9}
+    ]
+    spec = write_spec(workdir / "gate-candidate.yaml", spec_data)
+
+    code = main(["run", str(spec)])
+
+    captured = capsys.readouterr()
+    assert code == 0, captured.err
+    assert "gate exact_match[stub-concise]: pass" in captured.out
+    run_id = run_id_from(captured.out)
+    database, repository = open_repository()
+    try:
+        gate = repository.list_gates(run_id)[0]
+        assert gate.candidate == "stub-concise"
+        assert gate.observed == 1.0
+        assert gate.n == 1
+        assert gate.name == "exact_match[stub-concise]"
+    finally:
+        database.dispose()
+
+    spec_data["gates"] = [
+        {"metric": "exact_match", "candidate": "stub-explained", "min": 0.9}
+    ]
+    failing = write_spec(workdir / "gate-candidate-fail.yaml", spec_data)
+    code = main(["run", str(failing)])
+    captured = capsys.readouterr()
+    assert code == 1
+    run_id = run_id_from(captured.out)
+    database, repository = open_repository()
+    try:
+        gate = repository.list_gates(run_id)[0]
+        assert gate.candidate == "stub-explained"
+        assert gate.passed is False
+        assert gate.observed == 0.0
+        assert gate.n == 1
+    finally:
+        database.dispose()
+
+
+def test_cell_errors_with_passing_gates_exit_zero(evalh_home, workdir, capsys):
+    spec_data = base_spec()
+    spec_data["candidates"][0]["adapter"] = STUB_FAILING
+    spec_data["candidates"][0]["options"] = {}
+    spec_data["gates"] = [{"metric": "exact_match", "min": 0.5}]
+    spec = write_spec(workdir / "partial-gate.yaml", spec_data)
+
+    code = main(["run", str(spec)])
+
+    captured = capsys.readouterr()
+    assert code == 0, captured.err
+    assert "status=partial" in captured.out
+    run_id = run_id_from(captured.out)
+    database, repository = open_repository()
+    try:
+        gate = repository.list_gates(run_id)[0]
+        assert gate.passed is True
+        assert gate.observed == 1.0
+        assert gate.n == 1
+    finally:
+        database.dispose()
+
+
+def test_cancelled_run_with_passing_gates_exits_zero(
+    evalh_home, workdir, capsys
+):
+    spec_data = base_spec()
+    spec_data["gates"] = [{"metric": "exact_match", "min": 0.9}]
+    spec = write_spec(workdir / "cancelled.yaml", spec_data)
+
+    code = main(["run", str(spec), "--cancel-after", "1"])
+
+    captured = capsys.readouterr()
+    assert code == 0, captured.err
+    assert "status=cancelled" in captured.out
+    assert "gate exact_match: pass" in captured.out
+    run_id = run_id_from(captured.out)
+    database, repository = open_repository()
+    try:
+        assert sorted(cell.status for cell in repository.list_cells(run_id)) == [
+            "cancelled",
+            "ok",
+        ]
+        gate = repository.list_gates(run_id)[0]
+        assert gate.passed is True
+        assert gate.observed == 1.0
+        assert gate.n == 1
+        kinds = [event.kind for event in repository.list_events(run_id)]
+        assert "run_cancelled" in kinds
+        assert repository.get_run(run_id).status == "cancelled"
     finally:
         database.dispose()
 
@@ -498,6 +633,10 @@ def test_gate_on_a_metric_with_no_samples_says_no_samples(
         assert gate.detail["value"] is None
         assert gate.detail["n"] == 0
         assert gate.detail["reason"] == "no samples"
+        assert gate.observed is None
+        assert gate.n == 0
+        assert gate.comparison == ">="
+        assert gate.threshold == 0.9
     finally:
         database.dispose()
 
