@@ -1,0 +1,85 @@
+spec_version: 1
+name: stub-pack
+description: >
+  The no-credential demo. Every first-party stub shape runs in one spec:
+  scripted output, a slow candidate, one that refuses prompt overrides, and
+  one whose transport always fails. The failing cell is recorded as an
+  error, so the run exits 0 while still showing the failure surface.
+seed: 7
+
+source:
+  adapter: evalharness.adapters.sources.inline:build
+  options:
+    cases:
+      - case_id: case-1
+        prompt: What is 6 times 7?
+        expected: {answer: "42"}
+        tier: 1
+      - case_id: case-2
+        prompt: What is 7 times 6?
+        expected: {answer: "42"}
+        tier: 1
+
+prompts:
+  concise: Answer with digits only, no other words.
+  explained: Answer with the number and one short clause.
+
+contexts:
+  none: []
+  policy:
+    - chunk_id: policy-1
+      text: The answer must be a bare number.
+
+credentials:
+  - name: stub
+    provider: none
+
+candidates:
+  - name: scripted
+    adapter: evalharness.adapters.candidates.stub:build
+    credential: stub
+    model: stub-1
+    options: {prompt: concise, context: none}
+  - name: slow
+    adapter: evalharness.adapters.candidates.stub:build_slow
+    credential: stub
+    model: stub-1
+    options: {prompt: explained, context: policy}
+  - name: fixed-prompt
+    adapter: evalharness.adapters.candidates.stub:build_fixed_prompt
+    credential: stub
+    model: stub-1
+    options: {context: policy}
+  - name: always-failing
+    adapter: evalharness.adapters.candidates.stub:build_failing
+    credential: stub
+    model: stub-1
+    options: {}
+
+replicas: 1
+concurrency: 2
+budget_usd: 1.00
+
+metrics:
+  - key: exact_match
+    adapter: evalharness.adapters.metrics.exact_match:build
+    options: {}
+  - key: contains
+    adapter: evalharness.adapters.metrics.contains:build
+    options: {}
+
+judges:
+  - name: rule-based
+    adapter: evalharness.adapters.judges.rule_based:build
+    credential: stub
+    model: stub-1
+    options: {}
+
+gates:
+  - metric: exact_match
+    min: 1.0
+
+prices:
+  stub-1:
+    input: 0.15
+    output: 0.60

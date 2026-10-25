@@ -1,4 +1,4 @@
-"""The command surface: 'evalh run' and 'evalh validate'."""
+"""The command surface: run, validate, conformance and the read-back commands."""
 
 from __future__ import annotations
 
@@ -11,6 +11,8 @@ from pathlib import Path
 from typing import Sequence
 
 from evalharness import exit_codes
+from evalharness.conformance import KINDS, run_all, run_suite
+from evalharness.conformance.suite import ConformanceReport
 from evalharness.core.config import Settings, harness_revision
 from evalharness.core.context import EnvCredentialStore, RunContext
 from evalharness.core.cost import (
@@ -32,7 +34,7 @@ from evalharness.core.protocols import Sink
 from evalharness.core.redaction import NoOpRedactor, SecretRedactor
 from evalharness.core.scorer import aggregate_cells, evaluate_gates
 from evalharness.core.spec import ResolvedSpec, load_and_validate
-from evalharness.errors import SpecError
+from evalharness.errors import HarnessError, SpecError
 from evalharness.storage.db import Database
 from evalharness.storage.repository import Repository
 
@@ -70,6 +72,26 @@ def _build_parser() -> argparse.ArgumentParser:
     validate_parser = commands.add_parser("validate", help="validate a spec only")
     validate_parser.add_argument("spec", help="path to the YAML spec")
     validate_parser.set_defaults(handler=_validate)
+    conformance_parser = commands.add_parser(
+        "conformance",
+        help="run the public adapter contract suite",
+    )
+    selection = conformance_parser.add_mutually_exclusive_group(required=True)
+    selection.add_argument(
+        "--all",
+        action="store_true",
+        help="run every first-party adapter listed in the manifest",
+    )
+    selection.add_argument(
+        "--adapter",
+        help="dotted factory path, for example pkg.module:build",
+    )
+    conformance_parser.add_argument(
+        "--kind",
+        choices=list(KINDS),
+        help="protocol kind for --adapter (required with --adapter)",
+    )
+    conformance_parser.set_defaults(handler=_conformance)
     return parser
 
 
@@ -121,6 +143,43 @@ def _validate(args: argparse.Namespace) -> int:
         f"spec valid: {spec.name} "
         f"({len(spec.candidates)} candidates, {len(spec.metrics)} metrics)"
     )
+    return exit_codes.SUCCESS
+
+
+def _print_conformance_report(report: ConformanceReport) -> None:
+    print(f"adapter {report.adapter} ({report.kind})")
+    for result in report.results:
+        if result.ok:
+            print(f"  {result.clause}: ok")
+        else:
+            print(f"  {result.clause}: FAIL {result.detail}")
+
+
+def _conformance(args: argparse.Namespace) -> int:
+    if args.adapter is not None and args.kind is None:
+        print("conformance error: --adapter requires --kind", file=sys.stderr)
+        return exit_codes.SPEC_ERROR
+    if args.all and args.kind is not None:
+        print("conformance error: --kind only applies with --adapter", file=sys.stderr)
+        return exit_codes.SPEC_ERROR
+    try:
+        if args.all:
+            reports = run_all()
+        else:
+            reports = [run_suite(args.adapter, args.kind)]
+    except (HarnessError, ValueError) as exc:
+        print(f"conformance error: {exc}", file=sys.stderr)
+        return exit_codes.SPEC_ERROR
+    for report in reports:
+        _print_conformance_report(report)
+    total = sum(len(report.results) for report in reports)
+    failed = sum(
+        1 for report in reports for result in report.results if not result.ok
+    )
+    if failed:
+        print(f"conformance failed: {failed} of {total} clause(s)", file=sys.stderr)
+        return exit_codes.GATE_FAILURE
+    print(f"conformance passed: {total} clause(s)")
     return exit_codes.SUCCESS
 
 

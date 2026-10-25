@@ -16,6 +16,7 @@ Credentials are BYOK. One container per person, keys verified on save, encrypted
 
 - `docs/design-adapter-harness.md` — the design note: layering, protocols, spec schema, credential and cost model, executor semantics, storage schema, migration phases.
 - `docs/spec-v1.md` — the spec schema as implemented, field by field.
+- `docs/adapters.md` — the five adapter contracts, clause numbering, the manifest and the conformance command.
 - Issue #1 — the spec: problem, solution, 58 user stories, implementation decisions, testing decisions, out of scope.
 
 ## Quick start
@@ -25,6 +26,8 @@ python -m pip install -e .
 python -m evalharness validate examples/specs/smoke.yaml
 python -m evalharness run examples/specs/smoke.yaml --dry-run
 python -m evalharness run examples/specs/smoke.yaml
+python -m evalharness run examples/specs/stub-pack.yaml
+python -m evalharness conformance --all
 ~~~
 
 The smoke spec needs no keys and no network. It declares a stub candidate and a
@@ -32,6 +35,12 @@ stub price, expands to two cells (one per prompt variant), and writes artifacts
 under `$EVALH_HOME/artifacts/<run_id>/<cell_id>/` with only paths in the database.
 Set `EVALH_HOME` to choose where the SQLite database and artifacts live;
 `EVALH_DATABASE_URL` and `EVALH_ARTIFACTS_DIR` override them individually.
+The stub-pack demo runs all four candidate stubs (scripted, slow, prompt-fixed
+and always-failing) plus the deterministic judge in one spec. It exits 0, records
+the always-failing cells as errors, and needs no credentials. The
+`evalh conformance --all` command runs the same public contract suite as CI and
+prints one line per clause.
+
 Exit codes are 0 success, 1 gate failure, 2 spec error, 3 budget abort.
 
 ## Provenance
