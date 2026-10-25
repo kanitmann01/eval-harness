@@ -18,6 +18,9 @@ dependencies = [
   "PyYAML>=6.0",
   "cryptography>=42.0",
   "httpx>=0.27",
+  # FastAPI parses the spec editor and credentials forms through this parser;
+  # without it a fresh install boots but every form post raises at request time.
+  "python-multipart>=0.0.9",
 ]
 
 [project.optional-dependencies]

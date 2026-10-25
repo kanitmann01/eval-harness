@@ -161,9 +161,9 @@ def test_serve_bootstraps_the_master_key_once_then_serves(
     assert getattr(app, "state").settings.database_url == (
         f"sqlite:///{database_path.as_posix()}"
     )
-    assert any(
-        getattr(route, "path", "") == "/healthz" for route in getattr(app, "routes")
-    )
+    # Newer FastAPI keeps included routers nested, so read the public OpenAPI
+    # paths rather than assuming a flat app.routes list.
+    assert "/healthz" in app.openapi()["paths"]
 
 
 def test_serve_reports_an_unopenable_database(

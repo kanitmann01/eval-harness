@@ -114,6 +114,10 @@ jobs:
   container-smoke:
     name: Container smoke (health, bootstrap and one no-credential run)
     runs-on: ubuntu-latest
+    # Job-level so the failure handlers (logs, teardown) can interpolate the
+    # compose file too; a step-scoped variable leaves them failing on cleanup.
+    env:
+      EVALH_POSTGRES_PASSWORD: ci-not-a-secret
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

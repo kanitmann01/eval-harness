@@ -581,7 +581,9 @@ def test_serve_cli_builds_the_app_and_calls_uvicorn(
     assert app.state.settings.database_url == f"sqlite:///{database_path.as_posix()}"
     assert app.state.settings.artifacts_dir == artifacts
     assert database_path.is_file()
-    assert any(getattr(route, "path", "") == "/api/runs" for route in app.routes)
+    # Newer FastAPI keeps included routers nested, so read the public OpenAPI
+    # paths rather than assuming a flat app.routes list.
+    assert "/api/runs" in app.openapi()["paths"]
 
     assert main(["serve"]) == 0
     second, default_host, default_port = calls[1]
