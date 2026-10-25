@@ -81,7 +81,7 @@ def _load_cases(resolved: ResolvedSpec, run_id: str) -> list[Case]:
         redactor=NoOpRedactor(),
     )
     try:
-        cases = list(resolved.source.load(resolved.spec, context))
+        cases = list(resolved.source.load(resolved.spec.source, context))
     except Exception as exc:  # source adapters are external code
         raise SpecError(
             "source",
@@ -133,7 +133,7 @@ def _print_dry_run(
     )
     print(f"cells: {len(cells)}")
     for candidate in spec.candidates:
-        print(f"  {candidate.name}: {counts.get(candidate.name, 0)}")
+        print(f"  {candidate.name}: {counts.get(candidate.name, 0)} cells")
     print(
         f"estimated cost: ${estimate.cost_usd:.6f} "
         f"(median {DEFAULT_MEDIAN_PROMPT_TOKENS} prompt + "
