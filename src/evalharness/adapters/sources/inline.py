@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any, Mapping
 
 from evalharness.core.context import RunContext
-from evalharness.core.models import Case, Spec
+from evalharness.core.models import Case, SourceSpec
 
 
 class InlineSource:
@@ -14,7 +14,7 @@ class InlineSource:
     def __init__(self, cases: list[Case]) -> None:
         self._cases = cases
 
-    def load(self, spec: Spec, ctx: RunContext) -> list[Case]:
+    def load(self, spec: SourceSpec, ctx: RunContext) -> list[Case]:
         """Return a copy of the declared cases."""
         return list(self._cases)
 

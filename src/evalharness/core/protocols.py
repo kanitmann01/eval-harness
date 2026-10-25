@@ -15,7 +15,7 @@ from evalharness.core.models import (
     JudgeRequest,
     RunRecord,
     ScoreContext,
-    Spec,
+    SourceSpec,
     Verdict,
 )
 
@@ -63,8 +63,8 @@ class Metric(Protocol):
 class Source(Protocol):
     """A source loads the case set a spec names."""
 
-    def load(self, spec: Spec, ctx: RunContext) -> Iterable[Case]:
-        """Return the cases for this spec."""
+    def load(self, spec: SourceSpec, ctx: RunContext) -> Iterable[Case]:
+        """Return the cases for this source's spec block."""
         ...
 
 
