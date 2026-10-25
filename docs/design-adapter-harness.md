@@ -185,7 +185,10 @@ POST /run
 ```
 
 That JSON is the whole integration story for a teammate who does not
-touch this repository.
+touch this repository. It is published as
+`contract/candidate-v1.schema.json` and explained in
+`docs/http-candidate.md`, including the optional `model` field in the response.
+Version 1 is append-compatible only.
 
 ---
 
@@ -341,8 +344,11 @@ Execution:
 - One asyncio queue, `concurrency` worker slots from the spec. Each worker
   owns one candidate instance, built once and reused, so a candidate may
   hold an HTTP client or a DB pool.
-- Per-cell retry: 2 attempts, exponential backoff, only on transport
-  errors. A candidate that returns a wrong answer is not a retry.
+- Per-cell retry: the attempt budget the candidate declares
+  (`capabilities.max_attempts`), with exponential backoff, only on transport
+  errors. The default is 2 attempts; the HTTP candidate declares 3 (one call
+  plus two retries, which is the "retry twice" promise). A candidate that
+  returns a wrong answer is not a retry.
 - Resume: cells with `status=ok` are skipped. `harness run --resume
   <run_id>` continues after a crash or a budget abort.
 - Cancel: cooperative, checked between cells, marks remaining cells
@@ -562,11 +568,16 @@ streaming token-level traces.
 | Candidate DB coupling returns | separate databases, and a test that asserts the harness schema has no foreign keys into candidate tables |
 | One local GPU makes "parallel agents" a lie | worker slots are real but throughput is the model's; the console shows queue time separately |
 
-## 17. Open question
+## 17. Open question (settled by issue #14)
 
-One only. When a teammate plugs a candidate in over HTTP, does the
-harness own the credential for that endpoint, or does the endpoint own it?
-Both are defensible. Harness-owned keeps cost attribution in one place;
-endpoint-owned keeps other people's secrets out of your vault. Default in
-this design is harness-owned, matching D4, with `auth: none` as the escape
-hatch for an endpoint that holds its own key.
+When a teammate plugs a candidate in over HTTP, does the harness own the
+credential for that endpoint, or does the endpoint own it?
+
+**Settled: harness-owned by default, matching D4.** The spec names a
+credential, the vault stores it, and the adapter sends it from
+`RunContext.credential` as `Authorization: Bearer <secret>` (`auth: bearer`)
+or in a named header (`auth: header`). The endpoint-owned case is the explicit
+`auth: none` option: no auth header is sent and no credential is required. A
+missing credential for `bearer` or `header` fails validation before any cell,
+naming `candidates[i].credential`. The full contract is in
+`docs/http-candidate.md`.

@@ -48,7 +48,7 @@ src/evalharness/
     repository.py      the only code that talks SQL, returns core records
   adapters/
     manifest.py        every first-party adapter path and kind; the conformance gate
-    candidates/        scripted, slow, always-failing and prompt-fixed stubs
+    candidates/        scripted stubs plus the HTTP candidate (contract/candidate-v1.schema.json)
     judges/            deterministic rule-based and scripted claim judges
     metrics/           exact match, containment, citation support, latency
     sources/           inline, jsonl file
@@ -91,7 +91,9 @@ async def Sink.open_run(run: RunRecord) / record_cell(cell) / close_run(run)
    executor, retries, resume, cancel, budget, scorer, stats, cost, storage, gates.
 2. **HTTP API** (`create_app` + `httpx.ASGITransport`). Console read and write surfaces.
 3. **Adapter wire contracts**. One conformance suite per protocol; the HTTP candidate is
-   exercised against a real local stub server, never a mock.
+   exercised against a real local stub server, never a mock. Its public contract is
+   `contract/candidate-v1.schema.json`, documented in [http-candidate.md](http-candidate.md)
+   for an endpoint author who never reads this repository.
 
 ## Runs
 

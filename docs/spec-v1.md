@@ -132,15 +132,23 @@ An undeclared name that is neither in the spec nor in the vault is a spec error
 naming the field, the name, and the `evalh credentials add` fix. Validation reads
 the vault's credential names (metadata only), never its secrets.
 
+There is a stronger rule for a candidate whose adapter needs a secret, such as
+the HTTP candidate with `auth: bearer` or `auth: header`. Declaring the name in
+the spec is not enough: the name must be **stored in the vault**, because a spec
+declaration cannot supply a secret. Validation fails before any cell and names
+`candidates[i].credential`. A candidate with `auth: none` needs no credential,
+and may omit the field entirely. See
+[http-candidate.md](http-candidate.md) for the auth shapes.
+
 ## candidates
 
 | Field | Type | Required | Meaning |
 | --- | --- | --- | --- |
 | name | string | yes | Unique. Recorded on every cell. |
 | adapter | string | yes | Registered name or module:attr dotted path. |
-| credential | string | yes | A name declared under credentials. |
+| credential | string | no | A name declared under credentials or stored in the vault. Optional only when the adapter needs no secret, for example an HTTP candidate with `auth: none`. |
 | model | string | yes | Must have an entry under prices. |
-| options | mapping | no | Adapter options. prompt, context and answers are the ones this ticket uses. |
+| options | mapping | no | Adapter options. prompt, context and answers are the ones this ticket uses. The HTTP candidate's options are base_url, path, timeout_s, auth and header_name. |
 
 The candidate name is the identity passed to its factory. Prompt and context
 are ambient: the candidate reads them from RunContext, not from settings.
@@ -218,6 +226,11 @@ Capabilities. A factory must be safe to build during validation, because
 validation builds candidates, metrics and judges to inspect capabilities and
 keys before anything runs. The executor builds one candidate instance per
 worker and reuses it for that worker's cells.
+
+`Capabilities` also declares `requires_credential` (validation needs a stored
+secret, not just a declared name) and `max_attempts` (the total attempt budget
+for a typed transport failure; the default 2 means one call plus one retry, and
+the HTTP candidate declares 3). See [adapters.md](adapters.md).
 
 ## CLI contract
 
