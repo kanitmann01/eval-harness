@@ -27,10 +27,9 @@ start without a key prints one once and exits 2, exactly like `run`; the
 container bootstrap relies on that. The two path flags override the environment
 for this process only. `GET /healthz` and `GET /api/health` report the
 harness version, database reachability, artifacts writability and whether the
-vault is configured, never the key. Uvicorn's access log is
-off because its default line includes the query string; the application logs
-method, path and status through its own middleware and never logs the query,
-headers or bodies.
+vault is configured, never the key. Uvicorn's access log is off because its
+default line includes the query string; the application logs method, path and
+status through its own middleware and never logs the query, headers or bodies.
 
 ## Page map
 

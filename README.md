@@ -108,6 +108,11 @@ docker compose exec harness evalh credentials test openai-prod \
   --verify-url https://api.openai.com/v1/models
 ~~~
 
+The same vault is managed in the console at
+<http://127.0.0.1:8000/credentials>: add, test, disable, enable and delete
+are form posts, and the page shows metadata and a fingerprint prefix rather
+than a secret.
+
 `list` shows name, provider, creation time, last verification and last error,
 never the secret. `test` exits 1 on a rejected key. See
 [docs/credentials.md](docs/credentials.md).
