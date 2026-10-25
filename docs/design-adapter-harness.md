@@ -120,7 +120,7 @@ class Judge(Protocol):
 
 class Metric(Protocol):
     key: str
-    def check(self, cell: CellRecord, ctx: ScoreContext) -> list[Check]: ...
+    async def check(self, cell: CellRecord, ctx: ScoreContext) -> list[Check]: ...
 
 class Source(Protocol):
     def load(self, spec: SourceSpec, ctx: RunContext) -> Iterable[Case]: ...
@@ -396,7 +396,9 @@ runs         (run_id uuid pk, spec_id uuid, spec_snapshot jsonb,
 cells        (cell_id uuid pk, run_id uuid, candidate text, case_id text,
               replica int, variant jsonb, status text, wall_ms int,
               prompt_tokens int, completion_tokens int, tool_calls int,
-              cost_usd float, usage_source text, answer text,
+              cost_usd float, answer_cost_usd float, judge_cost_usd float,
+              tool_cost_usd float, judge_prompt_tokens int,
+              judge_completion_tokens int, usage_source text, answer text,
               output jsonb, artifact_dir text)
 checks       (cell_id uuid, metric text, passed bool, score float,
               reason text, evidence jsonb, judge_config_hash text)

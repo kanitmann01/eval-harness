@@ -14,13 +14,30 @@ satisfies one protocol.
 | --- | --- | --- |
 | `candidate` | the candidate name | `name`, `capabilities`, `async run(case, ctx) -> CandidateOutput` |
 | `judge` | the judge name | `name`, `async verdict(JudgeRequest) -> Verdict` |
-| `metric` | the metric key | `key`, `check(CellRecord, ScoreContext) -> list[Check]` |
+| `metric` | the metric key | `key`, `async check(CellRecord, ScoreContext) -> list[Check]` |
 | `source` | the literal `source` | `load(SourceSpec, RunContext) -> Iterable[Case]` |
 | `sink` | the literal `sink` | `open_run(RunRecord)`, `record_cell(CellRecord, checks)`, `close_run(RunRecord)` |
 
 A candidate returns an answer and usage, never a pass or fail. A metric
 turns a cell into checks. A judge is a metric's dependency. A source owns
 the case set. A sink owns artifacts outside the database.
+
+### Metric.check is async
+
+Issue #7 made `Metric.check` async, because a judge-backed metric has to
+await its judge and the judge protocol was already async:
+
+~~~python
+async def check(self, cell: CellRecord, ctx: ScoreContext) -> list[Check]: ...
+~~~
+
+This is a protocol change, not an adapter option. It touched the protocol,
+both deterministic metrics, the scorer's `checks_for_cell`, the executor's
+call site, the `metric/*` conformance clauses, and every test that called
+`check` directly. A deterministic metric simply has nothing to await.
+`ScoreContext` now carries resolved judge sessions by name and the run's
+redactor; [judges.md](judges.md) describes the wiring, the configuration hash
+and the cost split.
 
 ## Clause identifiers and numbering
 
@@ -191,8 +208,10 @@ same registry production uses resolves them:
 | candidate | `candidates.stub:build_failing` | always raises TransportError |
 | candidate | `candidates.stub:build_fixed_prompt` | refuses prompt overrides |
 | judge | `judges.rule_based:build` | deterministic expected-substring verdict |
+| judge | `judges.scripted:build` | deterministic rubric/claim verdict with estimated usage |
 | metric | `metrics.exact_match:build` | exact match against the expected answer |
 | metric | `metrics.contains:build` | containment against the expected answer |
+| metric | `metrics.citation_support:build` | judge-backed citation support; needs `options.judge` |
 | source | `sources.inline:build` | cases written in the spec |
 | sink | `sinks.json_sink:build` | one directory per run and cell |
 
@@ -211,9 +230,17 @@ six passing checks and reports `pass`.
 - Clause identifiers are append-only. Add a clause, never renumber one.
 - A new first-party adapter needs a manifest row and a green suite; the
   manifest test is the CI gate, not a convention.
-- The judge exists and conforms, but the scorer does not yet wire judges
-  into judge-backed metrics. That wiring belongs to the ticket that adds
-  the first judge-backed metric.
+- `Metric.check` is async. Adding a metric means implementing
+  `async def check`; a caller awaits it. Do not add a synchronous
+  compatibility shim, because two calling conventions would split the
+  contract.
+- A metric names its judge through `options.judge`; the scorer builds one
+  fresh `JudgeSession` per judge per cell, so judge cost and tokens stay
+  attributed to the triggering cell. Two metrics may name two judges.
+- The metric conformance suite supplies a deterministic
+  `conformance-judge` session, plus one for any judge name in the
+  adapter's options, so a judge-backed metric is exercised without
+  depending on a specific judge adapter.
 - Conformance runs write only under `EVALH_HOME/conformance` and
   delete their scratch directory. A sink must still stay inside the
   artifacts root it is given.
