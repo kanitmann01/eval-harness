@@ -3,3 +3,5 @@
 Dockerfile text eol=lf
 compose.yaml text eol=lf
 *.sh text eol=lf
+# The parity fixture is checksum-pinned, so its bytes must not vary by platform.
+examples/parity/** text eol=lf
