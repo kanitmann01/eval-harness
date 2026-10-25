@@ -2,11 +2,13 @@
 
 Adapter-based evaluation harness. The harness is the product; pipelines, agents and corpora are candidates behind adapters.
 
-Status: walking skeleton plus the encrypted credential vault and the public adapter
-contract suite. One command validates a spec, expands it into cells, executes them
-sequentially, and writes a run with cells, checks, aggregates with intervals, and
-artifact paths that read back. Provider keys are added, listed, verified and deleted
-from the command line, encrypted at rest and redacted everywhere. The console follows.
+Status: walking skeleton plus the encrypted credential vault, the public adapter
+contract suite and the read-only console. One command validates a spec, expands it into
+cells, executes them with bounded concurrency, and writes a run with cells, checks,
+aggregates with intervals, and artifact paths that read back. Provider keys are added,
+listed, verified and deleted from the command line, encrypted at rest and redacted
+everywhere. The console serves the run list, the candidate by case heatmap and per-cell
+evidence; the compare view follows.
 The spec of record is issue #1 in this repository.
 
 ## What it will be
@@ -21,6 +23,7 @@ Credentials are BYOK. One container per person, keys verified on demand, encrypt
 - `docs/spec-v1.md` — the spec schema as implemented, field by field.
 - `docs/adapters.md` — the five adapter contracts, clause numbering, the manifest and the conformance command.
 - `docs/credentials.md` — BYOK flow, master key lifecycle, what is stored, redaction guarantees, verification request.
+- `docs/console.md` — the page map, JSON API, SSE contract and how to serve a run in a browser.
 - Issue #1 — the spec: problem, solution, 58 user stories, implementation decisions, testing decisions, out of scope.
 
 ## Quick start
@@ -31,6 +34,7 @@ python -m evalharness validate examples/specs/smoke.yaml
 python -m evalharness run examples/specs/smoke.yaml --dry-run
 python -m evalharness run examples/specs/smoke.yaml
 python -m evalharness run examples/specs/stub-pack.yaml
+python -m evalharness serve
 python -m evalharness conformance --all
 ~~~
 
