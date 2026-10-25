@@ -519,3 +519,66 @@ tbody tr:hover { background: var(--surface-2); }
   .editor-layout { grid-template-columns: 1fr; }
   .summary-panel { position: static; }
 }
+/* BEGIN issue #12: launch and cancel. Keep this block delimited. */
+.nav-cancel { margin: 0; }
+.nav-cancel button {
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 0.3rem 0.7rem;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 650;
+  cursor: pointer;
+  background: var(--fail-bg);
+  color: var(--fail-ink);
+}
+.nav-cancel button:hover { filter: brightness(1.06); }
+.nav-cancel button:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
+
+.callout-info { background: var(--unknown-bg); color: var(--unknown-ink); }
+
+.launch-form { display: grid; gap: 0.4rem; max-width: 38rem; }
+.launch-form label {
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+.launch-form select,
+.launch-form input {
+  padding: 0.45rem 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface-2);
+  color: var(--ink);
+  font: inherit;
+}
+.launch-form select:focus-visible,
+.launch-form input:focus-visible,
+.launch-form button:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
+.launch-form .form-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; margin: 0.6rem 0 0; }
+.launch-form .form-actions button {
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 0.45rem 0.85rem;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+.launch-form .form-actions button:hover { filter: brightness(1.08); }
+.launch-form .form-actions button.button-secondary {
+  background: var(--surface-2);
+  color: var(--ink);
+  border-color: var(--line);
+}
+.launch-steps { margin: 0.4rem 0 0; padding-left: 1.3rem; max-width: 74ch; }
+.launch-steps li { margin: 0.2rem 0; }
+
+@media print {
+  .nav-cancel { display: none; }
+}
+/* END issue #12: launch and cancel. */
+
