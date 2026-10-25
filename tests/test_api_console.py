@@ -7,6 +7,7 @@ through `httpx.AsyncClient` against the ASGI application, never a server.
 from __future__ import annotations
 
 import asyncio
+import io
 import logging
 import os
 import subprocess
@@ -458,9 +459,7 @@ def test_empty_console_renders_an_empty_state(evalh_home: Path) -> None:
         app.state.database.dispose()
 
 
-def test_request_logs_omit_query_strings(
-    console: Console, caplog: pytest.LogCaptureFixture
-) -> None:
+def test_request_logs_omit_query_strings(console: Console) -> None:
     async def read_with_secret() -> None:
         async with _client(console.app) as client:
             response = await client.get(
@@ -468,10 +467,21 @@ def test_request_logs_omit_query_strings(
             )
             assert response.status_code == 200
 
-    with caplog.at_level(logging.INFO, logger="evalharness.api"):
+    stream = io.StringIO()
+    handler = logging.StreamHandler(stream)
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    logger = logging.getLogger("evalharness.api")
+    previous_propagate = logger.propagate
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    try:
         asyncio.run(read_with_secret())
-    assert "GET / -> 200" in caplog.text
-    assert "SECRET-CANARY" not in caplog.text
+    finally:
+        logger.removeHandler(handler)
+        logger.propagate = previous_propagate
+    assert "GET / -> 200" in stream.getvalue()
+    assert "SECRET-CANARY" not in stream.getvalue()
 
 
 def test_console_never_renders_a_known_secret(
@@ -480,7 +490,11 @@ def test_console_never_renders_a_known_secret(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("EVALH_CREDENTIAL_STUB", "SECRET-CANARY")
+    monkeypatch.setattr(sys, "stdin", io.StringIO("SECRET-CANARY\n"))
+    assert main(
+        ["credentials", "add", "stub", "--provider", "none", "--secret-stdin"]
+    ) == 0
+    capsys.readouterr()
     spec_data = base_spec()
     spec_data["name"] = "secret-spec"
     spec_data["candidates"] = [spec_data["candidates"][0]]
