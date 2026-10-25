@@ -184,7 +184,12 @@ class EventRow(Base):
 
 
 class CredentialRow(Base):
-    """One encrypted credential; the vault implementation arrives in issue #6."""
+    """One encrypted credential plus the metadata the console displays.
+
+    disabled is NOT NULL with a Python-side default: a new row always writes
+    it, and the issue #13 migration adds the column to an older database with
+    a false server default so every stored row reads back as enabled.
+    """
 
     __tablename__ = "credentials"
 
@@ -198,3 +203,6 @@ class CredentialRow(Base):
         DateTime(timezone=True), nullable=True
     )
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    disabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )

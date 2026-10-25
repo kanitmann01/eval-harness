@@ -40,6 +40,8 @@ from evalharness.core.models import (
     Case,
     CellRecord,
     Check,
+    CredentialRecord,
+    CredentialState,
     GateResult,
     RunRecord,
     utc_now,
@@ -55,6 +57,7 @@ from evalharness.core.redaction import (
 from evalharness.core.scorer import aggregate_cells, evaluate_gates
 from evalharness.core.spec import ResolvedSpec, load_and_validate
 from evalharness.core.vault import VaultCredentialStore, open_vault
+from evalharness.credential_service import credential_states
 from evalharness.errors import SpecError
 from evalharness.storage.db import Database
 from evalharness.storage.repository import Repository
@@ -86,8 +89,8 @@ class RunOutcome:
     reason: str
 
 
-def stored_credential_names(settings: Settings) -> list[str]:
-    """Read stored credential names without creating an absent database."""
+def stored_credentials(settings: Settings) -> list[CredentialRecord]:
+    """Read stored credential metadata without creating an absent database."""
     parsed = make_url(settings.database_url)
     if parsed.get_backend_name() == "sqlite":
         database_path = parsed.database or ""
@@ -96,9 +99,14 @@ def stored_credential_names(settings: Settings) -> list[str]:
     database = Database(settings.database_url)
     try:
         database.create_all()
-        return [record.name for record in Repository(database).list_credentials()]
+        return Repository(database).list_credentials()
     finally:
         database.dispose()
+
+
+def stored_credential_states(settings: Settings) -> list[CredentialState]:
+    """Read each stored credential's usability state, never its secret."""
+    return credential_states(stored_credentials(settings))
 
 
 def redactor_for(store: CredentialStore) -> SecretRedactor:
@@ -125,7 +133,7 @@ def load_run(
     """
     resolved = load_and_validate(
         spec_path,
-        stored_credentials=stored_credential_names(settings),
+        credential_states=stored_credential_states(settings),
     )
     cases = _load_cases(resolved, run_id)
     cells = expand(resolved, cases)
@@ -517,5 +525,6 @@ __all__ = [
     "execute",
     "load_run",
     "redactor_for",
-    "stored_credential_names",
+    "stored_credential_states",
+    "stored_credentials",
 ]

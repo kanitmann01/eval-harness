@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from sqlalchemy import case, delete, func, select
+from sqlalchemy.orm import Session
 
 from evalharness.core.events import Event
 from evalharness.core.models import (
@@ -405,6 +406,7 @@ class Repository:
                 provider=provider,
                 ciphertext=ciphertext,
                 created_at=created_at or utc_now(),
+                disabled=False,
             )
             session.add(row)
             return _credential_record(row)
@@ -436,14 +438,7 @@ class Repository:
         one keeps the last successful time and records the provider message.
         """
         with self._database.session() as session:
-            row = session.get(CredentialRow, name)
-            if row is None:
-                raise SpecError(
-                    f"credentials.{name}",
-                    name,
-                    "unknown credential",
-                    "list the stored credentials with 'evalh credentials list'",
-                )
+            row = _credential_row(session, name)
             if error is None:
                 row.last_ok_at = tested_at or utc_now()
                 row.last_error = None
@@ -451,28 +446,50 @@ class Repository:
                 row.last_error = error
             return _credential_record(row)
 
+    def set_credential_disabled(
+        self, name: str, disabled: bool
+    ) -> CredentialRecord:
+        """Enable or disable one stored credential and return its metadata."""
+        with self._database.session() as session:
+            row = _credential_row(session, name)
+            row.disabled = disabled
+            return _credential_record(row)
+
     def delete_credential(self, name: str) -> None:
         """Delete one stored credential, or raise when it does not exist."""
         with self._database.session() as session:
-            row = session.get(CredentialRow, name)
-            if row is None:
-                raise SpecError(
-                    f"credentials.{name}",
-                    name,
-                    "unknown credential",
-                    "list the stored credentials with 'evalh credentials list'",
-                )
-            session.delete(row)
+            session.delete(_credential_row(session, name))
+
+
+def _credential_row(session: Session, name: str) -> CredentialRow:
+    """Return one credential row, or raise the CLI's actionable unknown error."""
+    row = session.get(CredentialRow, name)
+    if row is None:
+        raise SpecError(
+            f"credentials.{name}",
+            name,
+            "unknown credential",
+            "list the stored credentials with 'evalh credentials list'",
+        )
+    return row
 
 
 def _credential_record(row: CredentialRow) -> CredentialRecord:
     return CredentialRecord(
         name=row.name,
         provider=row.provider,
-        created_at=row.created_at,
-        last_ok_at=row.last_ok_at,
+        created_at=_utc(row.created_at),
+        last_ok_at=_utc(row.last_ok_at),
         last_error=row.last_error,
+        disabled=row.disabled,
     )
+
+
+def _utc(value: datetime | None) -> datetime | None:
+    """Read a stored timestamp as UTC; SQLite drops the offset on write."""
+    if value is None or value.tzinfo is not None:
+        return value
+    return value.replace(tzinfo=timezone.utc)
 
 
 def _encrypted_credential(row: CredentialRow) -> EncryptedCredential:

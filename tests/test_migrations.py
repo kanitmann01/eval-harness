@@ -280,7 +280,7 @@ def test_migration_adds_gate_arithmetic_columns(evalh_home, workdir):
             version = connection.exec_driver_sql(
                 "SELECT MAX(version) FROM schema_version"
             ).scalar()
-        assert version == 4
+        assert version == 5
     finally:
         reopened.dispose()
 
@@ -365,5 +365,35 @@ def test_migration_adds_the_cost_split_to_a_version_3_database(evalh_home, workd
         assert written.tool_cost_usd == 0.75
         assert written.judge_prompt_tokens == 11
         assert written.judge_completion_tokens == 3
+    finally:
+        reopened.dispose()
+
+
+def test_migration_adds_credentials_disabled(evalh_home, workdir):
+    url = _database_url(workdir, "version-4.db")
+    database = Database(url)
+    database.create_all()
+    repository = Repository(database)
+    repository.add_credential(
+        "old", "openai", b"ciphertext", created_at=utc_now()
+    )
+    with database.engine.begin() as connection:
+        # Issue #9 shipped the credentials table without issue #13's column.
+        connection.exec_driver_sql("ALTER TABLE credentials DROP COLUMN disabled")
+        connection.execute(text("UPDATE schema_version SET version = 4"))
+    database.dispose()
+
+    reopened = Database(url)
+    repository = Repository(reopened)
+    try:
+        old = repository.list_credentials()[0]
+        assert old.disabled is False
+        assert repository.set_credential_disabled("old", True).disabled is True
+        assert repository.set_credential_disabled("old", False).disabled is False
+        with reopened.engine.begin() as connection:
+            version = connection.exec_driver_sql(
+                "SELECT MAX(version) FROM schema_version"
+            ).scalar()
+        assert version == 5
     finally:
         reopened.dispose()

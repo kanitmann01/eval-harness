@@ -341,6 +341,19 @@ class CredentialRecord(BaseModel):
     created_at: datetime
     last_ok_at: datetime | None = None
     last_error: str | None = None
+    disabled: bool = False
+
+
+class CredentialState(BaseModel):
+    """What spec validation may know about one stored credential's usability.
+
+    The state carries no secret and no ciphertext: disabled is the console's
+    switch, and verified means the last successful provider test exists.
+    """
+
+    name: str
+    disabled: bool = False
+    verified: bool = False
 
 
 class EncryptedCredential(CredentialRecord):
