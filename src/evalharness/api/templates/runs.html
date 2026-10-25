@@ -35,19 +35,19 @@
 </form>
 
 {% if runs %}
-<div class="table-wrap">
+<div class="table-wrap" tabindex="0" role="region" aria-label="Runs table">
   <table class="runs">
     <caption class="sr-only">Runs with status, spec, candidates, pass rate, cost and duration</caption>
     <thead>
       <tr>
         <th scope="col">Spec</th>
         <th scope="col">Status</th>
-        <th scope="col">Candidates</th>
-        <th scope="col" class="num">Cells ok</th>
+        <th scope="col" class="col-md">Candidates</th>
+        <th scope="col" class="num col-sm">Cells ok</th>
         <th scope="col" class="num">Pass rate</th>
         <th scope="col" class="num">Cost</th>
-        <th scope="col" class="num">Duration</th>
-        <th scope="col" class="num">Started</th>
+        <th scope="col" class="num col-lg">Duration</th>
+        <th scope="col" class="num col-lg">Started</th>
       </tr>
     </thead>
     <tbody>
@@ -55,15 +55,22 @@
       <tr class="run-row">
         <td>
           <a class="run-link" href="{{ url_for('run_detail', run_id=run.run_id) }}">{{ run.spec_name or "(unnamed spec)" }}</a>
-          <span class="mono subtle run-id">{{ run.run_id[:12] }}</span>
+          <span class="mono subtle run-id" title="{{ run.run_id }}">{{ run.run_id[:8] }}</span>
         </td>
-        <td><span class="status status-{{ run.status }}">{{ run.status }}</span></td>
-        <td class="candidate-list">{{ run.candidates|join(", ") }}</td>
-        <td class="num">{{ run.n_ok }}/{{ run.n_cells }}</td>
+        <td class="run-status">
+          <span class="status status-{{ run.status }}">{{ run.status }}</span>
+          {% if run.failed_gates %}
+          <span class="gate-chip" title="Failed gate: {{ run.failed_gates|join(', ') }}">
+            <span aria-hidden="true">✗</span> gate failed<span class="sr-only">: {{ run.failed_gates|join(', ') }}</span>
+          </span>
+          {% endif %}
+        </td>
+        <td class="candidate-list col-md">{{ run.candidates|join(", ") }}</td>
+        <td class="num col-sm">{{ run.n_ok }}/{{ run.n_cells }}</td>
         <td class="num">{{ run.pass_rate|pct }}</td>
-        <td class="num">{{ run.cost_usd|usd }}</td>
-        <td class="num">{{ run.duration_s|duration }}</td>
-        <td class="num subtle">{{ run.started_at|timestamp }}</td>
+        <td class="num" title="{{ run.cost_usd|usdexact }}">{{ run.cost_usd|usd }}</td>
+        <td class="num col-lg">{{ run.duration_s|duration }}</td>
+        <td class="num subtle col-lg">{{ run.started_at|timestamp }}</td>
       </tr>
       {% endfor %}
     </tbody>

@@ -70,6 +70,8 @@ def run_summary_data(summary: RunSummary) -> dict[str, Any]:
         "finished_at": _isoformat(summary.finished_at),
         "candidates": list(summary.candidates),
         "metrics": list(summary.metrics),
+        "gate_failed": bool(summary.failed_gates),
+        "failed_gates": list(summary.failed_gates),
     }
 
 

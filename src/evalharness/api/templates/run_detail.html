@@ -4,14 +4,14 @@
 <nav class="crumbs" aria-label="Breadcrumb">
   <a href="{{ url_for('run_list') }}">Runs</a>
   <span aria-hidden="true">/</span>
-  <span class="mono">{{ run.run_id }}</span>
+  <span class="mono" title="{{ run.run_id }}">{{ run.run_id[:8] }}</span>
 </nav>
 
 <div class="page-head">
   <div>
     <h1>{{ run.spec_snapshot.name or "(unnamed spec)" }}</h1>
     <p class="lede">
-      Run <span class="mono">{{ run.run_id }}</span>, started {{ run.started_at|timestamp }}{% if run.finished_at %}, finished {{ run.finished_at|timestamp }}{% endif %}.
+      Run <span class="mono" title="{{ run.run_id }}">{{ run.run_id[:8] }}</span>, started {{ run.started_at|timestamp }}{% if run.finished_at %}, finished {{ run.finished_at|timestamp }}{% endif %}.
     </p>
   </div>
   <span class="status status-{{ run.status }}">{{ run.status }}</span>
@@ -19,8 +19,8 @@
 
 <section class="stat-grid" aria-label="Run summary">
   <div class="stat"><span class="stat-label">Cells</span><span class="stat-value">{{ run.n_ok }}/{{ run.n_cells }} ok</span></div>
-  <div class="stat"><span class="stat-label">Cost</span><span class="stat-value">{{ run.cost_usd|usd }}</span></div>
-  <div class="stat"><span class="stat-label">Budget</span><span class="stat-value">{{ run.budget_usd|usd }}</span></div>
+  <div class="stat"><span class="stat-label">Cost</span><span class="stat-value" title="{{ run.cost_usd|usdexact }}">{{ run.cost_usd|usd }}</span></div>
+  <div class="stat"><span class="stat-label">Budget</span><span class="stat-value" title="{{ run.budget_usd|usdexact }}">{{ run.budget_usd|usd }}</span></div>
   <div class="stat"><span class="stat-label">Duration</span><span class="stat-value">{{ duration_s|duration }}</span></div>
   <div class="stat"><span class="stat-label">Seed</span><span class="stat-value mono">{{ run.seed }}</span></div>
   <div class="stat"><span class="stat-label">Harness</span><span class="stat-value mono">{{ run.harness_sha }}</span></div>
@@ -85,19 +85,19 @@
     </div>
   </div>
   {% if aggregates %}
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Aggregates table">
     <table class="aggregates">
       <caption class="sr-only">Aggregates with 95 percent Wilson intervals and pass claims</caption>
       <thead>
         <tr>
           <th scope="col">Candidate</th>
           <th scope="col">Metric</th>
-          <th scope="col" class="num">Tier</th>
-          <th scope="col" class="num">n</th>
+          <th scope="col" class="num col-md">Tier</th>
+          <th scope="col" class="num col-md">n</th>
           <th scope="col" class="num">Value</th>
-          <th scope="col" class="num">95% interval</th>
-          <th scope="col" class="num">pass@k</th>
-          <th scope="col" class="num">pass^k</th>
+          <th scope="col" class="num col-sm">95% interval</th>
+          <th scope="col" class="num col-lg">pass@k</th>
+          <th scope="col" class="num col-lg">pass^k</th>
         </tr>
       </thead>
       <tbody>
@@ -105,12 +105,12 @@
         <tr>
           <td>{{ aggregate.candidate }}</td>
           <td class="mono">{{ aggregate.metric }}</td>
-          <td class="num">{{ "all" if aggregate.tier is none else aggregate.tier }}</td>
-          <td class="num">{{ aggregate.n }}</td>
+          <td class="num col-md">{{ "all" if aggregate.tier is none else aggregate.tier }}</td>
+          <td class="num col-md">{{ aggregate.n }}</td>
           <td class="num">{{ aggregate.value|pct }}</td>
-          <td class="num">{{ aggregate.ci_low|interval(aggregate.ci_high) }}</td>
-          <td class="num">{{ aggregate.pass_at_k|pct }}</td>
-          <td class="num">{{ aggregate.pass_k|pct }}</td>
+          <td class="num col-sm">{{ aggregate.ci_low|interval(aggregate.ci_high) }}</td>
+          <td class="num col-lg">{{ aggregate.pass_at_k|pct }}</td>
+          <td class="num col-lg">{{ aggregate.pass_k|pct }}</td>
         </tr>
         {% endfor %}
       </tbody>
@@ -156,7 +156,7 @@
     <div><dt>Prompt tokens</dt><dd>{{ selected_cell.prompt_tokens }}</dd></div>
     <div><dt>Completion tokens</dt><dd>{{ selected_cell.completion_tokens }}</dd></div>
     <div><dt>Tool calls</dt><dd>{{ selected_cell.tool_calls }}</dd></div>
-    <div><dt>Cost</dt><dd>{{ selected_cell.cost_usd|usd }}</dd></div>
+    <div><dt>Cost</dt><dd title="{{ selected_cell.cost_usd|usdexact }}">{{ selected_cell.cost_usd|usd }}</dd></div>
     <div><dt>Latency</dt><dd>{{ selected_cell.wall_ms }} ms</dd></div>
     <div><dt>Usage source</dt><dd>{{ selected_cell.usage_source }}</dd></div>
   </dl>

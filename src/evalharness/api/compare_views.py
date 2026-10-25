@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlencode
 
+from evalharness.api.templating import format_usd
 from evalharness.core.compare import (
     BETTER,
     INCONCLUSIVE,
@@ -421,6 +422,11 @@ def _one_sided_view(item: OneSidedCase) -> dict[str, Any]:
     }
 
 
+def _usd(value: float | None) -> str:
+    """Format a USD amount, or undefined when it cannot be computed."""
+    return "undefined" if value is None else format_usd(value)
+
+
 def _pct(value: float | None) -> str:
     """Format a proportion, or undefined when there are no samples."""
     return "undefined" if value is None else f"{value * 100:.1f}%"
@@ -436,11 +442,6 @@ def _pp_interval(low: float | None, high: float | None) -> str:
     if low is None or high is None:
         return "undefined"
     return f"{low * 100:+.1f} to {high * 100:+.1f} pp"
-
-
-def _usd(value: float | None) -> str:
-    """Format a USD amount, or undefined when it cannot be computed."""
-    return "undefined" if value is None else f"${value:.6f}"
 
 
 def _judge_name(judge: JudgeIdentity) -> str:
