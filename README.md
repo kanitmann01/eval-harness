@@ -3,13 +3,14 @@
 Adapter-based evaluation harness. The harness is the product; pipelines, agents and corpora are candidates behind adapters.
 
 Status: walking skeleton plus the encrypted credential vault, judge-backed metrics,
-the public adapter contract suite and the read-only console. One command validates
-a spec, expands it into cells, executes them with bounded concurrency, and writes a
-run with cells, checks, aggregates with intervals, and artifact paths that read back.
-A judge verdict carries a reason, evidence and its own tokens and cost, attributed to
-the cell that triggered it and split from the answer's cost. Provider keys are added,
-listed, verified and deleted from the command line, encrypted at rest and redacted
-everywhere. The console serves the run list, the candidate by case heatmap and per-cell
+the public adapter contract suite, the read-only console, and two provider families
+as candidates and judges. One command validates a spec, expands it into cells,
+executes them with bounded concurrency, and writes a run with cells, checks,
+aggregates with intervals, and artifact paths that read back. A judge verdict
+carries a reason, evidence and its own tokens and cost, attributed to the cell that
+triggered it, split from the answer's cost, and rolled up per provider. Provider
+keys are added, listed, verified and deleted from the command line, encrypted at
+rest and redacted everywhere. The console serves the run list, the candidate by case heatmap and per-cell
 evidence and a side-by-side compare view with deltas, intervals and cost per
 correct answer. A saved spec can be launched and cancelled from the console, one
 run per container at a time.
@@ -30,6 +31,7 @@ Credentials are BYOK. One container per person, keys verified on demand, encrypt
 - `docs/credentials.md` — BYOK flow, master key lifecycle, what is stored, redaction guarantees, verification request.
 - `docs/console.md` — the page map, JSON API, SSE contract and how to serve a run in a browser.
 - `docs/http-candidate.md` — the v1 wire contract for someone else's agent: request, response, auth, retries, error mapping, usage estimation.
+- `docs/providers.md` — the two provider families for candidates and judges: matrix, auth shapes, request and response mapping, the JSON verdict, the price table and per-provider cost attribution.
 - `contract/candidate-v1.schema.json` — the same contract as JSON Schema (append-compatible only).
 - Issue #1 — the spec: problem, solution, 58 user stories, implementation decisions, testing decisions, out of scope.
 
@@ -45,6 +47,9 @@ python -m evalharness run examples/specs/judges.yaml
 python -m evalharness serve
 # then open http://127.0.0.1:8000/specs to edit, validate and save a spec
 python -m evalharness conformance --all
+# provider demo: two candidates and two judges, two providers, no paid key
+python examples/provider_server.py                       # terminal 1
+python -m evalharness run examples/specs/providers.yaml  # terminal 2
 ~~~
 
 The smoke spec needs no keys and no network. It declares a stub candidate and a
@@ -60,7 +65,9 @@ answer/judge/tool cost split. The `evalh conformance --all` command runs the sam
 public contract suite as CI and prints one line per clause. Its HTTP candidate row
 needs a live endpoint: CI starts `examples/http_candidate_server.py` first and
 points the row at it with `EVALH_HTTP_CONFORMANCE_BASE_URL`; locally start the
-demo server, or set the same variable, or that row reports a connection error.
+demo server, or set the same variable, or that row reports a connection error. The
+four provider rows follow the same rule with `examples/provider_server.py` and
+`EVALH_PROVIDER_CONFORMANCE_BASE_URL`.
 
 ## Exit codes and gates
 

@@ -11,12 +11,16 @@ and the wiring in [core/judges.py](../src/evalharness/core/judges.py).
 ~~~python
 class Judge(Protocol):
     name: str
+    capabilities: Capabilities
     async def verdict(self, request: JudgeRequest) -> Verdict: ...
 ~~~
 
 `verdict` is async. A judge receives a `JudgeRequest` with the case id, the
 prompt, the text to judge in `answer`, the optional rubric and expected data,
-and an `evidence` mapping. It returns a `Verdict`:
+and an `evidence` mapping. The session also fills `request.model` and
+`request.credential` from the judge declaration, so a provider judge can call
+its model and authenticate; a deterministic judge ignores both and declares the
+default `Capabilities()`. It returns a `Verdict`:
 
 | Field | Meaning |
 | --- | --- |
@@ -29,17 +33,26 @@ and an `evidence` mapping. It returns a `Verdict`:
 | `usage_source` | `provider` or `estimated` |
 
 A judge is deterministic in the suite's sense: the same request produces the
-same verdict, which is `judge/5`. The conformance suite is the contract; see
-[adapters.md](adapters.md).
+same verdict, which is `judge/5`. `judge/6` requires the verdict to report
+non-negative token counts and a `usage_source` of `provider` or `estimated`,
+so judge cost attribution always has a basis. The conformance suite is the
+contract; see [adapters.md](adapters.md).
 
 ## Reference judges
 
-Both are first-party, credential-free and network-free.
+Two are first-party, credential-free and network-free; two call a provider.
 
 | Adapter | What it does |
 | --- | --- |
 | `judges.rule_based:build` | passes when the expected answer is a substring of the answer; no model, no tokens, no cost |
 | `judges.scripted:build` | deterministic rubric/claim judge with estimated token usage, so a run can price it |
+| `judges.openai_compat:build` | asks an OpenAI-compatible model for a JSON verdict; bearer auth by default |
+| `judges.anthropic:build` | asks an Anthropic-style model for a JSON verdict; `x-api-key` auth by default |
+
+The provider judges are documented in [providers.md](providers.md): request
+shape, the JSON verdict contract, the PASS/FAIL fallback and the error mapping.
+They are what lets one run compare two judges from two providers under two
+credentials.
 
 `scripted` options:
 
@@ -85,12 +98,19 @@ prices:
 ~~~
 
 Validation rejects a metric whose `options.judge` is not a declared judge,
-before anything runs. It also rejects a declared judge `model` with no price.
-The complete two-judge spec is
+before anything runs. It also rejects a declared judge `model` with no resolved
+price. A judge whose adapter declares `requires_credential` must name a
+credential **stored in the vault**, not merely one declared in the spec, and
+validation names `judges[i].credential`. A judge whose adapter declares
+`requires_model` must declare `model`, and validation names `judges[i].model`.
+Deterministic judges declare neither flag, so they keep working with no
+credential and no model. The complete two-judge spec is
 [examples/specs/judges.yaml](../examples/specs/judges.yaml).
 
 At scoring time the executor builds a fresh `JudgeSession` per declared judge
-for each cell. The session wraps the shared adapter and records the tokens and
+for each cell. The session carries the judge's declared model, its resolved
+credential handle, its `provider` and its price, and copies the model and
+credential onto each `JudgeRequest` it forwards. It also records the tokens and
 cost this cell accumulated, so a concurrent run attributes every verdict to
 the cell that triggered it. `ScoreContext.judges` is that mapping; a metric
 looks its judge up by the name in its options and awaits it. The context also
@@ -121,10 +141,17 @@ ticket, so drift is visible rather than trusted.
 
 ## Cost attribution
 
-Judge usage is priced from the spec price table by the judge's declared
-`model`, never by the candidate's model and never by the verdict's reported
-model. A judge without a declared model has no price and costs zero while
-still recording the tokens it reported.
+Judge usage is priced from the resolved price table by the judge's declared
+`model` and its adapter's `Capabilities.provider`, never by the candidate's
+model and never by the verdict's reported model. A judge without a declared
+model has no price and costs zero while still recording the tokens it reported.
+
+Judge cost is charged to the cell that triggered it, and also attributed to the
+provider that served the judge: the cell stores
+`judge_provider_usage[provider] = {prompt_tokens, completion_tokens, cost_usd}`,
+and the run stores one `provider_costs` row per provider. A judge at provider A
+judging a candidate at provider B bills A's row, not B's. [providers.md](providers.md)
+has the full per-provider contract.
 
 The executor splits every cell's cost and stores it on the cell:
 

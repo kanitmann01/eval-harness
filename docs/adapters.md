@@ -68,6 +68,7 @@ kind. A CI failure therefore points at the same sentence it always did.
 | `judge/3` | reason is non-empty | the verdict explains itself |
 | `judge/4` | evidence is JSON-serialisable | evidence survives storage and the console |
 | `judge/5` | the same request gives the same verdict | a deterministic judge repeats exactly |
+| `judge/6` | the verdict reports its token usage | `prompt_tokens` and `completion_tokens` are non-negative ints and `usage_source` is provider or estimated, so judge cost attribution never loses its basis |
 
 ### metric
 
@@ -211,6 +212,13 @@ different host or port is configured through the same variable; an explicit
 stub server replaces `base_url` with an ephemeral port for that run; the suite
 already merges entry options into every clause.
 
+The four provider rows follow the same rule with
+`EVALH_PROVIDER_CONFORMANCE_BASE_URL` and `examples/provider_server.py` on
+port 8770. They share one mutable options mapping, carry `auth: none` so the
+suite needs no stored secret, and the test fixture points all four at one
+ephemeral stub. [providers.md](providers.md) is the reference for the provider
+matrix, auth shapes, prices and error mapping.
+
 ## The command
 
 ```text
@@ -237,11 +245,16 @@ same registry production uses resolves them:
 | candidate | `candidates.stub:build_failing` | always raises TransportError |
 | candidate | `candidates.stub:build_fixed_prompt` | refuses prompt overrides |
 | candidate | `candidates.http:build` | POSTs the v1 contract to another agent's endpoint |
+| candidate | `candidates.openai_compat:build` | POSTs `/chat/completions` to an OpenAI-compatible provider |
+| candidate | `candidates.anthropic:build` | POSTs `/v1/messages` to an Anthropic-style provider |
 | judge | `judges.rule_based:build` | deterministic expected-substring verdict |
 | judge | `judges.scripted:build` | deterministic rubric/claim verdict with estimated usage |
+| judge | `judges.openai_compat:build` | structured JSON verdict from an OpenAI-compatible model |
+| judge | `judges.anthropic:build` | structured JSON verdict from an Anthropic-style model |
 | metric | `metrics.exact_match:build` | exact match against the expected answer |
 | metric | `metrics.contains:build` | containment against the expected answer |
 | metric | `metrics.citation_support:build` | judge-backed citation support; needs `options.judge` |
+| metric | `metrics.judge_pass:build` | judge-backed correctness of the whole answer; needs `options.judge` |
 | source | `sources.inline:build` | cases written in the spec |
 | sink | `sinks.json_sink:build` | one directory per run and cell |
 
@@ -277,3 +290,12 @@ six passing checks and reports `pass`.
 - Conformance runs write only under `EVALH_HOME/conformance` and
   delete their scratch directory. A sink must still stay inside the
   artifacts root it is given.
+- A judge declares `capabilities` exactly as a candidate does: a provider judge
+  sets `requires_credential`, `requires_model` and `provider`, and a
+  deterministic judge keeps the defaults so it needs no credential. Validation
+  enforces those flags and names `judges[i].credential` or `judges[i].model`.
+  The session passes the resolved credential and declared model through
+  `JudgeRequest`, so a judge adapter never reads settings.
+- A provider adapter declares its provider in `Capabilities.provider`. That
+  string is the price key and the attribution key; an adapter that is not tied
+  to one provider leaves it empty and lands in the provider-agnostic bucket.

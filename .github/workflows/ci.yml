@@ -50,9 +50,36 @@ jobs:
                   f"candidate server did not start on 127.0.0.1:{port}"
               )
           PY
+      - name: Start the provider reference stub
+        env:
+          EVALH_PROVIDER_CONFORMANCE_BASE_URL: http://127.0.0.1:8770
+        run: |
+          set -euo pipefail
+          # The provider rows read the same variable the stub binds, so the
+          # port cannot drift between the process and the conformance runner.
+          PORT="$(python -c 'import os, urllib.parse; print(urllib.parse.urlsplit(os.environ["EVALH_PROVIDER_CONFORMANCE_BASE_URL"]).port)')"
+          nohup python examples/provider_server.py --port "$PORT" \
+            > /tmp/provider-server.log 2>&1 &
+          python - "$PORT" <<'PY'
+          import socket, sys, time
+
+          port = int(sys.argv[1])
+          deadline = time.time() + 10
+          while time.time() < deadline:
+              try:
+                  with socket.create_connection(("127.0.0.1", port), timeout=0.2):
+                      break
+              except OSError:
+                  time.sleep(0.05)
+          else:
+              raise SystemExit(
+                  f"provider server did not start on 127.0.0.1:{port}"
+              )
+          PY
       - name: Run the first-party adapter conformance suite
         env:
           EVALH_HTTP_CONFORMANCE_BASE_URL: http://127.0.0.1:8765
+          EVALH_PROVIDER_CONFORMANCE_BASE_URL: http://127.0.0.1:8770
         run: python -m evalharness conformance --all
 
   no-credential-run:

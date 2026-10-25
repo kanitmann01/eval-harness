@@ -1,0 +1,83 @@
+# One run, two providers, two credentials, no paid key.
+#
+# Start the reference stub first, in another terminal:
+#     python examples/provider_server.py
+# then:
+#     python -m evalharness run examples/specs/providers.yaml
+#
+# The adapters use auth: none because the stub holds no key; the two declared
+# credentials show the names a real run would store, and switching an adapter
+# to auth: bearer (OpenAI-compatible) or the default header key
+# (Anthropic-style) is the only change needed to call the real endpoint.
+#
+# Both models are priced by the shipped config/prices.yaml, so this spec has no
+# prices block at all. Two candidates and two judges produce four priced cells
+# and per-provider answer, judge and tool cost.
+spec_version: 1
+name: provider-breadth
+description: Two provider families as candidates and as judges in one run.
+seed: 7
+
+source:
+  adapter: evalharness.adapters.sources.inline:build
+  options:
+    cases:
+      - case_id: case-1
+        prompt: What is 6 times 7?
+        expected: {answer: "42"}
+        tier: 1
+      - case_id: case-2
+        prompt: What is 7 times 6?
+        expected: {answer: "42"}
+        tier: 1
+
+credentials:
+  - name: openai-stub
+    provider: openai-compatible
+  - name: anthropic-stub
+    provider: anthropic
+
+candidates:
+  - name: openai-mini
+    adapter: evalharness.adapters.candidates.openai_compat:build
+    model: gpt-4o-mini
+    options:
+      base_url: http://127.0.0.1:8770
+      auth: none
+      system: Answer with a bare number.
+  - name: anthropic-haiku
+    adapter: evalharness.adapters.candidates.anthropic:build
+    model: claude-haiku-4-5
+    options:
+      base_url: http://127.0.0.1:8770
+      auth: none
+      system: Answer with a bare number.
+      max_tokens: 64
+
+replicas: 1
+concurrency: 1
+budget_usd: 1.00
+
+metrics:
+  - key: judge_openai
+    adapter: evalharness.adapters.metrics.judge_pass:build
+    options: {judge: openai-judge}
+  - key: judge_anthropic
+    adapter: evalharness.adapters.metrics.judge_pass:build
+    options: {judge: anthropic-judge}
+
+judges:
+  - name: openai-judge
+    adapter: evalharness.adapters.judges.openai_compat:build
+    model: gpt-4o-mini
+    options:
+      base_url: http://127.0.0.1:8770
+      auth: none
+  - name: anthropic-judge
+    adapter: evalharness.adapters.judges.anthropic:build
+    model: claude-haiku-4-5
+    options:
+      base_url: http://127.0.0.1:8770
+      auth: none
+
+gates: []

@@ -36,7 +36,8 @@ src/evalharness/
     scorer.py          metrics -> checks per cell, awaiting each metric
     judges.py          judge config hashing and per-cell usage sessions
     stats.py           Wilson interval, pass@k, pass^k, per-tier breakdowns
-    cost.py            price tables, token estimation, answer/judge/tool cost split
+    prices.py          shipped provider price table, provider-aware lookup, snapshot
+    cost.py            price tables, token estimation, answer/judge/tool cost split, per-provider roll-up
     vault.py           master key bootstrap, encrypt at rest, verify, redact
     redaction.py       canary-proof filter used by logs, events, artifacts, records
     events.py          append-only event stream + SSE fan-out
@@ -48,11 +49,15 @@ src/evalharness/
     repository.py      the only code that talks SQL, returns core records
   adapters/
     manifest.py        every first-party adapter path and kind; the conformance gate
-    candidates/        scripted stubs plus the HTTP candidate (contract/candidate-v1.schema.json)
-    judges/            deterministic rule-based and scripted claim judges
-    metrics/           exact match, containment, citation support, latency
+    transport.py       one HTTP policy: auth shapes, retries, provider messages, usage fallback
+    provider_wire.py   the OpenAI-compatible and Anthropic-style wire dialects
+    candidates/        scripted stubs, the HTTP candidate, and the two provider candidates
+    judges/            deterministic rule-based and scripted judges, plus the two provider judges
+    metrics/           exact match, containment, citation support, judge pass, latency
     sources/           inline, jsonl file
     sinks/             json file
+  config/
+    prices.yaml        the shipped USD-per-million-token table, keyed by provider and model
   conformance/
     suite.py           the public contract suite (candidate, judge, metric, source, sink)
     runner.py          run the suite against a dotted path, human-readable clause failures
@@ -83,17 +88,22 @@ async def Sink.open_run(run: RunRecord) / record_cell(cell) / close_run(run)
   it. `ScoreContext` carries a fresh `JudgeSession` per declared judge plus the
   redactor; the session records judge tokens and cost on the cell that triggered it.
 - A candidate declares what it does not support (`capabilities`); the planner refuses to
-  build those cells with a validation error naming the candidate and the axis.
+  build those cells with a validation error naming the candidate and the axis. A judge
+  declares the same capabilities and validation enforces `requires_credential` and
+  `requires_model` before any cell; the session passes the resolved credential and
+  declared model to the adapter through `JudgeRequest`.
 
 ## Seams
 
 1. **CLI run entry point** (`evalh run spec.yaml`). Most coverage lives here: planner,
    executor, retries, resume, cancel, budget, scorer, stats, cost, storage, gates.
 2. **HTTP API** (`create_app` + `httpx.ASGITransport`). Console read and write surfaces.
-3. **Adapter wire contracts**. One conformance suite per protocol; the HTTP candidate is
-   exercised against a real local stub server, never a mock. Its public contract is
+3. **Adapter wire contracts**. One conformance suite per protocol; the HTTP candidate and
+   the four provider adapters are exercised against a real local stub server, never a
+   mock. The HTTP candidate's public contract is
    `contract/candidate-v1.schema.json`, documented in [http-candidate.md](http-candidate.md)
-   for an endpoint author who never reads this repository.
+   for an endpoint author who never reads this repository; the provider families are in
+   [providers.md](providers.md).
 
 ## Runs
 
@@ -102,7 +112,9 @@ async def Sink.open_run(run: RunRecord) / record_cell(cell) / close_run(run)
 - Every state change appends to `events`; SSE replays from an event id.
 - A run records spec snapshot, resolved price snapshot, harness revision, seed, status.
 - A cell stores its cost split (`answer_cost_usd`, `judge_cost_usd`, `tool_cost_usd`)
-  and the judge tokens it spent; `cost_usd` is always their sum.
+  and the judge tokens it spent; `cost_usd` is always their sum. It also stores its
+  candidate provider and the judge usage per judge provider, which a run rolls up into
+  `provider_costs` rows that sum to the run total.
 - Artifacts are files under the artifacts directory; the database stores paths only.
 - Budget, cancel and resume keep one run id: a resume skips cells already `ok`
   and rewrites the run's aggregates and gates in place. [runs.md](runs.md) is the
