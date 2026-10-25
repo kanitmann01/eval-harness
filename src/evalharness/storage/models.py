@@ -110,17 +110,24 @@ class CheckRow(Base):
 
 
 class AggregateRow(Base):
-    """One candidate's value for one metric in one run."""
+    """One candidate's value for one metric in one run, overall or per tier.
+
+    The surrogate id exists because the overall row carries a NULL tier and a
+    primary key cannot hold a NULL portably; a run's rows are replaced as a
+    group, so uniqueness is a repository guarantee, not a constraint.
+    """
 
     __tablename__ = "aggregates"
 
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     run_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("runs.run_id"), primary_key=True
+        String(36), ForeignKey("runs.run_id"), nullable=False
     )
-    candidate: Mapped[str] = mapped_column(String(200), primary_key=True)
-    metric: Mapped[str] = mapped_column(String(200), primary_key=True)
+    candidate: Mapped[str] = mapped_column(String(200), nullable=False)
+    metric: Mapped[str] = mapped_column(String(200), nullable=False)
+    tier: Mapped[int | None] = mapped_column(Integer, nullable=True)
     n: Mapped[int] = mapped_column(Integer, nullable=False)
-    value: Mapped[float] = mapped_column(Float, nullable=False)
+    value: Mapped[float | None] = mapped_column(Float, nullable=True)
     ci_low: Mapped[float | None] = mapped_column(Float, nullable=True)
     ci_high: Mapped[float | None] = mapped_column(Float, nullable=True)
     pass_at_k: Mapped[float | None] = mapped_column(Float, nullable=True)
