@@ -45,8 +45,9 @@ src/evalharness/
     models.py          ORM tables: specs, runs, cells, checks, aggregates, gates, events, credentials
     repository.py      the only code that talks SQL, returns core records
   adapters/
-    candidates/        stub, http, openai-compatible, anthropic-compatible, rag
-    judges/            rule-based stub, LLM judge
+    manifest.py        every first-party adapter path and kind; the conformance gate
+    candidates/        scripted, slow, always-failing and prompt-fixed stubs
+    judges/            deterministic rule-based stub
     metrics/           exact match, containment, citation support, latency
     sources/           inline, jsonl file
     sinks/             json file
