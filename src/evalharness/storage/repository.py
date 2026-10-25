@@ -53,6 +53,7 @@ class RunSummary:
     finished_at: datetime | None
     candidates: tuple[str, ...]
     metrics: tuple[str, ...]
+    failed_gates: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -210,12 +211,20 @@ class Repository:
                 select(AggregateRow.run_id, AggregateRow.metric).distinct()
             ).all():
                 metrics.setdefault(run_id, set()).add(name)
+            failed_gates = _group_names(
+                session.execute(
+                    select(GateRow.run_id, GateRow.metric).where(
+                        GateRow.passed.is_(False)
+                    )
+                ).all()
+            )
             return [
                 _run_summary(
                     row,
                     totals.get(row.run_id, (0, 0)),
                     candidates.get(row.run_id, set()),
                     metrics.get(row.run_id, set()),
+                    failed_gates.get(row.run_id, set()),
                 )
                 for row in rows
             ]
@@ -545,8 +554,9 @@ def _run_summary(
     totals: tuple[int, int],
     candidates: set[str],
     metrics: set[str],
+    failed_gates: set[str],
 ) -> RunSummary:
-    """Build one console run row from a stored run and its check totals."""
+    """Build one console run row from a stored run, checks and gate outcomes."""
     passed, checks = totals
     duration = (
         (row.finished_at - row.started_at).total_seconds()
@@ -566,6 +576,7 @@ def _run_summary(
         finished_at=row.finished_at,
         candidates=tuple(sorted(candidates)),
         metrics=tuple(sorted(metrics)),
+        failed_gates=tuple(sorted(failed_gates)),
     )
 
 

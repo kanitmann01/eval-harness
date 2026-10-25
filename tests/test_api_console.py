@@ -596,6 +596,27 @@ def _table_row(text: str, spec_name: str) -> str:
     return text[start : text.index("</tr>", start)]
 
 
+async def test_run_list_flags_a_failed_gate_next_to_the_status(
+    console: Console,
+) -> None:
+    async with _client(console.app) as client:
+        text = (await client.get("/")).text
+        alpha = _table_row(text, "alpha-spec")
+        beta = _table_row(text, "beta-spec")
+        assert "gate-chip" not in alpha
+        assert "gate-chip" in beta
+        assert "gate failed" in beta
+        assert "Failed gate: exact_match" in beta
+        assert "status-ok" in beta
+
+        rows = (await client.get("/api/runs")).json()
+        by_name = {row["spec_name"]: row for row in rows}
+        assert by_name["alpha-spec"]["gate_failed"] is False
+        assert by_name["alpha-spec"]["failed_gates"] == []
+        assert by_name["beta-spec"]["gate_failed"] is True
+        assert by_name["beta-spec"]["failed_gates"] == ["exact_match"]
+
+
 async def test_run_detail_breadcrumb_uses_a_short_run_id(console: Console) -> None:
     run_id = console.runs["alpha"]
     async with _client(console.app) as client:
