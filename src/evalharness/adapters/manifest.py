@@ -24,6 +24,23 @@ class ManifestEntry:
     options: dict[str, object] | None = None
 
 
+HTTP_CANDIDATE = "evalharness.adapters.candidates.http:build"
+"""The HTTP candidate whose conformance row needs a live endpoint."""
+
+HTTP_CONFORMANCE_OPTIONS: dict[str, object] = {
+    "auth": "none",
+    "base_url": "http://127.0.0.1:8765",
+}
+"""Mutable suite options for the HTTP candidate.
+
+The default points at the reference demo server
+(`examples/http_candidate_server.py`), so `evalh conformance --all` works after
+starting that process. Tests replace `base_url` with an ephemeral stub server
+before `run_all()`; the suite's existing options mechanism carries it to every
+clause. Nothing here is a mock: without a live server the HTTP clauses fail.
+"""
+
+
 MANIFEST: tuple[ManifestEntry, ...] = (
     ManifestEntry("evalharness.adapters.sources.inline:build", "source"),
     ManifestEntry("evalharness.adapters.candidates.stub:build", "candidate"),
@@ -36,6 +53,7 @@ MANIFEST: tuple[ManifestEntry, ...] = (
     ManifestEntry(
         "evalharness.adapters.candidates.stub:build_fixed_prompt", "candidate"
     ),
+    ManifestEntry(HTTP_CANDIDATE, "candidate", HTTP_CONFORMANCE_OPTIONS),
     ManifestEntry("evalharness.adapters.judges.rule_based:build", "judge"),
     ManifestEntry("evalharness.adapters.judges.scripted:build", "judge"),
     ManifestEntry("evalharness.adapters.metrics.exact_match:build", "metric"),

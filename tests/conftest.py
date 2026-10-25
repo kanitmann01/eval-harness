@@ -13,7 +13,9 @@ from typing import Iterator
 
 import pytest
 
+from evalharness.adapters.manifest import HTTP_CONFORMANCE_OPTIONS
 from tests.helpers import TEST_MASTER_KEY
+from tests.http_stub import CandidateStubServer
 
 _ENV_KEYS = (
     "EVALH_DATABASE_URL",
@@ -62,6 +64,37 @@ def evalh_home(workdir: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         monkeypatch.delenv(key, raising=False)
     monkeypatch.setenv("EVALH_MASTER_KEY", TEST_MASTER_KEY)
     return home
+
+
+@pytest.fixture
+def candidate_stub() -> Iterator[CandidateStubServer]:
+    """Serve the candidate contract on a fresh loopback port for one test."""
+    server = CandidateStubServer()
+    try:
+        yield server
+    finally:
+        server.close()
+
+
+@pytest.fixture(scope="session")
+def http_conformance_stub() -> Iterator[CandidateStubServer]:
+    """Point the HTTP manifest row at a real local stub for the session.
+
+    The manifest cannot commit a base_url because conformance must run against
+    a server, not a mock; this fixture writes the live URL into the entry's
+    suite options for tests that call run_all().
+    """
+    server = CandidateStubServer()
+    previous = HTTP_CONFORMANCE_OPTIONS.get("base_url")
+    HTTP_CONFORMANCE_OPTIONS["base_url"] = server.base_url
+    try:
+        yield server
+    finally:
+        if previous is None:
+            HTTP_CONFORMANCE_OPTIONS.pop("base_url", None)
+        else:
+            HTTP_CONFORMANCE_OPTIONS["base_url"] = previous
+        server.close()
 
 
 @pytest.fixture

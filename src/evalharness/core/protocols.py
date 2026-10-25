@@ -21,12 +21,19 @@ from evalharness.core.models import (
 
 
 class Capabilities(BaseModel):
-    """What a candidate can accept from the spec's prompt and context axes."""
+    """What a candidate can accept, what it needs, and how often it may be retried.
+
+    `requires_credential` lets validation refuse a candidate whose auth shape
+    needs a secret no vault can resolve; `max_attempts` is the attempt budget
+    the executor honours for a typed transport failure (one call plus retries).
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     supports_prompt_override: bool = True
     supports_context_injection: bool = True
+    requires_credential: bool = False
+    max_attempts: int = 2
 
 
 class Candidate(Protocol):

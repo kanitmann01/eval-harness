@@ -12,7 +12,9 @@ def test_manifest_lists_every_first_party_factory():
     }
 
 
-def test_every_manifest_adapter_passes_the_public_suite(evalh_home):
+def test_every_manifest_adapter_passes_the_public_suite(
+    evalh_home, http_conformance_stub
+):
     reports = run_all()
 
     assert len(reports) == len(MANIFEST)

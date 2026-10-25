@@ -1,0 +1,56 @@
+spec_version: 1
+name: http-candidate-bearer
+description: >
+  The harness-owned credential path. Store the key once, then start the
+  reference server with the same token:
+
+    export HTTP_DEMO_KEY=local-demo-token
+    python examples/http_candidate_server.py --token "$HTTP_DEMO_KEY"
+
+    evalh credentials add http-demo --provider custom --secret-env HTTP_DEMO_KEY
+    evalh run examples/specs/http-candidate-bearer.yaml
+
+  A run without the stored credential fails validation naming
+  candidates[0].credential, before any cell executes.
+seed: 7
+
+source:
+  adapter: evalharness.adapters.sources.inline:build
+  options:
+    cases:
+      - case_id: case-1
+        prompt: What is 6 times 7?
+        expected: {answer: "42"}
+        tier: 1
+
+credentials:
+  - name: http-demo
+    provider: custom
+
+candidates:
+  - name: remote-agent-bearer
+    adapter: evalharness.adapters.candidates.http:build
+    credential: http-demo
+    model: reference-agent-v1
+    options:
+      base_url: http://127.0.0.1:8765
+      path: /run
+      timeout_s: 10
+      auth: bearer
+
+replicas: 1
+concurrency: 1
+budget_usd: 1.00
+
+metrics:
+  - key: exact_match
+    adapter: evalharness.adapters.metrics.exact_match:build
+    options: {}
+
+judges: []
+gates: []
+
+prices:
+  reference-agent-v1:
+    input: 0.15
+    output: 0.60

@@ -271,7 +271,9 @@ def validate_spec(
     """Validate every declarative reference before anything executes.
 
     A credential is known when the spec declares it or the vault stores it.
-    `stored_credentials` is the vault's name list, never its secrets.
+    `stored_credentials` is the vault's name list, never its secrets. A candidate
+    that declares `requires_credential` needs its name in that list, because a
+    spec declaration alone cannot supply the secret.
     """
     _unique(
         (candidate.name for candidate in spec.candidates), "candidates", "candidate"
@@ -284,8 +286,9 @@ def validate_spec(
         "credential",
     )
 
+    stored_names = set(stored_credentials)
     known_credentials = {credential.name for credential in spec.credentials}
-    known_credentials.update(stored_credentials)
+    known_credentials.update(stored_names)
 
     for index, candidate in enumerate(spec.candidates):
         _declared_credential(
@@ -329,6 +332,18 @@ def validate_spec(
                 candidate.adapter,
                 "the candidate adapter did not expose Capabilities",
                 "return Candidate.capabilities as a Capabilities instance",
+            )
+        if (
+            capabilities.requires_credential
+            and candidate.credential not in stored_names
+        ):
+            raise SpecError(
+                f"candidates[{index}].credential",
+                candidate.credential,
+                f"candidate {candidate.name!r} needs a credential resolved "
+                "from the vault, but none is stored under that name",
+                "add it with 'evalh credentials add' or set options.auth: none "
+                "when the endpoint holds its own key",
             )
         override, chunks = _candidate_axes(spec, candidate, capabilities, index)
         candidate_factories[candidate.name] = factory

@@ -363,6 +363,21 @@ def _candidate_wrong_answer(target: ConformanceContext) -> None:
     )
 
 
+def _candidate_retry_budget(target: ConformanceContext) -> None:
+    capabilities = getattr(target.build(), "capabilities", None)
+    _expect(
+        isinstance(capabilities, Capabilities),
+        "a Capabilities instance",
+        type(capabilities).__name__,
+    )
+    value = getattr(capabilities, "max_attempts", None)
+    _expect(
+        isinstance(value, int) and not isinstance(value, bool) and value >= 1,
+        "max_attempts to be an integer >= 1",
+        repr(value),
+    )
+
+
 def _judge_request() -> JudgeRequest:
     return JudgeRequest(
         case_id=CASE_ID,
@@ -639,6 +654,12 @@ CANDIDATE_CASES: tuple[ConformanceCase, ...] = (
         CANDIDATE,
         "a wrong answer is an output, not an error",
         _candidate_wrong_answer,
+    ),
+    ConformanceCase(
+        clause(CANDIDATE, 8),
+        CANDIDATE,
+        "a retry budget is declared",
+        _candidate_retry_budget,
     ),
 )
 
