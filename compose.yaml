@@ -1,0 +1,52 @@
+# One harness container and one PostgreSQL 16 container. Copy .env.example to
+# .env first: compose refuses to start without a database password, and the
+# first harness start prints the master key once and exits 2 (see README).
+name: evalharness
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${EVALH_POSTGRES_USER:-evalh}
+      POSTGRES_PASSWORD: ${EVALH_POSTGRES_PASSWORD:?set EVALH_POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${EVALH_POSTGRES_DB:-evalh}
+    volumes:
+      # The database is a named volume, not a bind mount, so a restart or a
+      # container recreation keeps every run.
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  harness:
+    build:
+      context: .
+    image: evalharness:local
+    depends_on:
+      db:
+        condition: service_healthy
+    # No restart policy: the first start without a key prints the key once and
+    # exits 2 on purpose. Restarting it in a loop would print a new key each
+    # time and never converge.
+    ports:
+      - "${EVALH_PORT:-8000}:8000"
+    environment:
+      EVALH_DATABASE_URL: postgresql+psycopg://${EVALH_POSTGRES_USER:-evalh}:${EVALH_POSTGRES_PASSWORD:?set EVALH_POSTGRES_PASSWORD in .env}@db:5432/${EVALH_POSTGRES_DB:-evalh}
+      # Empty means "not configured": the harness prints a generated key once
+      # and exits 2, and the operator puts it in .env.
+      EVALH_MASTER_KEY: ${EVALH_MASTER_KEY:-}
+      EVALH_HOME: /data
+      EVALH_ARTIFACTS_DIR: /data/artifacts
+      EVALH_SPECS_DIR: /data/specs
+    volumes:
+      # SQLite fallback, artifacts, specs and the database file all live here.
+      # Postgres itself uses the postgres-data volume above.
+      - harness-data:/data
+
+volumes:
+  postgres-data:
+  harness-data:
