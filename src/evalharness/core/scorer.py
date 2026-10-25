@@ -123,46 +123,94 @@ def aggregate_cells(
 
 def evaluate_gates(
     gates: Iterable[GateSpec],
-    checks_by_cell: dict[str, list[Check]],
+    aggregates: Iterable[Aggregate],
 ) -> list[GateResult]:
-    """Evaluate each spec gate against the run-wide proportion for its metric.
+    """Evaluate each spec gate against the stored aggregates, not raw checks.
 
-    A gate on a metric with no samples fails and says so in its detail: a
-    threshold cannot be met by a value that does not exist.
+    A gate that names a candidate reads that candidate's overall row. A gate
+    without a candidate pools every candidate's overall row for the metric,
+    weighting each row by its n so the run-wide figure is the proportion over
+    every check. A metric with no samples is undefined, so its gate fails and
+    says "no samples" in the detail: a threshold cannot be met by a value that
+    does not exist.
+
+    A gate with both bounds is checked against both; when it fails, the
+    stored comparison and threshold are the bound that rejected the value
+    (min first when both reject). When it passes, min is the stored bound,
+    because it is the floor the gate exists to enforce.
     """
-    totals: dict[str, list[int]] = {}
-    for checks in checks_by_cell.values():
-        for check in checks:
-            bucket = totals.setdefault(check.metric, [0, 0])
-            bucket[0] += int(check.passed)
-            bucket[1] += 1
+    overall = [row for row in aggregates if row.tier is None]
+    by_candidate = {(row.candidate, row.metric): row for row in overall}
     results: list[GateResult] = []
     for gate in gates:
-        passed_count, total = totals.get(gate.metric, [0, 0])
-        value = proportion(passed_count, total)
-        passed = value is not None
+        observed, n = _gate_sample(gate, overall, by_candidate)
+        min_failed = observed is not None and gate.min is not None and (
+            observed < gate.min
+        )
+        max_failed = observed is not None and gate.max is not None and (
+            observed > gate.max
+        )
+        passed = observed is not None and not min_failed and not max_failed
+        comparison, threshold = _gate_bound(gate, min_failed, observed)
         detail: dict[str, Any] = {
-            "value": value,
-            "n": total,
+            "value": observed,
+            "n": n,
             "min": gate.min,
             "max": gate.max,
         }
-        if value is None:
+        if observed is None:
             detail["reason"] = "no samples"
-        else:
-            if gate.min is not None and value < gate.min:
-                passed = False
-            if gate.max is not None and value > gate.max:
-                passed = False
         results.append(
             GateResult(
-                name=gate.metric,
+                name=_gate_name(gate),
                 metric=gate.metric,
                 passed=passed,
+                candidate=gate.candidate,
+                comparison=comparison,
+                threshold=threshold,
+                observed=observed,
+                n=n,
                 detail=detail,
             )
         )
     return results
+
+
+def _gate_name(gate: GateSpec) -> str:
+    """Return the stored gate name, unique per metric and candidate."""
+    if gate.candidate is None:
+        return gate.metric
+    return f"{gate.metric}[{gate.candidate}]"
+
+
+def _gate_sample(
+    gate: GateSpec,
+    overall: list[Aggregate],
+    by_candidate: dict[tuple[str, str], Aggregate],
+) -> tuple[float | None, int]:
+    """Return the aggregate value and n a gate observes, or (None, 0)."""
+    if gate.candidate is not None:
+        row = by_candidate.get((gate.candidate, gate.metric))
+        if row is None:
+            return None, 0
+        return row.value, row.n
+    rows = [row for row in overall if row.metric == gate.metric]
+    n = sum(row.n for row in rows)
+    if not n:
+        return None, 0
+    passed = sum(round((row.value or 0.0) * row.n) for row in rows)
+    return proportion(passed, n), n
+
+
+def _gate_bound(
+    gate: GateSpec,
+    min_failed: bool,
+    observed: float | None,
+) -> tuple[str, float | None]:
+    """Return the comparison and threshold the gate stored and applied."""
+    if gate.min is not None and (gate.max is None or min_failed or observed is None):
+        return ">=", gate.min
+    return "<=", gate.max
 
 
 def _tier_for(cases: dict[str, Case], case_id: str) -> int | None:

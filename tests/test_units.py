@@ -23,6 +23,7 @@ from evalharness.core.context import (
 from evalharness.core.cost import Price, estimate_cost, split_cost, usage_cost
 from evalharness.core.events import EventEmitter
 from evalharness.core.models import (
+    Aggregate,
     CandidateOutput,
     Case,
     CellRecord,
@@ -267,20 +268,49 @@ def test_cost_math_and_estimate():
     assert estimate.cost_usd == pytest.approx(3 * (500 * 1.0 + 200 * 2.0) / 1_000_000)
 
 
+def _aggregate(
+    candidate: str = "cand", value: float | None = 1.0, n: int = 1
+) -> Aggregate:
+    """Build one overall aggregate row for gate tests."""
+    return Aggregate(run_id="run", candidate=candidate, metric="m", n=n, value=value)
+
+
 def test_scorer_aggregates_and_gate_bounds():
     assert aggregate_cells("run", {}, [], {}, []) == []
-    checks = {"cell": [Check(metric="m", passed=True)]}
-    failing_max = evaluate_gates([GateSpec(metric="m", min=0.5, max=0.9)], checks)[0]
+    rows = [_aggregate(), _aggregate(candidate="other", value=0.0)]
+    failing_max = evaluate_gates([GateSpec(metric="m", min=0.5, max=0.9)], rows[:1])[0]
     assert failing_max.passed is False
-    passing_min = evaluate_gates([GateSpec(metric="m", min=0.5)], checks)[0]
+    assert (failing_max.comparison, failing_max.threshold) == ("<=", 0.9)
+    failing_min = evaluate_gates([GateSpec(metric="m", min=0.5, max=1.0)], [
+        _aggregate(value=0.4)
+    ])[0]
+    assert failing_min.passed is False
+    assert (failing_min.comparison, failing_min.threshold) == (">=", 0.5)
+    passing_min = evaluate_gates([GateSpec(metric="m", min=0.5)], rows[:1])[0]
     assert passing_min.passed is True
-    passing_max = evaluate_gates([GateSpec(metric="m", max=1.0)], checks)[0]
+    assert (passing_min.comparison, passing_min.threshold) == (">=", 0.5)
+    passing_max = evaluate_gates([GateSpec(metric="m", max=1.0)], rows[:1])[0]
     assert passing_max.passed is True
-    empty = evaluate_gates([GateSpec(metric="missing", min=0.1)], {})[0]
+    assert (passing_max.comparison, passing_max.threshold) == ("<=", 1.0)
+    candidate = evaluate_gates(
+        [GateSpec(metric="m", candidate="other", min=0.5)], rows
+    )[0]
+    assert candidate.passed is False
+    assert (candidate.observed, candidate.n) == (0.0, 1)
+    run_wide = evaluate_gates([GateSpec(metric="m", min=0.5)], rows)[0]
+    assert (run_wide.observed, run_wide.n) == (0.5, 2)
+    missing_candidate = evaluate_gates(
+        [GateSpec(metric="m", candidate="absent", min=0.5)], rows
+    )[0]
+    assert missing_candidate.passed is False
+    assert (missing_candidate.observed, missing_candidate.n) == (None, 0)
+    empty = evaluate_gates([GateSpec(metric="missing", min=0.1)], [])[0]
     assert empty.passed is False
     assert empty.detail["n"] == 0
     assert empty.detail["value"] is None
     assert empty.detail["reason"] == "no samples"
+    empty_max = evaluate_gates([GateSpec(metric="missing", max=0.5)], [])[0]
+    assert (empty_max.comparison, empty_max.threshold) == ("<=", 0.5)
 
 
 def test_scorer_seeds_an_undefined_row_from_cells_without_checks():

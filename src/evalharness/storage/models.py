@@ -136,7 +136,13 @@ class AggregateRow(Base):
 
 
 class GateRow(Base):
-    """One gate outcome for one run."""
+    """One gate outcome for one run, with the arithmetic that decided it.
+
+    The columns added in issue #8 are nullable on purpose: the migration
+    runner can only add nullable columns to an existing database, and a gate
+    stored before those columns existed still reads back with its detail
+    blob. Every new write fills them.
+    """
 
     __tablename__ = "gates"
 
@@ -146,6 +152,11 @@ class GateRow(Base):
     name: Mapped[str] = mapped_column(String(200), primary_key=True)
     metric: Mapped[str] = mapped_column(String(200), nullable=False)
     passed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    candidate: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    comparison: Mapped[str | None] = mapped_column(String(4), nullable=True)
+    threshold: Mapped[float | None] = mapped_column(Float, nullable=True)
+    observed: Mapped[float | None] = mapped_column(Float, nullable=True)
+    n: Mapped[int | None] = mapped_column(Integer, nullable=True)
     detail: Mapped[dict] = mapped_column(JSON, nullable=False)
 
 

@@ -1,0 +1,49 @@
+spec_version: 1
+name: gated
+description: >
+  A no-credential spec whose gate passes. The stub answers correctly, so
+  exact_match is 1.0 against a 0.9 floor and the run exits 0. CI asserts both
+  this spec and gated-failing.yaml so the gate exit code is exercised without
+  a paid key.
+seed: 7
+
+source:
+  adapter: evalharness.adapters.sources.inline:build
+  options:
+    cases:
+      - case_id: case-1
+        prompt: What is 6 times 7?
+        expected: {answer: "42"}
+        tier: 1
+
+credentials:
+  - name: stub
+    provider: none
+
+candidates:
+  - name: stub-correct
+    adapter: evalharness.adapters.candidates.stub:build
+    credential: stub
+    model: stub-1
+    options:
+      answer: "42"
+
+replicas: 1
+concurrency: 1
+budget_usd: 1.00
+
+metrics:
+  - key: exact_match
+    adapter: evalharness.adapters.metrics.exact_match:build
+    options: {}
+
+judges: []
+
+gates:
+  - metric: exact_match
+    min: 0.90
+
+prices:
+  stub-1:
+    input: 0.15
+    output: 0.60

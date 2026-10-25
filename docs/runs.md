@@ -135,3 +135,82 @@ Issue #12 (the console's rerun and resume surface) must rely on this rule: one
 active driver per run id, a "rerun" action starts a new run id, and "resume" is
 offered only for a run that is not `ok` and is not currently driven by another
 process.
+
+<!-- BEGIN issue #8: gate aggregates and their storage. Keep this block
+     delimited so later runs tickets can add sections around it. -->
+
+## Gates
+
+A gate is a threshold on an **aggregate**, never on a raw check. The run
+finishes and is scored first, then every gate is evaluated against the aggregate
+rows issue #4 stores (n, value and the 95 percent Wilson interval). The exit
+codes above are produced by that evaluation.
+
+### Declaring a gate
+
+A gate names a metric declared in the spec and sets `min`, `max`, or both.
+`candidate` is optional; omit it for the run-wide figure.
+
+~~~yaml
+gates:
+  - metric: exact_match
+    min: 0.90
+  - metric: citation_support
+    candidate: rag-v4
+    min: 0.85
+  - metric: cost_usd_per_case
+    max: 0.02
+~~~
+
+- Without `candidate`, the gate reads the **run-wide** value: every candidate's
+  overall row pooled by its n, so it is the proportion over every check in the
+  run, not an average of candidate averages.
+- With `candidate`, the gate reads that candidate's overall row only. The
+  candidate must be declared under `candidates:`, otherwise validation exits 2
+  before anything runs. Two gates may target the same metric when they target
+  different candidates, but one metric and candidate pair may have only one gate.
+- `min` compares with `>=`, `max` with `<=`. With both, both must hold. The
+  stored comparison and threshold are the bound that decided the outcome (min
+  first when both reject), which is what a red build should display.
+- A gate on an undefined aggregate (n = 0, value None) fails, with
+  `reason: "no samples"` in its detail. A run with undefined aggregates and no
+  gates still exits 0: undefined is a fact about the data, not a harness failure.
+
+### Stored gate results
+
+Each outcome is written to the `gates` table and printed after the aggregate
+table:
+
+~~~text
+gate exact_match: pass observed=100.0% >= 90.0% n=1
+gate exact_match[rag-v4]: FAIL observed=62.5% >= 85.0% n=8
+~~~
+
+The stored columns are `metric`, `candidate` (NULL for run-wide),
+`comparison`, `threshold`, `observed`, `n`, `passed` and `detail`. The last
+is the human-readable blob carried over from earlier tickets. Issue #8 added the
+arithmetic columns as nullable columns through
+[`storage/migrations.py`](../src/evalharness/storage/migrations.py), so a
+database created by issue #4 keeps every old gate and gains them in place. That
+migration is schema version 3; version 2 added the budget override from the
+previous section.
+
+### One exit-code decision
+
+The state x exit-code matrix above is computed in exactly one place:
+`exit_codes.for_run(status, gate_failed)`. Budget abort wins, then a failed
+gate, then success. The CLI does not branch on a run status itself, so a new
+status cannot silently acquire a new exit code. Gate failure always exits 1;
+there is no flag to turn it off. `--cancel-after` and SIGINT still exit 0 when
+their gates pass.
+
+Gate evaluation is exercised end to end with no paid credential by
+[`examples/specs/gated.yaml`](../examples/specs/gated.yaml) (exit 0) and
+[`examples/specs/gated-failing.yaml`](../examples/specs/gated-failing.yaml)
+(exit 1). CI asserts both codes. Every run opens the credential vault, so the
+master key from [credentials.md](credentials.md) must be in the environment;
+CI generates an ephemeral one for its disposable database. That key is not a
+paid credential.
+
+<!-- END issue #8: gate aggregates and their storage. -->
+

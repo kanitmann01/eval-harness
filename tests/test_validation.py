@@ -225,6 +225,40 @@ def test_duplicate_gate(evalh_home, workdir, capsys):
     assert "duplicate gate" in error
 
 
+def test_gate_names_undeclared_candidate(evalh_home, workdir, capsys):
+    spec = base_spec()
+    spec["gates"] = [
+        {"metric": "exact_match", "candidate": "missing-candidate", "min": 0.9}
+    ]
+    error = _failure(evalh_home, workdir, capsys, spec)
+    assert "gates[0].candidate" in error
+    assert "undeclared candidate" in error
+    assert "stub-concise" in error
+
+
+def test_gates_on_the_same_metric_for_different_candidates_are_allowed(
+    evalh_home, workdir, capsys
+):
+    spec = base_spec()
+    spec["gates"] = [
+        {"metric": "exact_match", "min": 0.9},
+        {"metric": "exact_match", "candidate": "stub-concise", "min": 0.5},
+    ]
+    path = write_spec(workdir / "ok-gates.yaml", spec)
+    assert main(["validate", str(path)]) == 0
+
+
+def test_duplicate_gate_for_one_candidate(evalh_home, workdir, capsys):
+    spec = base_spec()
+    spec["gates"] = [
+        {"metric": "exact_match", "candidate": "stub-concise", "min": 0.9},
+        {"metric": "exact_match", "candidate": "stub-concise", "max": 1.0},
+    ]
+    error = _failure(evalh_home, workdir, capsys, spec)
+    assert "duplicate gate" in error
+    assert "stub-concise" in error
+
+
 def test_duplicate_candidate_name(evalh_home, workdir, capsys):
     spec = base_spec()
     spec["candidates"].append(copy.deepcopy(spec["candidates"][0]))
@@ -353,6 +387,7 @@ def test_run_validates_before_executing(evalh_home, workdir, capsys):
     captured = capsys.readouterr()
     assert code == 2
     assert "prices.stub-1" in captured.err
+    assert not evalh_home.exists()
 
 
 def test_missing_spec_file(evalh_home, workdir, capsys):

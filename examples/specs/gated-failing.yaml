@@ -1,0 +1,48 @@
+spec_version: 1
+name: gated-failing
+description: >
+  The gate-failure witness for CI: the same shape as gated.yaml, but the stub
+  answers wrongly, so exact_match is 0.0 against a 0.9 floor. The run exits 1
+  and CI asserts that code, still with no paid credentials.
+seed: 7
+
+source:
+  adapter: evalharness.adapters.sources.inline:build
+  options:
+    cases:
+      - case_id: case-1
+        prompt: What is 6 times 7?
+        expected: {answer: "42"}
+        tier: 1
+
+credentials:
+  - name: stub
+    provider: none
+
+candidates:
+  - name: stub-wrong
+    adapter: evalharness.adapters.candidates.stub:build
+    credential: stub
+    model: stub-1
+    options:
+      answer: "41"
+
+replicas: 1
+concurrency: 1
+budget_usd: 1.00
+
+metrics:
+  - key: exact_match
+    adapter: evalharness.adapters.metrics.exact_match:build
+    options: {}
+
+judges: []
+
+gates:
+  - metric: exact_match
+    min: 0.90
+
+prices:
+  stub-1:
+    input: 0.15
+    output: 0.60

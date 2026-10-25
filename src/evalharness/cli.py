@@ -679,7 +679,7 @@ def _run(args: argparse.Namespace) -> int:
             replicas=resolved.spec.replicas,
         )
         repository.record_aggregates(aggregates)
-        gates = evaluate_gates(resolved.spec.gates, checks_by_cell)
+        gates = evaluate_gates(resolved.spec.gates, aggregates)
         repository.record_gates(run.run_id, gates)
         result = ExecutionResult(
             run=execution.run,
@@ -695,11 +695,10 @@ def _run(args: argparse.Namespace) -> int:
         )
     finally:
         database.dispose()
-    if execution.run.status == "budget_exceeded":
-        return exit_codes.BUDGET_ABORT
-    if any(not gate.passed for gate in gates):
-        return exit_codes.GATE_FAILURE
-    return exit_codes.SUCCESS
+    return exit_codes.for_run(
+        status=execution.run.status,
+        gate_failed=any(not gate.passed for gate in gates),
+    )
 
 
 def _run_reason(run: RunRecord, cancelled_reason: str) -> str:
@@ -740,8 +739,8 @@ def _print_run_table(
     for gate in gates:
         print(
             f"gate {gate.name}: {'pass' if gate.passed else 'FAIL'} "
-            f"value={_format_percent(gate.detail.get('value'), missing='undefined')} "
-            f"n={gate.detail.get('n')}"
+            f"observed={_format_percent(gate.observed, missing='undefined')} "
+            f"{gate.comparison} {_format_percent(gate.threshold)} n={gate.n}"
         )
 
 

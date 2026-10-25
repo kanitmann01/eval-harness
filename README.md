@@ -45,7 +45,40 @@ the always-failing cells as errors, and needs no credentials. The
 `evalh conformance --all` command runs the same public contract suite as CI and
 prints one line per clause.
 
-Exit codes are 0 success, 1 gate failure, 2 spec error, 3 budget abort.
+## Exit codes and gates
+
+Exit codes are the automation contract, defined once in
+[`exit_codes.py`](src/evalharness/exit_codes.py):
+
+| Code | Meaning |
+| --- | --- |
+| 0 | Success: the run finished and no gate failed. A run whose cells errored but whose gates passed still exits 0, and a cancelled run exits 0 unless a gate failed. |
+| 1 | Gate failure: the run finished and at least one spec gate failed. A gate failure also wins over cancellation. |
+| 2 | Spec error: the spec is invalid or unreadable, nothing was executed. |
+| 3 | Budget abort: the run stopped because spend exceeded `budget_usd`. It wins over a gate. |
+
+A gate is a threshold on an aggregate, evaluated after the run. Omit
+`candidate` for the run-wide figure, or name one candidate to gate only that
+candidate's aggregate:
+
+~~~yaml
+gates:
+  - metric: exact_match
+    min: 0.90
+  - metric: exact_match
+    candidate: stub-concise
+    max: 0.95
+~~~
+
+Each gate result is stored with its metric, candidate (or none for run-wide),
+comparison (`>=` or `<=`), threshold, observed value and n, so a red build says
+which kind of failure it was. A metric with no samples is undefined, so its
+gate fails with `no samples` in the detail. Gate failure always exits 1; there
+is no flag to turn it off. See [docs/runs.md](docs/runs.md) for the full
+contract and [examples/specs/gated.yaml](examples/specs/gated.yaml) for a spec
+that passes its gate without a paid credential. A run still needs the vault
+master key described below; CI generates an ephemeral one for its disposable
+database.
 
 ## Credentials
 

@@ -200,6 +200,11 @@ class Repository:
                     name=row.name,
                     metric=row.metric,
                     passed=row.passed,
+                    candidate=row.candidate,
+                    comparison=row.comparison or "",
+                    threshold=row.threshold,
+                    observed=row.observed,
+                    n=row.n or 0,
                     detail=dict(row.detail),
                 )
                 for row in rows
@@ -485,5 +490,10 @@ def _gate_row(run_id: str, gate: GateResult) -> GateRow:
         name=gate.name,
         metric=gate.metric,
         passed=gate.passed,
+        candidate=gate.candidate,
+        comparison=gate.comparison,
+        threshold=gate.threshold,
+        observed=gate.observed,
+        n=gate.n,
         detail=dict(gate.detail),
     )
