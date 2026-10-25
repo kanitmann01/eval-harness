@@ -6,6 +6,8 @@ import pytest
 
 from evalharness.core.stats import (
     Z_95,
+    delta_or_none,
+    difference_interval,
     pass_at_k,
     pass_k,
     proportion,
@@ -42,6 +44,54 @@ def test_wilson_interval_needs_a_sample():
     assert "n=0 is undefined" in str(raised.value)
     with pytest.raises(ValueError):
         wilson_interval(3, 2)
+
+
+def test_difference_interval_matches_hand_computed_newcombe_bounds():
+    delta, low, high = difference_interval(8, 10, 10, 10)
+    assert delta == pytest.approx(0.2)
+    assert low == pytest.approx(-0.11236, abs=5e-5)
+    assert high == pytest.approx(0.50984, abs=5e-5)
+
+
+def test_difference_interval_stays_sensible_at_extremes():
+    delta, low, high = difference_interval(0, 40, 1, 40)
+    assert delta == pytest.approx(0.025)
+    assert low == pytest.approx(-0.06501, abs=5e-5)
+    assert high == pytest.approx(0.12882, abs=5e-5)
+
+
+def test_difference_interval_always_contains_the_point_delta():
+    for successes_a, n_a, successes_b, n_b in (
+        (8, 10, 10, 10),
+        (0, 40, 1, 40),
+        (3, 7, 5, 9),
+        (10, 10, 0, 10),
+        (0, 1, 1, 1),
+    ):
+        delta, low, high = difference_interval(
+            successes_a, n_a, successes_b, n_b
+        )
+        assert low <= delta <= high
+        assert -1.0 <= low <= high <= 1.0
+
+
+def test_difference_interval_is_undefined_without_samples():
+    with pytest.raises(ValueError) as raised:
+        difference_interval(0, 0, 1, 2)
+    assert "n=0 is undefined" in str(raised.value)
+    with pytest.raises(ValueError):
+        difference_interval(1, 2, 0, 0)
+    with pytest.raises(ValueError):
+        difference_interval(3, 2, 1, 2)
+
+
+def test_delta_or_none_is_none_when_a_side_has_no_samples():
+    assert delta_or_none(0, 0, 1, 2) is None
+    assert delta_or_none(1, 2, 0, 0) is None
+    assert delta_or_none(8, 10, 10, 10) == pytest.approx(0.2)
+    assert delta_or_none(10, 10, 8, 10) == pytest.approx(-0.2)
+    with pytest.raises(ValueError):
+        delta_or_none(3, 2, 0, 1)
 
 
 def test_proportion_is_undefined_without_samples():

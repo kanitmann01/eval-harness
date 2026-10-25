@@ -50,6 +50,49 @@ a claim of certainty; the interval width carries the uncertainty.
 z is a parameter with a default, so a later ticket can ask for a different
 confidence level without a second implementation.
 
+## Comparing two proportions
+
+A comparison asks a different question from a single aggregate: does B beat A,
+by how much, and is the difference larger than noise? The point delta is
+always B minus A, so a positive number means B did better:
+
+~~~text
+delta = p_b - p_a
+~~~
+
+The 95 percent interval on that delta uses the Newcombe hybrid score method.
+Each side gets its own Wilson bounds, then those bounds are combined:
+
+~~~text
+low  = delta - sqrt((p_b - low_b)^2  + (high_a - p_a)^2)
+high = delta + sqrt((high_b - p_b)^2 + (p_a - low_a)^2)
+~~~
+
+The result is clamped to [-1, 1], because a difference of two proportions
+cannot leave that range. For 8 of 10 against 10 of 10 the delta is 0.2 and the
+interval is -0.1124 to 0.5098; because it contains zero, the comparison is
+inconclusive. For 0 of 40 against 1 of 40 the delta is 0.025 and the interval
+is -0.0650 to 0.1288, also inconclusive. The method is used because it keeps
+the coverage close to nominal at the small sample sizes and extreme
+proportions that evaluation runs produce.
+
+The verdict has four values, decided once:
+
+| Verdict | Rule |
+| --- | --- |
+| better | delta > 0 and the whole interval is above zero |
+| worse | delta < 0 and the whole interval is below zero |
+| inconclusive | the interval crosses zero (or exactly touches it) |
+| undefined | either side has no samples, so there is no delta |
+
+A side with n = 0 has no proportion, so it has no delta and no interval; the
+comparison renders it as undefined, never as zero. Two proportions measured
+under different judges are never called a win: the delta and interval are
+still shown for context, but the verdict is inconclusive and the comparison is
+flagged as a different judge. The implementation is
+[difference_interval](../src/evalharness/core/stats.py) and
+[delta_or_none](../src/evalharness/core/stats.py).
+
 ## pass@k versus pass^k
 
 These are two different claims and are never collapsed into one figure:
