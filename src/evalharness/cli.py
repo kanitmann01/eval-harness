@@ -4,24 +4,28 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import signal
 import sys
 import uuid
 from dataclasses import replace
 from pathlib import Path
-from typing import Sequence
+from typing import Any, Callable, Sequence
 
 from evalharness import exit_codes
 from evalharness.conformance import KINDS, run_all, run_suite
 from evalharness.conformance.suite import ConformanceReport
+from evalharness.core.cancel import CancellationToken
 from evalharness.core.config import Settings, harness_revision
 from evalharness.core.context import EnvCredentialStore, RunContext
 from evalharness.core.cost import (
     DEFAULT_MEDIAN_COMPLETION_TOKENS,
     DEFAULT_MEDIAN_PROMPT_TOKENS,
+    CostEstimate,
     estimate_cost,
+    observed_medians,
 )
 from evalharness.core.events import EventEmitter
-from evalharness.core.executor import ExecutionResult, execute_run
+from evalharness.core.executor import ExecutionResult, execute_run, summarise
 from evalharness.core.models import (
     Aggregate,
     Case,
@@ -31,7 +35,7 @@ from evalharness.core.models import (
 )
 from evalharness.core.planner import PlannedCell, expand, per_candidate_counts
 from evalharness.core.protocols import Sink
-from evalharness.core.redaction import NoOpRedactor, SecretRedactor
+from evalharness.core.redaction import NoOpRedactor, Redactor, SecretRedactor
 from evalharness.core.scorer import aggregate_cells, evaluate_gates
 from evalharness.core.spec import ResolvedSpec, load_and_validate
 from evalharness.errors import HarnessError, SpecError
@@ -53,6 +57,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     return handler(args)
 
 
+def _non_negative_int(text: str) -> int:
+    """Parse a CLI count that must be zero or greater."""
+    value = int(text)
+    if value < 0:
+        raise argparse.ArgumentTypeError("must be zero or greater")
+    return value
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="evalh",
@@ -68,6 +80,23 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     run_parser.add_argument("--db", help="override EVALH_DATABASE_URL")
     run_parser.add_argument("--artifacts", help="override EVALH_ARTIFACTS_DIR")
+    run_parser.add_argument(
+        "--resume",
+        metavar="RUN_ID",
+        help="continue an existing run instead of starting a new one",
+    )
+    run_parser.add_argument(
+        "--override-budget",
+        type=float,
+        metavar="USD",
+        help="replace the spec budget for this run and record the override",
+    )
+    run_parser.add_argument(
+        "--cancel-after",
+        type=_non_negative_int,
+        metavar="N",
+        help="cancel once N cells have completed, between cells",
+    )
     run_parser.set_defaults(handler=_run)
     validate_parser = commands.add_parser("validate", help="validate a spec only")
     validate_parser.add_argument("spec", help="path to the YAML spec")
@@ -183,6 +212,25 @@ def _conformance(args: argparse.Namespace) -> int:
     return exit_codes.SUCCESS
 
 
+def _estimate(
+    resolved: ResolvedSpec,
+    cells: list[PlannedCell],
+    medians: tuple[int, int] | None,
+) -> CostEstimate:
+    """Estimate run cost, using observed medians when a comparable run exists."""
+    prompt, completion = medians or (
+        DEFAULT_MEDIAN_PROMPT_TOKENS,
+        DEFAULT_MEDIAN_COMPLETION_TOKENS,
+    )
+    return estimate_cost(
+        resolved.spec,
+        resolved.prices,
+        per_candidate_counts(cells),
+        median_prompt_tokens=prompt,
+        median_completion_tokens=completion,
+    )
+
+
 def _print_dry_run(
     resolved: ResolvedSpec,
     cases: list[Case],
@@ -190,7 +238,7 @@ def _print_dry_run(
 ) -> None:
     spec = resolved.spec
     counts = per_candidate_counts(cells)
-    estimate = estimate_cost(spec, resolved.prices, counts)
+    estimate = _estimate(resolved, cells, None)
     print(f"spec: {spec.name} (sha256 {resolved.sha[:12]})")
     print(
         f"candidates: {len(spec.candidates)}  cases: {len(cases)}  "
@@ -204,6 +252,12 @@ def _print_dry_run(
         f"(median {DEFAULT_MEDIAN_PROMPT_TOKENS} prompt + "
         f"{DEFAULT_MEDIAN_COMPLETION_TOKENS} completion tokens per cell)"
     )
+    if spec.budget_usd is not None and estimate.cost_usd > spec.budget_usd:
+        print(
+            f"over budget: ${estimate.cost_usd:.6f} exceeds "
+            f"budget_usd=${spec.budget_usd:.6f}; a real run is refused until "
+            "you raise the budget or pass --override-budget"
+        )
     print("dry run: nothing executed")
 
 
@@ -222,13 +276,175 @@ def _build_sink(resolved: ResolvedSpec, settings: Settings) -> Sink:
         ) from exc
 
 
+def _emit(
+    repository: Repository,
+    redactor: Redactor,
+    run_id: str,
+    kind: str,
+    payload: dict[str, Any],
+) -> None:
+    """Append one lifecycle event to a run outside the executor."""
+    EventEmitter(
+        run_id,
+        append=repository.append_event,
+        redactor=redactor,
+        start_seq=repository.max_event_seq(run_id),
+    ).emit(kind, payload)
+
+
+def _launch_run(
+    repository: Repository,
+    redactor: Redactor,
+    resolved: ResolvedSpec,
+    run_id: str,
+    cells: list[PlannedCell],
+    override_budget: float | None,
+) -> RunRecord:
+    """Check the launch estimate, snapshot the spec and record the run.
+
+    The estimate uses the medians an earlier run of the same spec measured, so
+    the cap is compared with what this spec actually spends, not a guess.
+    """
+    earlier = repository.latest_run_for_spec(resolved.sha)
+    medians = None
+    if earlier is not None:
+        medians = observed_medians(repository.list_cells(earlier.run_id))
+    estimate = _estimate(resolved, cells, medians)
+    spec_budget = resolved.spec.budget_usd
+    cap = override_budget if override_budget is not None else spec_budget
+    if cap is not None and estimate.cost_usd > cap:
+        raise SpecError(
+            "budget_usd",
+            cap,
+            f"the estimated cost ${estimate.cost_usd:.6f} exceeds the cap ${cap:.6f}",
+            "raise budget_usd or pass --override-budget USD",
+        )
+    started = utc_now()
+    spec_id = uuid.uuid4().hex
+    repository.save_spec(
+        spec_id,
+        resolved.spec.name,
+        resolved.raw_text,
+        resolved.sha,
+        started,
+    )
+    run = RunRecord(
+        run_id=run_id,
+        spec_id=spec_id,
+        spec_name=resolved.spec.name,
+        spec_snapshot=resolved.spec.model_dump(mode="json"),
+        prices_snapshot={
+            model: price.model_dump() for model, price in resolved.prices.items()
+        },
+        harness_sha=harness_revision(),
+        seed=resolved.spec.seed,
+        status="running",
+        started_at=started,
+        budget_usd=cap,
+        budget_override_usd=override_budget,
+        n_cells=len(cells),
+    )
+    repository.create_run(run)
+    if override_budget is not None:
+        _emit(
+            repository,
+            redactor,
+            run_id,
+            "budget_overridden",
+            {
+                "spec_budget_usd": spec_budget,
+                "budget_usd": cap,
+                "estimate_usd": estimate.cost_usd,
+            },
+        )
+    return run
+
+
+def _resume_target(
+    repository: Repository,
+    resolved: ResolvedSpec,
+    run_id: str,
+) -> RunRecord:
+    """Load a run and refuse to resume one that cannot be resumed faithfully."""
+    run = repository.get_run(run_id)
+    if run is None:
+        raise SpecError(
+            "--resume",
+            run_id,
+            "no run with this id exists in this database",
+            "pass the run id printed by an earlier run",
+        )
+    if run.status == "ok":
+        raise SpecError(
+            "--resume",
+            run_id,
+            "the run already finished with status=ok",
+            "start a new run instead of resuming this one",
+        )
+    if resolved.spec.seed != run.seed:
+        raise SpecError(
+            "seed",
+            resolved.spec.seed,
+            f"the spec seed does not match the seed {run.seed} this run used",
+            "restore the spec seed or start a new run",
+        )
+    stored = repository.get_spec(run.spec_id)
+    stored_sha = stored["sha"] if stored is not None else ""
+    if stored_sha != resolved.sha:
+        raise SpecError(
+            "spec",
+            resolved.sha[:12],
+            "the spec file sha does not match the snapshot sha "
+            f"{stored_sha[:12] or '<missing>'} this run used",
+            "restore the spec file or start a new run",
+        )
+    return run
+
+
+def _record_override(
+    repository: Repository,
+    redactor: Redactor,
+    run: RunRecord,
+    resolved: ResolvedSpec,
+    override_budget: float,
+) -> RunRecord:
+    """Raise a run's cap for this resume and record where it came from."""
+    _emit(
+        repository,
+        redactor,
+        run.run_id,
+        "budget_overridden",
+        {
+            "spec_budget_usd": resolved.spec.budget_usd,
+            "budget_usd": override_budget,
+            "estimate_usd": None,
+        },
+    )
+    return run.model_copy(
+        update={
+            "budget_usd": override_budget,
+            "budget_override_usd": override_budget,
+        }
+    )
+
+
+def _sigint_handler(token: CancellationToken) -> Callable[[int, Any], None]:
+    """Build the SIGINT handler that cancels the run between cells."""
+
+    def handler(signum: int, frame: Any) -> None:
+        token.cancel("interrupted (SIGINT)")
+
+    return handler
+
+
 def _run(args: argparse.Namespace) -> int:
+    """Execute one spec or resume an existing run and return its exit code."""
     try:
         resolved = load_and_validate(args.spec)
     except SpecError as exc:
         return _spec_failure(exc)
     _print_warnings(resolved)
-    run_id = uuid.uuid4().hex
+    run_id = args.resume or uuid.uuid4().hex
     try:
         cases = _load_cases(resolved, run_id)
         cells = expand(resolved, cases)
@@ -262,31 +478,6 @@ def _run(args: argparse.Namespace) -> int:
     database.create_all()
     try:
         repository = Repository(database)
-        started = utc_now()
-        spec_id = uuid.uuid4().hex
-        repository.save_spec(
-            spec_id,
-            resolved.spec.name,
-            resolved.raw_text,
-            resolved.sha,
-            started,
-        )
-        run = RunRecord(
-            run_id=run_id,
-            spec_id=spec_id,
-            spec_name=resolved.spec.name,
-            spec_snapshot=resolved.spec.model_dump(mode="json"),
-            prices_snapshot={
-                model: price.model_dump() for model, price in resolved.prices.items()
-            },
-            harness_sha=harness_revision(),
-            seed=resolved.spec.seed,
-            status="running",
-            started_at=started,
-            budget_usd=resolved.spec.budget_usd,
-            n_cells=len(cells),
-        )
-        repository.create_run(run)
         credentials = EnvCredentialStore.from_spec(resolved.spec.credentials)
         redactor = SecretRedactor(
             {
@@ -295,31 +486,84 @@ def _run(args: argparse.Namespace) -> int:
                 if (handle := credentials.get(name)) is not None
             }
         )
-        execution = asyncio.run(
-            execute_run(
-                resolved=resolved,
-                cells=cells,
-                cases=cases,
-                run=run,
-                repository=repository,
-                sink=sink,
-                credentials=credentials,
-                redactor=redactor,
-                artifacts_root=settings.artifacts_dir,
+        token = CancellationToken(cancel_after=args.cancel_after)
+        resumed = args.resume is not None
+        if resumed:
+            try:
+                run = _resume_target(repository, resolved, args.resume)
+            except SpecError as exc:
+                return _spec_failure(exc)
+            if args.override_budget is not None:
+                run = _record_override(
+                    repository, redactor, run, resolved, args.override_budget
+                )
+            run = run.model_copy(
+                update={
+                    "status": "running",
+                    "finished_at": None,
+                    "n_cells": len(cells),
+                }
             )
-        )
+            repository.update_run(run)
+        else:
+            try:
+                run = _launch_run(
+                    repository,
+                    redactor,
+                    resolved,
+                    run_id,
+                    cells,
+                    args.override_budget,
+                )
+            except SpecError as exc:
+                return _spec_failure(exc)
+        previous_sigint = signal.signal(signal.SIGINT, _sigint_handler(token))
+        try:
+            execution = asyncio.run(
+                execute_run(
+                    resolved=resolved,
+                    cells=cells,
+                    cases=cases,
+                    run=run,
+                    repository=repository,
+                    sink=sink,
+                    credentials=credentials,
+                    redactor=redactor,
+                    artifacts_root=settings.artifacts_dir,
+                    cancel_token=token,
+                    resumed=resumed,
+                )
+            )
+        finally:
+            signal.signal(signal.SIGINT, previous_sigint)
+        all_cells = repository.list_cells(run.run_id)
+        checks_by_cell = {
+            cell.cell_id: repository.list_checks(run.run_id, cell.cell_id)
+            for cell in all_cells
+        }
         aggregates = aggregate_cells(
             run_id=run.run_id,
             cases={case.case_id: case for case in cases},
-            cells=execution.cells,
-            checks_by_cell=execution.checks,
+            cells=all_cells,
+            checks_by_cell=checks_by_cell,
             metric_keys=list(resolved.metrics),
             replicas=resolved.spec.replicas,
         )
         repository.record_aggregates(aggregates)
-        gates = evaluate_gates(resolved.spec.gates, execution.checks)
+        gates = evaluate_gates(resolved.spec.gates, checks_by_cell)
         repository.record_gates(run.run_id, gates)
-        _print_run_table(execution, aggregates, gates)
+        result = ExecutionResult(
+            run=execution.run,
+            cells=all_cells,
+            checks=checks_by_cell,
+            summaries=summarise(resolved, all_cells),
+        )
+        _print_run_table(
+            result,
+            aggregates,
+            gates,
+            _run_reason(execution.run, token.reason),
+        )
     finally:
         database.dispose()
     if execution.run.status == "budget_exceeded":
@@ -329,12 +573,23 @@ def _run(args: argparse.Namespace) -> int:
     return exit_codes.SUCCESS
 
 
+def _run_reason(run: RunRecord, cancelled_reason: str) -> str:
+    """Return the one-line reason a run did not finish normally, or empty."""
+    if run.status == "budget_exceeded":
+        cap = run.budget_usd or 0.0
+        return f"budget exceeded: spent ${run.cost_usd:.6f} of ${cap:.6f}"
+    if run.status == "cancelled":
+        return f"cancelled: {cancelled_reason or 'no reason recorded'}"
+    return ""
+
+
 def _print_run_table(
     result: ExecutionResult,
     aggregates: list[Aggregate],
     gates: list[GateResult],
+    reason: str = "",
 ) -> None:
-    """Print the candidate table, the run line, the aggregates and the gates."""
+    """Print the candidate table, the run line, the reason, aggregates, gates."""
     print(
         f"{'candidate':<24} {'cells':>5} {'ok':>4} {'fail':>5} "
         f"{'cost_usd':>10} {'duration_s':>10}"
@@ -350,6 +605,8 @@ def _print_run_table(
         f"run {run.run_id} status={run.status} cells={run.n_cells} "
         f"ok={run.n_ok} cost=${run.cost_usd:.6f}"
     )
+    if reason:
+        print(f"reason: {reason}")
     _print_aggregates(aggregates)
     for gate in gates:
         print(

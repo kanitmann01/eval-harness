@@ -85,7 +85,7 @@ silently ignored.
 | candidates | list of candidates | yes | none | At least one. |
 | replicas | integer >= 1 | no | 1 | Repeats per candidate x case. |
 | concurrency | integer >= 1 | no | 1 | Cells in flight at once. Latency is only comparable at 1. |
-| budget_usd | number >= 0 | no | unset | The executor marks remaining cells cancelled once spend exceeds it and exits 3. |
+| budget_usd | number >= 0 | no | unset | The launch estimate is compared with it: above the cap the run is refused (exit 2). Mid-run, spend above it marks the remaining cells cancelled, sets status budget_exceeded and exits 3. See [runs.md](runs.md). |
 | metrics | list of metrics | yes | none | At least one; keys are unique. |
 | judges | list of judges | no | [] | Named judges a metric may name. |
 | gates | list of gates | no | [] | Thresholds on run-wide metric proportions. |
@@ -179,6 +179,9 @@ evalh validate SPEC                 validate and print one line, exit 0 or 2
 evalh run SPEC --dry-run            print cells, per-candidate counts, estimate; execute nothing
 evalh run SPEC                     execute, print a run table and aggregates, exit 0
 evalh run SPEC --db URL --artifacts DIR
+evalh run SPEC --override-budget USD   replace the spec budget for this run and record it
+evalh run SPEC --cancel-after N     cancel once N cells have completed, between cells
+evalh run SPEC --resume RUN_ID      continue an unfinished run into the same record
 ~~~
 
 After the run table, the aggregates table prints candidate, metric, tier
@@ -189,3 +192,6 @@ proportion is undefined rather than zero.
 
 Exit codes: 0 success, 1 gate failure, 2 spec error, 3 budget abort.
 Validation failures print spec error: <field>=<value>: <reason>. Fix: <fix>.
+A cancelled run exits 0 unless a gate failed or the budget abort already decided
+the code. [runs.md](runs.md) is the reference for budget, cancel, resume, the
+state x exit-code matrix and the one-run-at-a-time rule.

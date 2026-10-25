@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from sqlalchemy import text
 
 import tests.adapters  # noqa: F401 - importing registers the test adapters
 from evalharness.cli import main
@@ -168,6 +169,45 @@ def test_migration_adds_a_missing_nullable_column(evalh_home, workdir):
             ]
         )
         assert repository.list_aggregates("run-old")[0].tier == 2
+    finally:
+        reopened.dispose()
+
+
+def test_migration_adds_the_budget_override_to_a_version_1_database(
+    evalh_home, workdir
+):
+    url = _database_url(workdir, "version-1.db")
+    database = Database(url)
+    database.create_all()
+    repository = Repository(database)
+    repository.save_spec("spec-old", "old-spec", "yaml", "sha", utc_now())
+    repository.create_run(
+        RunRecord(
+            run_id="run-old",
+            spec_id="spec-old",
+            status="cancelled",
+            started_at=utc_now(),
+        )
+    )
+    with database.engine.begin() as connection:
+        # Issue #4 shipped schema version 1 without the column issue #3 needs.
+        connection.exec_driver_sql(
+            "ALTER TABLE runs DROP COLUMN budget_override_usd"
+        )
+        connection.execute(text("UPDATE schema_version SET version = 1"))
+    database.dispose()
+
+    reopened = Database(url)
+    reopened.create_all()
+    repository = Repository(reopened)
+    try:
+        run = repository.get_run("run-old")
+        assert run is not None
+        assert run.budget_override_usd is None
+        repository.update_run(
+            run.model_copy(update={"budget_override_usd": 2.5})
+        )
+        assert repository.get_run("run-old").budget_override_usd == 2.5
     finally:
         reopened.dispose()
 

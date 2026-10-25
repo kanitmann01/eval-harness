@@ -62,6 +62,7 @@ class RunRow(Base):
     )
     cost_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     budget_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    budget_override_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
     n_cells: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     n_ok: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)

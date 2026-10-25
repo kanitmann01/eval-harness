@@ -31,6 +31,7 @@ src/evalharness/
     spec.py            YAML load, schema versioning, validation, price resolution
     planner.py         spec -> cells (candidate x case x replica), deterministic ids
     context.py         RunContext: credential, cases, prompt variant, chunks, seed, budget
+    cancel.py          cooperative cancellation token, checked between cells
     executor.py        bounded concurrency, retries, budget guard, cancel, resume
     scorer.py          metrics -> checks per cell; judge wiring; config hashing
     stats.py           Wilson interval, pass@k, pass^k, per-tier breakdowns
@@ -95,6 +96,9 @@ async def Sink.open_run(run: RunRecord) / record_cell(cell) / close_run(run)
 - Every state change appends to `events`; SSE replays from an event id.
 - A run records spec snapshot, resolved price snapshot, harness revision, seed, status.
 - Artifacts are files under the artifacts directory; the database stores paths only.
+- Budget, cancel and resume keep one run id: a resume skips cells already `ok`
+  and rewrites the run's aggregates and gates in place. [runs.md](runs.md) is the
+  reference, including the one-run-at-a-time rule issue #12 relies on.
 
 ## Storage
 

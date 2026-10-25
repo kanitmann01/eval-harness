@@ -131,6 +131,7 @@ class RunRecord(BaseModel):
     finished_at: datetime | None = None
     cost_usd: float = 0.0
     budget_usd: float | None = None
+    budget_override_usd: float | None = None
     n_cells: int = 0
     n_ok: int = 0
     error: str | None = None

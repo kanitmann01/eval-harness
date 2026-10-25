@@ -84,6 +84,28 @@ class Repository:
                 return None
             return _run_record(row)
 
+    def list_runs(self) -> list[RunRecord]:
+        """Return every run, most recently started first."""
+        with self._database.session() as session:
+            rows = session.scalars(
+                select(RunRow).order_by(RunRow.started_at.desc())
+            ).all()
+            return [_run_record(row) for row in rows]
+
+    def latest_run_for_spec(self, spec_sha: str) -> RunRecord | None:
+        """Return the newest run recorded from a spec snapshot with this sha."""
+        with self._database.session() as session:
+            row = session.scalars(
+                select(RunRow)
+                .join(SpecRow, RunRow.spec_id == SpecRow.spec_id)
+                .where(SpecRow.sha == spec_sha)
+                .order_by(RunRow.started_at.desc())
+                .limit(1)
+            ).first()
+            if row is None:
+                return None
+            return _run_record(row)
+
     def record_cell(self, cell: CellRecord) -> None:
         """Persist one cell as soon as it finishes."""
         with self._database.session() as session:
@@ -231,6 +253,7 @@ def _run_row(run: RunRecord) -> RunRow:
         finished_at=run.finished_at,
         cost_usd=run.cost_usd,
         budget_usd=run.budget_usd,
+        budget_override_usd=run.budget_override_usd,
         n_cells=run.n_cells,
         n_ok=run.n_ok,
         error=run.error,
@@ -250,6 +273,7 @@ def _run_record(row: RunRow) -> RunRecord:
         finished_at=row.finished_at,
         cost_usd=row.cost_usd,
         budget_usd=row.budget_usd,
+        budget_override_usd=row.budget_override_usd,
         n_cells=row.n_cells,
         n_ok=row.n_ok,
         error=row.error,
