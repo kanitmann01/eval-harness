@@ -454,3 +454,20 @@ def validate_spec(
         chunks=chunks_by_candidate,
         warnings=warnings,
     )
+
+
+def validate_yaml_text(
+    text: str,
+    *,
+    stored_credentials: Iterable[str] = (),
+) -> ResolvedSpec:
+    """Validate YAML text in memory exactly as `evalh validate` validates a file.
+
+    The console's spec editor calls this function, so a field error reads the
+    same in the browser as it does on the command line.
+    """
+    return validate_spec(
+        parse_spec(text),
+        raw_text=text,
+        stored_credentials=stored_credentials,
+    )
