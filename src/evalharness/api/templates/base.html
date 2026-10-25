@@ -13,8 +13,14 @@
     <nav class="site-nav" aria-label="Primary">
       <a class="nav-link" href="{{ url_for('spec_list') }}">Specs</a>
       <a href="{{ url_for('compare') }}"{% if request.url.path == '/compare' %} aria-current="page"{% endif %}>Compare</a>
+      <a class="nav-link" href="{{ url_for('launch_page') }}">Launch</a>
     </nav>
-    <span class="badge badge-muted">read-only</span>
+    {% if run is defined and run.status == "running" %}
+    <form class="nav-cancel" method="post" action="{{ url_for('cancel_run_page', run_id=run.run_id) }}">
+      <button type="submit">Cancel run</button>
+    </form>
+    {% endif %}
+    <span class="badge badge-muted">read-only results</span>
   </header>
   <main id="main" class="page">
     {% block content %}{% endblock %}

@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import getpass
-import logging
 import os
 import signal
 import sys
@@ -15,43 +14,21 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
-from sqlalchemy.engine import make_url
-
 import uvicorn
 
-from evalharness import exit_codes
+from evalharness import exit_codes, service
 from evalharness.adapters.verify.http_verifier import build as build_verifier
 from evalharness.api.app import create_app
 from evalharness.conformance import KINDS, run_all, run_suite
 from evalharness.conformance.suite import ConformanceReport
 from evalharness.core.cancel import CancellationToken
-from evalharness.core.config import Settings, harness_revision
-from evalharness.core.context import CredentialStore, RunContext
+from evalharness.core.config import Settings
 from evalharness.core.cost import (
     DEFAULT_MEDIAN_COMPLETION_TOKENS,
     DEFAULT_MEDIAN_PROMPT_TOKENS,
-    CostEstimate,
-    estimate_cost,
-    observed_medians,
 )
-from evalharness.core.events import EventEmitter
-from evalharness.core.executor import ExecutionResult, execute_run, summarise
-from evalharness.core.models import (
-    Aggregate,
-    Case,
-    GateResult,
-    RunRecord,
-    utc_now,
-)
-from evalharness.core.planner import PlannedCell, expand, per_candidate_counts
-from evalharness.core.protocols import Sink
-from evalharness.core.redaction import (
-    NoOpRedactor,
-    RedactionFilter,
-    Redactor,
-    SecretRedactor,
-)
-from evalharness.core.scorer import aggregate_cells, evaluate_gates
+from evalharness.core.models import Aggregate
+from evalharness.core.planner import per_candidate_counts
 from evalharness.core.spec import ResolvedSpec, load_and_validate
 from evalharness.core.vault import (
     MasterKeyError,
@@ -223,70 +200,6 @@ def _master_key_failure(error: MasterKeyError) -> int:
     return _spec_failure(error)
 
 
-def _stored_credential_names(settings: Settings) -> list[str]:
-    """Read stored credential names without creating an absent database."""
-    parsed = make_url(settings.database_url)
-    if parsed.get_backend_name() == "sqlite":
-        database_path = parsed.database or ""
-        if database_path in {"", ":memory:"} or not Path(database_path).exists():
-            return []
-    database = Database(settings.database_url)
-    try:
-        database.create_all()
-        return [record.name for record in Repository(database).list_credentials()]
-    finally:
-        database.dispose()
-
-
-def _redactor_for(store: CredentialStore) -> SecretRedactor:
-    """Build a redactor from every secret the store can resolve."""
-    secrets: dict[str, str] = {}
-    for name in store.names():
-        handle = store.get(name)
-        if handle is not None and handle.secret:
-            secrets[name] = handle.secret
-    return SecretRedactor(secrets)
-
-
-def _configure_logging(redactor: Redactor) -> None:
-    """Send harness logs to stderr through the redaction filter."""
-    handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
-    handler.addFilter(RedactionFilter(redactor))
-    logger = logging.getLogger("evalharness")
-    logger.handlers.clear()
-    logger.addHandler(handler)
-    logger.setLevel(logging.INFO)
-    logger.propagate = False
-
-
-def _load_cases(resolved: ResolvedSpec, run_id: str) -> list[Case]:
-    context = RunContext(
-        run_id=run_id,
-        seed=resolved.spec.seed,
-        credential=None,
-        events=EventEmitter(run_id),
-        redactor=NoOpRedactor(),
-    )
-    try:
-        cases = list(resolved.source.load(resolved.spec.source, context))
-    except Exception as exc:  # source adapters are external code
-        raise SpecError(
-            "source",
-            resolved.spec.source.adapter,
-            f"the source failed to load cases: {exc}",
-            "fix the source options",
-        ) from exc
-    if not cases:
-        raise SpecError(
-            "source",
-            resolved.spec.source.adapter,
-            "the source returned no cases",
-            "add at least one case",
-        )
-    return cases
-
-
 def _print_warnings(resolved: ResolvedSpec) -> None:
     for warning in resolved.warnings:
         print(f"warning: {warning}", file=sys.stderr)
@@ -297,7 +210,7 @@ def _validate(args: argparse.Namespace) -> int:
     try:
         resolved = load_and_validate(
             args.spec,
-            stored_credentials=_stored_credential_names(settings),
+            stored_credentials=service.stored_credential_names(settings),
         )
     except SpecError as exc:
         return _spec_failure(exc)
@@ -347,25 +260,6 @@ def _conformance(args: argparse.Namespace) -> int:
     return exit_codes.SUCCESS
 
 
-def _estimate(
-    resolved: ResolvedSpec,
-    cells: list[PlannedCell],
-    medians: tuple[int, int] | None,
-) -> CostEstimate:
-    """Estimate run cost, using observed medians when a comparable run exists."""
-    prompt, completion = medians or (
-        DEFAULT_MEDIAN_PROMPT_TOKENS,
-        DEFAULT_MEDIAN_COMPLETION_TOKENS,
-    )
-    return estimate_cost(
-        resolved.spec,
-        resolved.prices,
-        per_candidate_counts(cells),
-        median_prompt_tokens=prompt,
-        median_completion_tokens=completion,
-    )
-
-
 def _settings_for(args: argparse.Namespace) -> Settings:
     """Return environment settings with the command's path overrides applied."""
     settings = Settings.from_env()
@@ -393,20 +287,18 @@ def _serve(args: argparse.Namespace) -> int:
     return exit_codes.SUCCESS
 
 
-def _print_dry_run(
-    resolved: ResolvedSpec,
-    cases: list[Case],
-    cells: list[PlannedCell],
-) -> None:
+def _print_dry_run(prepared: service.PreparedRun) -> None:
+    """Print the planned cells and estimate for a spec, executing nothing."""
+    resolved = prepared.resolved
     spec = resolved.spec
-    counts = per_candidate_counts(cells)
-    estimate = _estimate(resolved, cells, None)
+    counts = per_candidate_counts(prepared.cells)
+    estimate = prepared.estimate
     print(f"spec: {spec.name} (sha256 {resolved.sha[:12]})")
     print(
-        f"candidates: {len(spec.candidates)}  cases: {len(cases)}  "
+        f"candidates: {len(spec.candidates)}  cases: {len(prepared.cases)}  "
         f"replicas: {spec.replicas}  concurrency: {spec.concurrency}"
     )
-    print(f"cells: {len(cells)}")
+    print(f"cells: {len(prepared.cells)}")
     for candidate in spec.candidates:
         print(f"  {candidate.name}: {counts.get(candidate.name, 0)} cells")
     print(
@@ -423,173 +315,6 @@ def _print_dry_run(
     print("dry run: nothing executed")
 
 
-def _build_sink(resolved: ResolvedSpec, settings: Settings) -> Sink:
-    options = dict(resolved.sink_options)
-    options["artifacts_dir"] = str(settings.artifacts_dir)
-    field = "sink.adapter" if resolved.spec.sink is not None else "sink"
-    try:
-        return resolved.sink_factory("sink", options)
-    except Exception as exc:  # sink factories are external code
-        raise SpecError(
-            field,
-            resolved.spec.sink.adapter if resolved.spec.sink is not None else "default",
-            f"the sink factory raised: {exc}",
-            "fix the sink options",
-        ) from exc
-
-
-def _emit(
-    repository: Repository,
-    redactor: Redactor,
-    run_id: str,
-    kind: str,
-    payload: dict[str, Any],
-) -> None:
-    """Append one lifecycle event to a run outside the executor."""
-    EventEmitter(
-        run_id,
-        append=repository.append_event,
-        redactor=redactor,
-        start_seq=repository.max_event_seq(run_id),
-    ).emit(kind, payload)
-
-
-def _launch_run(
-    repository: Repository,
-    redactor: Redactor,
-    resolved: ResolvedSpec,
-    run_id: str,
-    cells: list[PlannedCell],
-    override_budget: float | None,
-) -> RunRecord:
-    """Check the launch estimate, snapshot the spec and record the run.
-
-    The estimate uses the medians an earlier run of the same spec measured, so
-    the cap is compared with what this spec actually spends, not a guess.
-    """
-    earlier = repository.latest_run_for_spec(resolved.sha)
-    medians = None
-    if earlier is not None:
-        medians = observed_medians(repository.list_cells(earlier.run_id))
-    estimate = _estimate(resolved, cells, medians)
-    spec_budget = resolved.spec.budget_usd
-    cap = override_budget if override_budget is not None else spec_budget
-    if cap is not None and estimate.cost_usd > cap:
-        raise SpecError(
-            "budget_usd",
-            cap,
-            f"the estimated cost ${estimate.cost_usd:.6f} exceeds the cap ${cap:.6f}",
-            "raise budget_usd or pass --override-budget USD",
-        )
-    started = utc_now()
-    spec_id = uuid.uuid4().hex
-    repository.save_spec(
-        spec_id,
-        resolved.spec.name,
-        resolved.raw_text,
-        resolved.sha,
-        started,
-    )
-    run = RunRecord(
-        run_id=run_id,
-        spec_id=spec_id,
-        spec_name=resolved.spec.name,
-        spec_snapshot=resolved.spec.model_dump(mode="json"),
-        prices_snapshot={
-            model: price.model_dump() for model, price in resolved.prices.items()
-        },
-        harness_sha=harness_revision(),
-        seed=resolved.spec.seed,
-        status="running",
-        started_at=started,
-        budget_usd=cap,
-        budget_override_usd=override_budget,
-        n_cells=len(cells),
-    )
-    repository.create_run(run)
-    if override_budget is not None:
-        _emit(
-            repository,
-            redactor,
-            run_id,
-            "budget_overridden",
-            {
-                "spec_budget_usd": spec_budget,
-                "budget_usd": cap,
-                "estimate_usd": estimate.cost_usd,
-            },
-        )
-    return run
-
-
-def _resume_target(
-    repository: Repository,
-    resolved: ResolvedSpec,
-    run_id: str,
-) -> RunRecord:
-    """Load a run and refuse to resume one that cannot be resumed faithfully."""
-    run = repository.get_run(run_id)
-    if run is None:
-        raise SpecError(
-            "--resume",
-            run_id,
-            "no run with this id exists in this database",
-            "pass the run id printed by an earlier run",
-        )
-    if run.status == "ok":
-        raise SpecError(
-            "--resume",
-            run_id,
-            "the run already finished with status=ok",
-            "start a new run instead of resuming this one",
-        )
-    if resolved.spec.seed != run.seed:
-        raise SpecError(
-            "seed",
-            resolved.spec.seed,
-            f"the spec seed does not match the seed {run.seed} this run used",
-            "restore the spec seed or start a new run",
-        )
-    stored = repository.get_spec(run.spec_id)
-    stored_sha = stored["sha"] if stored is not None else ""
-    if stored_sha != resolved.sha:
-        raise SpecError(
-            "spec",
-            resolved.sha[:12],
-            "the spec file sha does not match the snapshot sha "
-            f"{stored_sha[:12] or '<missing>'} this run used",
-            "restore the spec file or start a new run",
-        )
-    return run
-
-
-def _record_override(
-    repository: Repository,
-    redactor: Redactor,
-    run: RunRecord,
-    resolved: ResolvedSpec,
-    override_budget: float,
-) -> RunRecord:
-    """Raise a run's cap for this resume and record where it came from."""
-    _emit(
-        repository,
-        redactor,
-        run.run_id,
-        "budget_overridden",
-        {
-            "spec_budget_usd": resolved.spec.budget_usd,
-            "budget_usd": override_budget,
-            "estimate_usd": None,
-        },
-    )
-    return run.model_copy(
-        update={
-            "budget_usd": override_budget,
-            "budget_override_usd": override_budget,
-        }
-    )
-
-
 def _sigint_handler(token: CancellationToken) -> Callable[[int, Any], None]:
     """Build the SIGINT handler that cancels the run between cells."""
 
@@ -602,182 +327,64 @@ def _sigint_handler(token: CancellationToken) -> Callable[[int, Any], None]:
 def _run(args: argparse.Namespace) -> int:
     """Execute one spec or resume an existing run and return its exit code."""
     settings = _settings_for(args)
-    try:
-        resolved = load_and_validate(
-            args.spec,
-            stored_credentials=_stored_credential_names(settings),
-        )
-    except SpecError as exc:
-        return _spec_failure(exc)
-    _print_warnings(resolved)
     run_id = args.resume or uuid.uuid4().hex
     try:
-        cases = _load_cases(resolved, run_id)
-        cells = expand(resolved, cases)
+        prepared = service.load_run(args.spec, settings=settings, run_id=run_id)
     except SpecError as exc:
         return _spec_failure(exc)
+    _print_warnings(prepared.resolved)
     if args.dry_run:
-        _print_dry_run(resolved, cases, cells)
+        _print_dry_run(prepared)
         return exit_codes.SUCCESS
-
+    token = CancellationToken(cancel_after=args.cancel_after)
+    previous_sigint = signal.signal(signal.SIGINT, _sigint_handler(token))
     try:
-        vault = open_vault(settings)
+        outcome = service.execute(
+            prepared,
+            settings=settings,
+            run_id=run_id,
+            cancel_token=token,
+            override_budget=args.override_budget,
+            resume_run_id=args.resume,
+        )
     except MasterKeyError as exc:
         return _master_key_failure(exc)
-    try:
-        settings.home.mkdir(parents=True, exist_ok=True)
-        sink = _build_sink(resolved, settings)
-    except OSError as exc:
-        return _spec_failure(
-            SpecError(
-                "EVALH_HOME",
-                str(settings.home),
-                f"the harness home could not be created: {exc}",
-                "set EVALH_HOME to a writable directory",
-            )
-        )
     except SpecError as exc:
         return _spec_failure(exc)
-
-    database = Database(settings.database_url)
-    database.create_all()
-    try:
-        repository = Repository(database)
-        store = VaultCredentialStore(vault, repository)
-        try:
-            redactor = _redactor_for(store)
-        except SpecError as exc:
-            return _spec_failure(exc)
-        _configure_logging(redactor)
-        token = CancellationToken(cancel_after=args.cancel_after)
-        resumed = args.resume is not None
-        if resumed:
-            try:
-                run = _resume_target(repository, resolved, args.resume)
-            except SpecError as exc:
-                return _spec_failure(exc)
-            if args.override_budget is not None:
-                run = _record_override(
-                    repository, redactor, run, resolved, args.override_budget
-                )
-            run = run.model_copy(
-                update={
-                    "status": "running",
-                    "finished_at": None,
-                    "n_cells": len(cells),
-                }
-            )
-            repository.update_run(run)
-        else:
-            try:
-                run = _launch_run(
-                    repository,
-                    redactor,
-                    resolved,
-                    run_id,
-                    cells,
-                    args.override_budget,
-                )
-            except SpecError as exc:
-                return _spec_failure(exc)
-        previous_sigint = signal.signal(signal.SIGINT, _sigint_handler(token))
-        try:
-            execution = asyncio.run(
-                execute_run(
-                    resolved=resolved,
-                    cells=cells,
-                    cases=cases,
-                    run=run,
-                    repository=repository,
-                    sink=sink,
-                    credentials=store,
-                    redactor=redactor,
-                    artifacts_root=settings.artifacts_dir,
-                    cancel_token=token,
-                    resumed=resumed,
-                )
-            )
-        finally:
-            signal.signal(signal.SIGINT, previous_sigint)
-        all_cells = repository.list_cells(run.run_id)
-        checks_by_cell = {
-            cell.cell_id: repository.list_checks(run.run_id, cell.cell_id)
-            for cell in all_cells
-        }
-        aggregates = aggregate_cells(
-            run_id=run.run_id,
-            cases={case.case_id: case for case in cases},
-            cells=all_cells,
-            checks_by_cell=checks_by_cell,
-            metric_keys=list(resolved.metrics),
-            replicas=resolved.spec.replicas,
-        )
-        repository.record_aggregates(aggregates)
-        gates = evaluate_gates(resolved.spec.gates, aggregates)
-        repository.record_gates(run.run_id, gates)
-        result = ExecutionResult(
-            run=execution.run,
-            cells=all_cells,
-            checks=checks_by_cell,
-            summaries=summarise(resolved, all_cells),
-        )
-        _print_run_table(
-            result,
-            aggregates,
-            gates,
-            _run_reason(execution.run, token.reason),
-        )
     finally:
-        database.dispose()
-    return exit_codes.for_run(
-        status=execution.run.status,
-        gate_failed=any(not gate.passed for gate in gates),
-    )
+        signal.signal(signal.SIGINT, previous_sigint)
+    _print_run_table(outcome)
+    return outcome.exit_code
 
 
-def _run_reason(run: RunRecord, cancelled_reason: str) -> str:
-    """Return the one-line reason a run did not finish normally, or empty."""
-    if run.status == "budget_exceeded":
-        cap = run.budget_usd or 0.0
-        return f"budget exceeded: spent ${run.cost_usd:.6f} of ${cap:.6f}"
-    if run.status == "cancelled":
-        return f"cancelled: {cancelled_reason or 'no reason recorded'}"
-    return ""
-
-
-def _print_run_table(
-    result: ExecutionResult,
-    aggregates: list[Aggregate],
-    gates: list[GateResult],
-    reason: str = "",
-) -> None:
+def _print_run_table(outcome: service.RunOutcome) -> None:
     """Print the candidate table, the run line, the reason, aggregates, gates."""
     print(
         f"{'candidate':<24} {'cells':>5} {'ok':>4} {'fail':>5} "
         f"{'cost_usd':>10} {'duration_s':>10}"
     )
-    for summary in result.summaries:
+    for summary in outcome.summaries:
         print(
             f"{summary.candidate:<24} {summary.cells:>5} {summary.ok:>4} "
             f"{summary.failed:>5} {summary.cost_usd:>10.6f} "
             f"{summary.duration_s:>10.3f}"
         )
-    run = result.run
+    run = outcome.run
     print(
         f"run {run.run_id} status={run.status} cells={run.n_cells} "
         f"ok={run.n_ok} cost=${run.cost_usd:.6f}"
     )
-    answer_cost = sum(cell.answer_cost_usd for cell in result.cells)
-    judge_cost = sum(cell.judge_cost_usd for cell in result.cells)
-    tool_cost = sum(cell.tool_cost_usd for cell in result.cells)
+    answer_cost = sum(cell.answer_cost_usd for cell in outcome.cells)
+    judge_cost = sum(cell.judge_cost_usd for cell in outcome.cells)
+    tool_cost = sum(cell.tool_cost_usd for cell in outcome.cells)
     print(
         f"cost: answer ${answer_cost:.6f}, judge ${judge_cost:.6f}, "
         f"tools ${tool_cost:.6f}"
     )
-    if reason:
-        print(f"reason: {reason}")
-    _print_aggregates(aggregates)
-    for gate in gates:
+    if outcome.reason:
+        print(f"reason: {outcome.reason}")
+    _print_aggregates(outcome.aggregates)
+    for gate in outcome.gates:
         print(
             f"gate {gate.name}: {'pass' if gate.passed else 'FAIL'} "
             f"observed={_format_percent(gate.observed, missing='undefined')} "
@@ -955,7 +562,7 @@ def _credentials_test(
         )
     verifier = build_verifier("verifier", {"base_url": base_url})
     result = asyncio.run(verifier.verify(handle.provider, handle.secret))
-    message = _redactor_for(store).redact(result.message)
+    message = service.redactor_for(store).redact(result.message)
     repository.test_credential(
         args.name,
         error=None if result.ok else message,
