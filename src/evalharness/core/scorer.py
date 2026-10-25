@@ -20,15 +20,15 @@ from evalharness.core.stats import pass_at_k, pass_k, proportion, wilson_interva
 _GroupKey = tuple[str, str, int | None]
 
 
-def checks_for_cell(
+async def checks_for_cell(
     cell: CellRecord,
     metrics: Iterable[Metric],
     ctx: ScoreContext,
 ) -> list[Check]:
-    """Run every metric for one cell and return the checks in metric order."""
+    """Await every metric for one cell and return its checks in metric order."""
     checks: list[Check] = []
     for metric in metrics:
-        checks.extend(metric.check(cell, ctx))
+        checks.extend(await metric.check(cell, ctx))
     return checks
 
 

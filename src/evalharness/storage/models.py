@@ -88,6 +88,15 @@ class CellRow(Base):
     completion_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     tool_calls: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     cost_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    # The cost split columns are nullable so a database written before issue
+    # #7 can gain them in place; older rows read back as zero.
+    answer_cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    judge_cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    tool_cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True)
+    judge_prompt_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    judge_completion_tokens: Mapped[int | None] = mapped_column(
+        Integer, nullable=True
+    )
     usage_source: Mapped[str] = mapped_column(String(20), nullable=False)
     answer: Mapped[str] = mapped_column(Text, nullable=False, default="")
     output: Mapped[dict] = mapped_column(JSON, nullable=False)

@@ -12,6 +12,7 @@ from evalharness.core.cancel import CancellationToken
 from evalharness.core.context import CredentialStore, RunContext
 from evalharness.core.cost import split_cost
 from evalharness.core.events import EventEmitter
+from evalharness.core.judges import build_judge_sessions
 from evalharness.core.models import (
     CandidateOutput,
     Case,
@@ -376,6 +377,9 @@ class _Execution:
             completion_tokens=output.completion_tokens,
             tool_calls=output.tool_calls,
             cost_usd=split.total_usd,
+            answer_cost_usd=split.answer_usd,
+            judge_cost_usd=split.judge_usd,
+            tool_cost_usd=split.tool_usd,
             usage_source=output.usage_source,
             answer=str(output_data.get("answer", "")),
             output=output_data,
@@ -387,20 +391,51 @@ class _Execution:
             run_id=self.run_record.run_id,
             candidate=cell.candidate,
             cases=self.cases_by_id,
+            judges=build_judge_sessions(
+                self.resolved.spec.judges,
+                self.resolved.judges,
+                self.resolved.prices,
+            ),
+            redactor=self.redactor,
         )
-        checks = self._redact_checks(checks_for_cell(record, self.metrics, score_ctx))
+        checks = self._redact_checks(
+            await checks_for_cell(record, self.metrics, score_ctx)
+        )
+        record = self._with_judge_usage(record, score_ctx)
         self._store(record, checks)
-        self.spend_usd += split.total_usd
+        self.spend_usd += record.cost_usd
         self.emitter.emit(
             "cell_completed",
             {
                 "cell_id": cell.cell_id,
-                "cost_usd": split.total_usd,
+                "cost_usd": record.cost_usd,
                 "wall_ms": wall_ms,
                 "passed": sum(1 for check in checks if check.passed),
             },
         )
         self._finish_cell()
+
+    @staticmethod
+    def _with_judge_usage(
+        record: CellRecord,
+        ctx: ScoreContext,
+    ) -> CellRecord:
+        """Fold the judge usage a cell triggered into its stored cost split."""
+        judge_usd = sum(session.usage_usd() for session in ctx.judges.values())
+        judge_prompt = sum(session.prompt_tokens for session in ctx.judges.values())
+        judge_completion = sum(
+            session.completion_tokens for session in ctx.judges.values()
+        )
+        return record.model_copy(
+            update={
+                "judge_cost_usd": judge_usd,
+                "judge_prompt_tokens": judge_prompt,
+                "judge_completion_tokens": judge_completion,
+                "cost_usd": (
+                    record.answer_cost_usd + judge_usd + record.tool_cost_usd
+                ),
+            }
+        )
 
     def _finish_cell(self) -> None:
         """Advance the cancel limit and re-check the budget after one cell."""

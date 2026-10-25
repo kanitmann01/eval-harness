@@ -22,6 +22,8 @@ STUB_FAILING = "evalharness.adapters.candidates.stub:build_failing"
 STUB_FIXED_PROMPT = "evalharness.adapters.candidates.stub:build_fixed_prompt"
 EXACT_MATCH = "evalharness.adapters.metrics.exact_match:build"
 CONTAINS = "evalharness.adapters.metrics.contains:build"
+CITATION_SUPPORT = "evalharness.adapters.metrics.citation_support:build"
+SCRIPTED_JUDGE = "evalharness.adapters.judges.scripted:build"
 JSON_SINK = "evalharness.adapters.sinks.json_sink:build"
 
 

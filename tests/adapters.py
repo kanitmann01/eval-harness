@@ -209,7 +209,7 @@ class WrongKeyMetric:
     def __init__(self, name: str) -> None:
         self.key = "not-" + name
 
-    def check(self, cell, ctx) -> list[Check]:
+    async def check(self, cell, ctx) -> list[Check]:
         return []
 
 

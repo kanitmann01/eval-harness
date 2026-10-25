@@ -767,6 +767,13 @@ def _print_run_table(
         f"run {run.run_id} status={run.status} cells={run.n_cells} "
         f"ok={run.n_ok} cost=${run.cost_usd:.6f}"
     )
+    answer_cost = sum(cell.answer_cost_usd for cell in result.cells)
+    judge_cost = sum(cell.judge_cost_usd for cell in result.cells)
+    tool_cost = sum(cell.tool_cost_usd for cell in result.cells)
+    print(
+        f"cost: answer ${answer_cost:.6f}, judge ${judge_cost:.6f}, "
+        f"tools ${tool_cost:.6f}"
+    )
     if reason:
         print(f"reason: {reason}")
     _print_aggregates(aggregates)

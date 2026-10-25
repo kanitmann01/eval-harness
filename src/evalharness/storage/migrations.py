@@ -20,15 +20,18 @@ from sqlalchemy.engine import Connection, Engine
 from evalharness.errors import SchemaMigrationError
 from evalharness.storage.models import AggregateRow, Base
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 """The schema this build writes; bump it when a new migration is added.
 
 Version 2 adds the nullable runs.budget_override_usd column from issue #3.
 Version 3 adds the nullable gates.candidate, comparison, threshold, observed
-and n columns from issue #8. Both migrations need no hand-written step: a
-database recorded below the current version goes through the generic
-nullable-column pass, which adds whatever the ORM maps and the database lacks,
-then records the current version.
+and n columns from issue #8. Version 4 adds the nullable cells cost-split and
+judge-token columns from issue #7. None needs a hand-written step: a database
+recorded below the current version goes through the generic nullable-column
+pass, which adds whatever the ORM maps and the database lacks, then records
+the current version. The issue #7 columns are nullable because a stored cell
+predates them; the repository reads NULL as zero, and every new cell writes an
+explicit value.
 """
 
 _STAGING_TABLE = "aggregates_rebuild"

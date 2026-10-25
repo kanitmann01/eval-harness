@@ -14,7 +14,7 @@ class ExactMatchMetric:
         self.key = key
         self._expected_key = expected_key
 
-    def check(self, cell: CellRecord, ctx: ScoreContext) -> list[Check]:
+    async def check(self, cell: CellRecord, ctx: ScoreContext) -> list[Check]:
         """Compare the recorded answer with the case's ground truth."""
         case = ctx.cases[cell.case_id]
         expected = str((case.expected or {}).get(self._expected_key, "")).strip()

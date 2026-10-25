@@ -9,7 +9,13 @@ from sqlalchemy import text
 
 import tests.adapters  # noqa: F401 - importing registers the test adapters
 from evalharness.cli import main
-from evalharness.core.models import Aggregate, GateResult, RunRecord, utc_now
+from evalharness.core.models import (
+    Aggregate,
+    CellRecord,
+    GateResult,
+    RunRecord,
+    utc_now,
+)
 from evalharness.errors import SchemaMigrationError
 from evalharness.storage.db import Database
 from evalharness.storage.repository import Repository
@@ -274,7 +280,7 @@ def test_migration_adds_gate_arithmetic_columns(evalh_home, workdir):
             version = connection.exec_driver_sql(
                 "SELECT MAX(version) FROM schema_version"
             ).scalar()
-        assert version == 3
+        assert version == 4
     finally:
         reopened.dispose()
 
@@ -294,3 +300,70 @@ def test_migration_refuses_a_missing_not_null_column(evalh_home, workdir):
     assert "runs.n_ok" in str(raised.value)
     assert "NOT NULL" in str(raised.value)
     assert "Fix:" in str(raised.value)
+
+
+def test_migration_adds_the_cost_split_to_a_version_3_database(evalh_home, workdir):
+    url = _database_url(workdir, "version-3.db")
+    database = Database(url)
+    database.create_all()
+    repository = Repository(database)
+    repository.save_spec("spec-old", "old-spec", "yaml", "sha", utc_now())
+    repository.create_run(
+        RunRecord(
+            run_id="run-old",
+            spec_id="spec-old",
+            status="ok",
+            started_at=utc_now(),
+        )
+    )
+    repository.record_cell(
+        CellRecord(
+            cell_id="cell-old",
+            run_id="run-old",
+            candidate="cand",
+            case_id="case",
+            replica=1,
+            cost_usd=0.5,
+        )
+    )
+    with database.engine.begin() as connection:
+        for column in (
+            "answer_cost_usd",
+            "judge_cost_usd",
+            "tool_cost_usd",
+            "judge_prompt_tokens",
+            "judge_completion_tokens",
+        ):
+            connection.exec_driver_sql(f"ALTER TABLE cells DROP COLUMN {column}")
+        connection.execute(text("UPDATE schema_version SET version = 3"))
+    database.dispose()
+
+    reopened = Database(url)
+    repository = Repository(reopened)
+    try:
+        old = repository.list_cells("run-old")[0]
+        assert old.answer_cost_usd == 0.0
+        assert old.judge_cost_usd == 0.0
+        assert old.tool_cost_usd == 0.0
+        assert old.judge_prompt_tokens == 0
+        assert old.judge_completion_tokens == 0
+
+        repository.record_cell(
+            old.model_copy(
+                update={
+                    "answer_cost_usd": 0.25,
+                    "judge_cost_usd": 0.5,
+                    "tool_cost_usd": 0.75,
+                    "judge_prompt_tokens": 11,
+                    "judge_completion_tokens": 3,
+                }
+            )
+        )
+        written = repository.list_cells("run-old")[0]
+        assert written.answer_cost_usd == 0.25
+        assert written.judge_cost_usd == 0.5
+        assert written.tool_cost_usd == 0.75
+        assert written.judge_prompt_tokens == 11
+        assert written.judge_completion_tokens == 3
+    finally:
+        reopened.dispose()
