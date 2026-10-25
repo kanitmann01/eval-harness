@@ -17,7 +17,6 @@ from typing import Any, Callable, Sequence
 import uvicorn
 
 from evalharness import exit_codes, service
-from evalharness.adapters.verify.http_verifier import build as build_verifier
 from evalharness.api.app import create_app
 from evalharness.conformance import KINDS, run_all, run_suite
 from evalharness.conformance.suite import ConformanceReport
@@ -35,6 +34,11 @@ from evalharness.core.vault import (
     Vault,
     VaultCredentialStore,
     open_vault,
+)
+from evalharness.credential_service import (
+    add_credential,
+    delete_credential,
+    verify_credential,
 )
 from evalharness.errors import HarnessError, SpecError
 from evalharness.storage.db import Database
@@ -210,7 +214,7 @@ def _validate(args: argparse.Namespace) -> int:
     try:
         resolved = load_and_validate(
             args.spec,
-            stored_credentials=service.stored_credential_names(settings),
+            credential_states=service.stored_credential_states(settings),
         )
     except SpecError as exc:
         return _spec_failure(exc)
@@ -501,9 +505,7 @@ def _credentials_add(
 ) -> int:
     """Encrypt and store one credential, never echoing the secret."""
     secret = _read_secret(args)
-    record = repository.add_credential(
-        args.name, args.provider, vault.encrypt(secret)
-    )
+    record = add_credential(repository, vault, args.name, args.provider, secret)
     print(
         f"added credential {record.name} provider={record.provider} "
         f"created={_format_time(record.created_at)}"
@@ -543,34 +545,21 @@ def _credentials_test(
     repository: Repository,
 ) -> int:
     """Verify one credential once and record the provider's verdict."""
+    base_url = args.verify_url or settings.verify_url or ""
     store = VaultCredentialStore(vault, repository)
-    handle = store.get(args.name)
-    if handle is None:
-        raise SpecError(
-            f"credentials.{args.name}",
+    _, result = asyncio.run(
+        verify_credential(
+            repository,
+            vault,
             args.name,
-            "unknown credential",
-            "list the stored credentials with 'evalh credentials list'",
+            base_url,
+            redactor=service.redactor_for(store),
         )
-    base_url = args.verify_url or settings.verify_url
-    if not base_url:
-        raise SpecError(
-            "EVALH_VERIFY_URL",
-            "",
-            "no verification endpoint is configured",
-            "set EVALH_VERIFY_URL to the provider base URL or pass --verify-url",
-        )
-    verifier = build_verifier("verifier", {"base_url": base_url})
-    result = asyncio.run(verifier.verify(handle.provider, handle.secret))
-    message = service.redactor_for(store).redact(result.message)
-    repository.test_credential(
-        args.name,
-        error=None if result.ok else message,
     )
     if result.ok:
-        print(f"verified: {message}")
+        print(f"verified: {result.message}")
         return exit_codes.SUCCESS
-    print(f"rejected: {message}")
+    print(f"rejected: {result.message}")
     return exit_codes.GATE_FAILURE
 
 
@@ -594,6 +583,6 @@ def _credentials_delete(
         if answer not in {"y", "yes"}:
             print("not deleted")
             return exit_codes.SUCCESS
-    repository.delete_credential(args.name)
+    delete_credential(repository, args.name)
     print(f"deleted credential {args.name}")
     return exit_codes.SUCCESS

@@ -12,6 +12,7 @@
     <a class="brand" href="{{ url_for('run_list') }}">evalharness <span>console</span></a>
     <nav class="site-nav" aria-label="Primary">
       <a class="nav-link" href="{{ url_for('spec_list') }}">Specs</a>
+      <a class="nav-link" href="{{ url_for('credential_list') }}"{% if request.url.path == '/credentials' %} aria-current="page"{% endif %}>Credentials</a>
       <a href="{{ url_for('compare') }}"{% if request.url.path == '/compare' %} aria-current="page"{% endif %}>Compare</a>
       <a class="nav-link" href="{{ url_for('launch_page') }}">Launch</a>
     </nav>

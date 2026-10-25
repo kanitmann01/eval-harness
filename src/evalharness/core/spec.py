@@ -10,7 +10,13 @@ from typing import Any, Iterable
 import yaml
 from pydantic import ValidationError
 
-from evalharness.core.models import CandidateSpec, ContextChunk, Price, Spec
+from evalharness.core.models import (
+    CandidateSpec,
+    ContextChunk,
+    CredentialState,
+    Price,
+    Spec,
+)
 from evalharness.core.protocols import Capabilities, Judge, Metric, Source
 from evalharness.core.registry import AdapterFactory, resolve
 from evalharness.errors import RegistryError, SpecError
@@ -108,17 +114,23 @@ def load_and_validate(
     path: str | Path,
     *,
     stored_credentials: Iterable[str] = (),
+    credential_states: Iterable[CredentialState] = (),
+    require_verified_credentials: bool = False,
 ) -> ResolvedSpec:
     """Load a spec file and validate it in one step.
 
     `stored_credentials` names credentials present in the vault; a candidate or
-    judge may use one without declaring it again in the spec.
+    judge may use one without declaring it again in the spec. `credential_states`
+    adds the vault's usability state, and `require_verified_credentials` makes a
+    never-tested credential a validation error (the console's spec editor).
     """
     raw_text = read_spec(path)
     return validate_spec(
         parse_spec(raw_text),
         raw_text=raw_text,
         stored_credentials=stored_credentials,
+        credential_states=credential_states,
+        require_verified_credentials=require_verified_credentials,
     )
 
 
@@ -178,6 +190,39 @@ def _declared_credential(
             "unknown credential",
             "declare it under credentials:, add it with 'evalh credentials "
             f"add', or use one of: {choices}",
+        )
+
+
+def _usable_credential(
+    states: dict[str, CredentialState],
+    name: str | None,
+    field: str,
+    *,
+    require_verified: bool,
+) -> None:
+    """Refuse a stored credential the vault marks disabled or never verified.
+
+    A name the vault does not store is left to _declared_credential: a spec
+    declaration alone keeps working for an adapter that needs no secret.
+    """
+    if name is None:
+        return
+    state = states.get(name)
+    if state is None:
+        return
+    if state.disabled:
+        raise SpecError(
+            field,
+            name,
+            "the credential is disabled, so the harness must not use its secret",
+            "enable it at /credentials, then save the spec again",
+        )
+    if require_verified and not state.verified:
+        raise SpecError(
+            field,
+            name,
+            "the credential has never been verified, so its secret is unproven",
+            "test it at /credentials, then save the spec again",
         )
 
 
@@ -267,13 +312,18 @@ def validate_spec(
     raw_text: str = "",
     *,
     stored_credentials: Iterable[str] = (),
+    credential_states: Iterable[CredentialState] = (),
+    require_verified_credentials: bool = False,
 ) -> ResolvedSpec:
     """Validate every declarative reference before anything executes.
 
     A credential is known when the spec declares it or the vault stores it.
-    `stored_credentials` is the vault's name list, never its secrets. A candidate
-    that declares `requires_credential` needs its name in that list, because a
-    spec declaration alone cannot supply the secret.
+    `stored_credentials` is the vault's name list, never its secrets;
+    `credential_states` is its usability state. A candidate that declares
+    `requires_credential` needs its name in the vault, because a spec
+    declaration alone cannot supply the secret. A stored credential that is
+    disabled is always refused; one that has never passed a test is refused
+    when `require_verified_credentials` is set, which is what the console does.
     """
     _unique(
         (candidate.name for candidate in spec.candidates), "candidates", "candidate"
@@ -286,23 +336,31 @@ def validate_spec(
         "credential",
     )
 
+    states = {state.name: state for state in credential_states}
     stored_names = set(stored_credentials)
+    stored_names.update(states)
     known_credentials = {credential.name for credential in spec.credentials}
     known_credentials.update(stored_names)
 
     for index, candidate in enumerate(spec.candidates):
-        _declared_credential(
-            known_credentials,
+        field = f"candidates[{index}].credential"
+        _declared_credential(known_credentials, candidate.credential, field)
+        _usable_credential(
+            states,
             candidate.credential,
-            f"candidates[{index}].credential",
+            field,
+            require_verified=require_verified_credentials,
         )
         _require_price(spec, candidate.model)
 
     for index, judge in enumerate(spec.judges):
-        _declared_credential(
-            known_credentials,
+        field = f"judges[{index}].credential"
+        _declared_credential(known_credentials, judge.credential, field)
+        _usable_credential(
+            states,
             judge.credential,
-            f"judges[{index}].credential",
+            field,
+            require_verified=require_verified_credentials,
         )
         if judge.model is not None:
             _require_price(spec, judge.model)
@@ -460,14 +518,19 @@ def validate_yaml_text(
     text: str,
     *,
     stored_credentials: Iterable[str] = (),
+    credential_states: Iterable[CredentialState] = (),
+    require_verified_credentials: bool = False,
 ) -> ResolvedSpec:
     """Validate YAML text in memory exactly as `evalh validate` validates a file.
 
-    The console's spec editor calls this function, so a field error reads the
-    same in the browser as it does on the command line.
+    The console's spec editor calls this function with the vault's credential
+    states and `require_verified_credentials`, so a field error reads the same
+    in the browser as it does on the command line.
     """
     return validate_spec(
         parse_spec(text),
         raw_text=text,
         stored_credentials=stored_credentials,
+        credential_states=credential_states,
+        require_verified_credentials=require_verified_credentials,
     )

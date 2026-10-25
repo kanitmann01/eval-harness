@@ -20,18 +20,20 @@ from sqlalchemy.engine import Connection, Engine
 from evalharness.errors import SchemaMigrationError
 from evalharness.storage.models import AggregateRow, Base
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 """The schema this build writes; bump it when a new migration is added.
 
 Version 2 adds the nullable runs.budget_override_usd column from issue #3.
 Version 3 adds the nullable gates.candidate, comparison, threshold, observed
 and n columns from issue #8. Version 4 adds the nullable cells cost-split and
-judge-token columns from issue #7. None needs a hand-written step: a database
-recorded below the current version goes through the generic nullable-column
-pass, which adds whatever the ORM maps and the database lacks, then records
-the current version. The issue #7 columns are nullable because a stored cell
-predates them; the repository reads NULL as zero, and every new cell writes an
-explicit value.
+judge-token columns from issue #7. Version 5 adds credentials.disabled from
+issue #13. The first four need no hand-written step: a database recorded below
+the current version goes through the generic nullable-column pass, which adds
+whatever the ORM maps and the database lacks, then records the current version.
+The issue #7 columns are nullable because a stored cell predates them; the
+repository reads NULL as zero, and every new cell writes an explicit value.
+disabled is NOT NULL, so it is added by a dedicated step that supplies the
+false default an existing row needs.
 """
 
 _STAGING_TABLE = "aggregates_rebuild"
@@ -51,6 +53,7 @@ def migrate(engine: Engine) -> int:
         if version >= SCHEMA_VERSION:
             return version
         _rebuild_aggregates(connection)
+        _add_credential_disabled(connection)
         _add_missing_columns(connection)
         _write_version(connection, SCHEMA_VERSION)
         return SCHEMA_VERSION
@@ -111,6 +114,26 @@ def _rebuild_aggregates(connection: Connection) -> None:
     )
     connection.exec_driver_sql("DROP TABLE aggregates")
     connection.exec_driver_sql(f"ALTER TABLE {_STAGING_TABLE} RENAME TO aggregates")
+
+
+def _add_credential_disabled(connection: Connection) -> None:
+    """Add credentials.disabled to a database that predates issue #13.
+
+    The column is NOT NULL, which the generic pass refuses because it would
+    have to invent a value; a server default of false is that value, and it
+    matches the ORM default every new row writes.
+    """
+    inspector = inspect(connection)
+    if "credentials" not in inspector.get_table_names():
+        return
+    present = {column["name"] for column in inspector.get_columns("credentials")}
+    if "disabled" in present:
+        return
+    false_literal = "FALSE" if connection.dialect.name == "postgresql" else "0"
+    connection.exec_driver_sql(
+        "ALTER TABLE credentials ADD COLUMN disabled BOOLEAN NOT NULL "
+        f"DEFAULT {false_literal}"
+    )
 
 
 def _add_missing_columns(connection: Connection) -> None:

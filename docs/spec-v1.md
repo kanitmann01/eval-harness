@@ -130,7 +130,17 @@ evalh credentials add openai-prod --provider openai --secret-stdin
 
 An undeclared name that is neither in the spec nor in the vault is a spec error
 naming the field, the name, and the `evalh credentials add` fix. Validation reads
-the vault's credential names (metadata only), never its secrets.
+the vault's credential metadata (names, disabled flag and test history), never its
+secrets.
+
+A stored credential that is disabled is a spec error on the reference
+(`candidates[i].credential` or `judges[i].credential`) in both the console and
+the CLI. The console also refuses a credential that has never passed a test,
+because the browser is where a key is selected; the message names the field and
+the `test it at /credentials` fix. A name only declared in the spec and not
+stored keeps its old behaviour, which is what lets a non-credential adapter run
+without a vault entry. See [credentials.md](credentials.md) and
+[console.md#credentials](console.md#credentials).
 
 There is a stronger rule for a candidate whose adapter needs a secret, such as
 the HTTP candidate with `auth: bearer` or `auth: header`. Declaring the name in
@@ -237,8 +247,11 @@ the HTTP candidate declares 3). See [adapters.md](adapters.md).
 `evalh validate`, `evalh run` and the browser spec editor call the same loader
 in `core/spec.py`: `parse_spec` then `validate_spec`, wrapped for the HTTP
 surface as `validate_yaml_text`. The browser therefore reports the same field
-name, rejected value, reason and fix that the CLI prints, and a document that
-the console refuses to save is a document `evalh run` would refuse too. See
+name, rejected value, reason and fix that the CLI prints. The one extra console
+rule is credential usability: the editor passes the vault's states and requires a
+verified credential, so a spec naming a never-tested credential is refused there
+but still validates on the command line, where a run surfaces the provider's
+rejection. A disabled credential is refused by both. See
 [console.md](console.md#spec-editor) for the editor routes.
 
 ## CLI contract

@@ -14,6 +14,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from evalharness.api.credential_views import CredentialChoice, credential_choices
 from evalharness.api.spec_store import SpecFile, SpecStore
 from evalharness.core.context import RunContext
 from evalharness.core.cost import (
@@ -26,6 +27,7 @@ from evalharness.core.events import EventEmitter
 from evalharness.core.models import Case
 from evalharness.core.planner import expand, per_candidate_counts
 from evalharness.core.spec import ResolvedSpec, validate_yaml_text
+from evalharness.credential_service import credential_states
 from evalharness.errors import SpecError
 from evalharness.storage.repository import Repository
 
@@ -78,11 +80,17 @@ def check_document(text: str, repository: Repository) -> SpecCheck:
 
     A spec is valid only when it parses, passes semantic validation and its
     source yields at least one case, because those are the conditions under
-    which the CLI would accept the same document.
+    which the CLI would accept the same document. The editor also passes the
+    vault's credential states and requires a verified credential, so a
+    disabled or never-tested key cannot be selected here.
     """
-    names = [record.name for record in repository.list_credentials()]
+    records = repository.list_credentials()
     try:
-        resolved = validate_yaml_text(text, stored_credentials=names)
+        resolved = validate_yaml_text(
+            text,
+            credential_states=credential_states(records),
+            require_verified_credentials=True,
+        )
     except SpecError as exc:
         return SpecCheck(
             resolved=None,
@@ -110,6 +118,11 @@ def check_document(text: str, repository: Repository) -> SpecCheck:
         cases=len(cases),
         estimate=estimate,
     )
+
+
+def editor_credentials(repository: Repository) -> list[CredentialChoice]:
+    """Return the credentials the editor sidebar lists with their state."""
+    return credential_choices(repository.list_credentials())
 
 
 def row_for(
