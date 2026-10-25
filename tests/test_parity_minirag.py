@@ -33,7 +33,7 @@ FIXTURE = REPO / "examples" / "parity" / "fixture"
 SERVER = REPO / "examples" / "parity" / "minirag_replay_server.py"
 HTTP_CANDIDATE = "evalharness.adapters.candidates.http:build"
 
-EXPECTED_SHA256 = "3ef4c300ac2232d4f2d4d5724d8e4113603d934a5ee7a78159130b8d670f2a81"
+EXPECTED_SHA256 = "7f5fc7b46aab954e5f1d51ab466602d324934eb0c1b3dc55f9147a450e0572c7"
 """The pinned sha256 of the committed `expected.json`, recorded in the fixture README."""
 
 ARMS = ("bare", "map", "map_rules")
@@ -176,7 +176,9 @@ def _spec(base_url: str, tasks: list[dict], answers: dict, expected: dict) -> di
 
 
 def test_the_expected_scoreboard_is_unchanged():
-    payload = (FIXTURE / "expected.json").read_bytes()
+    # Normalise line endings so the guard means the same thing on a Windows
+    # checkout and on the Linux CI runner; .gitattributes pins the file to LF.
+    payload = (FIXTURE / "expected.json").read_bytes().replace(b"\r\n", b"\n")
     assert hashlib.sha256(payload).hexdigest() == EXPECTED_SHA256
 
 

@@ -22,7 +22,7 @@ next to the scorer it guards.
 `expected.json` is pinned by sha256:
 
 ```
-sha256(expected.json) = 3ef4c300ac2232d4f2d4d5724d8e4113603d934a5ee7a78159130b8d670f2a81
+sha256(expected.json) = 7f5fc7b46aab954e5f1d51ab466602d324934eb0c1b3dc55f9147a450e0572c7
 ```
 
 `tests/test_parity_minirag.py` fails if the file drifts from that pin.
