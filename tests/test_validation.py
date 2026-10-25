@@ -387,6 +387,7 @@ def test_run_validates_before_executing(evalh_home, workdir, capsys):
     captured = capsys.readouterr()
     assert code == 2
     assert "prices.stub-1" in captured.err
+    assert not evalh_home.exists()
 
 
 def test_missing_spec_file(evalh_home, workdir, capsys):
