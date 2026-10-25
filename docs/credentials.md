@@ -112,7 +112,9 @@ false default, so a row stored by issue #6 reads back as enabled.
 - A non-2xx response is rejected. The verifier returns the provider's message verbatim in
   `VerificationResult(ok=False, message=...)`.
 - On success `last_ok_at` is stamped and `last_error` is cleared. On failure
-  `last_error` is stamped and the last successful time is kept.
+  `last_error` is stamped and the last successful time is kept. The stored message
+  is bounded to 500 characters, so a provider that answers with a whole HTML error
+  page cannot flood the database or the console row.
 - The CLI redacts the message before it prints or stores it, so a provider that echoes
   the key in its error text does not leak it. The console's Test button takes the same
   one-request path through `credential_service.verify_credential` and stores the same

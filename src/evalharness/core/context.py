@@ -57,10 +57,11 @@ def credential_env_var(name: str) -> str:
 
 
 class EnvCredentialStore(InMemoryCredentialStore):
-    """Resolve declared credentials from EVALH_CREDENTIAL_* variables.
+    """A test seam that resolves declared credentials from EVALH_CREDENTIAL_*.
 
-    This is the placeholder implementation; issue #6 replaces the secret source
-    with the encrypted vault while keeping the CredentialStore protocol.
+    Production never builds this store: `evalh run` and `evalh serve` resolve
+    secrets only through the encrypted vault (`core/vault.py`). The class stays
+    so a test can exercise a candidate with a credential and no database.
     """
 
     @classmethod

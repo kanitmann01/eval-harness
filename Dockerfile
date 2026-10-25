@@ -26,6 +26,10 @@ RUN python -m venv /venv \
 
 FROM python:3.12-slim AS runtime
 
+# The commit this image was built from, so a recorded run can be tied to a
+# revision. Compose and CI pass it; the default says "unknown".
+ARG EVALH_HARNESS_SHA=dev
+
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/venv/bin:$PATH" \
@@ -33,6 +37,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     EVALH_DATABASE_URL=sqlite:////data/db/harness.db \
     EVALH_ARTIFACTS_DIR=/data/artifacts \
     EVALH_SPECS_DIR=/data/specs
+
+ENV EVALH_HARNESS_SHA=$EVALH_HARNESS_SHA
 
 RUN groupadd --system --gid 1001 evalh \
     && useradd --system --uid 1001 --gid evalh --home-dir /data --no-create-home evalh

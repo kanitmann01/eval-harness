@@ -39,6 +39,9 @@ def test_compose_wires_the_harness_to_a_healthy_named_volume_database() -> None:
     assert environment["EVALH_HOME"] == "/data"
     assert environment["EVALH_ARTIFACTS_DIR"] == "/data/artifacts"
     assert environment["EVALH_SPECS_DIR"] == "/data/specs"
+    # The image records the commit it was built from; compose forwards the
+    # operator's environment and falls back to "dev" when it is unset.
+    assert harness["build"]["args"]["EVALH_HARNESS_SHA"] == "${EVALH_HARNESS_SHA:-dev}"
     assert harness["ports"] == ["${EVALH_PORT:-8000}:8000"]
     # The first start without a key must exit 2 and stay exited; a restart
     # policy would print a fresh key in a loop instead of waiting for the
@@ -63,6 +66,8 @@ def test_dockerfile_is_multistage_slim_nonroot_and_health_checked() -> None:
     assert "HEALTHCHECK" in runtime
     assert "/healthz" in runtime
     assert "EVALH_HOME=/data" in runtime
+    assert "ARG EVALH_HARNESS_SHA=dev" in runtime
+    assert "ENV EVALH_HARNESS_SHA=$EVALH_HARNESS_SHA" in runtime
     assert (
         'ENTRYPOINT ["evalh", "serve", "--host", "0.0.0.0", "--port", "8000"]'
         in runtime

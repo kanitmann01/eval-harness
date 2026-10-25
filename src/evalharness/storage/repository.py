@@ -36,6 +36,9 @@ from evalharness.storage.models import (
     SpecRow,
 )
 
+MAX_LAST_ERROR_CHARS = 500
+"""Bound on a stored verification error; provider bodies can be whole pages."""
+
 
 @dataclass(frozen=True, slots=True)
 class RunSummary:
@@ -477,7 +480,8 @@ class Repository:
         """Record one verification attempt against a stored credential.
 
         A successful attempt stamps last_ok_at and clears last_error; a failed
-        one keeps the last successful time and records the provider message.
+        one keeps the last successful time and records the provider message,
+        bounded so a provider's HTML error page cannot land in the console.
         """
         with self._database.session() as session:
             row = _credential_row(session, name)
@@ -485,7 +489,7 @@ class Repository:
                 row.last_ok_at = tested_at or utc_now()
                 row.last_error = None
             else:
-                row.last_error = error
+                row.last_error = error[:MAX_LAST_ERROR_CHARS]
             return _credential_record(row)
 
     def set_credential_disabled(
