@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import case, delete, func, select
 
 from evalharness.core.events import Event
 from evalharness.core.models import (
@@ -30,6 +32,32 @@ from evalharness.storage.models import (
     RunRow,
     SpecRow,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class RunSummary:
+    """One console run-list row: identity, outcome and computed aggregates."""
+
+    run_id: str
+    spec_name: str
+    status: str
+    cost_usd: float
+    pass_rate: float | None
+    duration_s: float | None
+    n_cells: int
+    n_ok: int
+    started_at: datetime
+    finished_at: datetime | None
+    candidates: tuple[str, ...]
+    metrics: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class RunFilters:
+    """The candidate and metric names available to the run-list filter."""
+
+    candidates: tuple[str, ...]
+    metrics: tuple[str, ...]
 
 
 class Repository:
@@ -112,6 +140,104 @@ class Repository:
                 return None
             return _run_record(row)
 
+    def list_run_summaries(
+        self,
+        candidate: str | None = None,
+        metric: str | None = None,
+    ) -> list[RunSummary]:
+        """Return runs newest first, optionally narrowed by candidate or metric.
+
+        The filters are existence tests over stored cells and aggregates, so a
+        run whose metric has no samples still matches that metric.
+        """
+        with self._database.session() as session:
+            statement = select(RunRow).order_by(
+                RunRow.started_at.desc(), RunRow.run_id
+            )
+            if candidate:
+                statement = statement.where(
+                    select(CellRow.cell_id)
+                    .where(
+                        CellRow.run_id == RunRow.run_id,
+                        CellRow.candidate == candidate,
+                    )
+                    .exists()
+                )
+            if metric:
+                statement = statement.where(
+                    select(AggregateRow.id)
+                    .where(
+                        AggregateRow.run_id == RunRow.run_id,
+                        AggregateRow.metric == metric,
+                    )
+                    .exists()
+                )
+            rows = session.scalars(statement).all()
+            totals = {
+                run_id: (int(passed or 0), int(total or 0))
+                for run_id, total, passed in session.execute(
+                    select(
+                        CheckRow.run_id,
+                        func.count(CheckRow.metric),
+                        func.sum(case((CheckRow.passed, 1), else_=0)),
+                    ).group_by(CheckRow.run_id)
+                ).all()
+            }
+            candidates = _group_names(
+                session.execute(
+                    select(CellRow.run_id, CellRow.candidate).distinct()
+                ).all()
+            )
+            metrics = _group_names(
+                session.execute(
+                    select(CheckRow.run_id, CheckRow.metric).distinct()
+                ).all()
+            )
+            for run_id, name in session.execute(
+                select(AggregateRow.run_id, AggregateRow.metric).distinct()
+            ).all():
+                metrics.setdefault(run_id, set()).add(name)
+            return [
+                _run_summary(
+                    row,
+                    totals.get(row.run_id, (0, 0)),
+                    candidates.get(row.run_id, set()),
+                    metrics.get(row.run_id, set()),
+                )
+                for row in rows
+            ]
+
+    def list_run_filters(self) -> RunFilters:
+        """Return the candidate and metric names stored across every run."""
+        with self._database.session() as session:
+            candidates = session.scalars(
+                select(CellRow.candidate).distinct().order_by(CellRow.candidate)
+            ).all()
+            metrics = set(
+                session.scalars(select(CheckRow.metric).distinct()).all()
+            )
+            metrics.update(
+                session.scalars(select(AggregateRow.metric).distinct()).all()
+            )
+        return RunFilters(
+            candidates=tuple(candidates), metrics=tuple(sorted(metrics))
+        )
+
+    def get_cell(self, run_id: str, cell_id: str) -> CellRecord | None:
+        """Read one cell by run and deterministic cell id."""
+        with self._database.session() as session:
+            row = session.get(CellRow, (run_id, cell_id))
+            if row is None:
+                return None
+            return _cell_record(row)
+
+    def artifact_path(self, run_id: str, cell_id: str) -> Path | None:
+        """Return the artifact directory the database stored for one cell."""
+        cell = self.get_cell(run_id, cell_id)
+        if cell is None:
+            return None
+        return Path(cell.artifact_dir) if cell.artifact_dir else None
+
     def record_cell(self, cell: CellRecord) -> None:
         """Persist one cell as soon as it finishes."""
         with self._database.session() as session:
@@ -147,6 +273,19 @@ class Repository:
                 .order_by(CheckRow.metric)
             ).all()
             return [_check_record(row) for row in rows]
+
+    def list_checks_for_run(self, run_id: str) -> dict[str, list[Check]]:
+        """Return every cell's checks for a run, keyed by cell id."""
+        with self._database.session() as session:
+            rows = session.scalars(
+                select(CheckRow)
+                .where(CheckRow.run_id == run_id)
+                .order_by(CheckRow.cell_id, CheckRow.metric)
+            ).all()
+        checks: dict[str, list[Check]] = {}
+        for row in rows:
+            checks.setdefault(row.cell_id, []).append(_check_record(row))
+        return checks
 
     def record_aggregates(self, aggregates: list[Aggregate]) -> None:
         """Replace a run's aggregates, keeping repeated scoring idempotent."""
@@ -225,22 +364,17 @@ class Repository:
 
     def list_events(self, run_id: str) -> list[Event]:
         """Return a run's events in sequence order."""
+        return self.list_events_after(run_id, 0)
+
+    def list_events_after(self, run_id: str, seq: int) -> list[Event]:
+        """Return a run's events whose sequence number is greater than seq."""
         with self._database.session() as session:
             rows = session.scalars(
                 select(EventRow)
-                .where(EventRow.run_id == run_id)
+                .where(EventRow.run_id == run_id, EventRow.seq > seq)
                 .order_by(EventRow.seq)
             ).all()
-            return [
-                Event(
-                    run_id=row.run_id,
-                    seq=row.seq,
-                    ts=row.ts,
-                    kind=row.kind,
-                    payload=dict(row.payload),
-                )
-                for row in rows
-            ]
+            return [_event_record(row) for row in rows]
 
     def max_event_seq(self, run_id: str) -> int:
         """Return the last event sequence for a run, or zero when empty."""
@@ -345,6 +479,54 @@ def _encrypted_credential(row: CredentialRow) -> EncryptedCredential:
     return EncryptedCredential(
         **_credential_record(row).model_dump(),
         ciphertext=bytes(row.ciphertext),
+    )
+
+
+def _group_names(pairs: list[tuple[str, str]]) -> dict[str, set[str]]:
+    """Group the second column of (run_id, name) pairs by the first."""
+    grouped: dict[str, set[str]] = {}
+    for run_id, name in pairs:
+        grouped.setdefault(run_id, set()).add(name)
+    return grouped
+
+
+def _run_summary(
+    row: RunRow,
+    totals: tuple[int, int],
+    candidates: set[str],
+    metrics: set[str],
+) -> RunSummary:
+    """Build one console run row from a stored run and its check totals."""
+    passed, checks = totals
+    duration = (
+        (row.finished_at - row.started_at).total_seconds()
+        if row.finished_at is not None
+        else None
+    )
+    return RunSummary(
+        run_id=row.run_id,
+        spec_name=str(dict(row.spec_snapshot).get("name", "")),
+        status=row.status,
+        cost_usd=row.cost_usd,
+        pass_rate=passed / checks if checks else None,
+        duration_s=duration,
+        n_cells=row.n_cells,
+        n_ok=row.n_ok,
+        started_at=row.started_at,
+        finished_at=row.finished_at,
+        candidates=tuple(sorted(candidates)),
+        metrics=tuple(sorted(metrics)),
+    )
+
+
+def _event_record(row: EventRow) -> Event:
+    """Turn one event row into its core record."""
+    return Event(
+        run_id=row.run_id,
+        seq=row.seq,
+        ts=row.ts,
+        kind=row.kind,
+        payload=dict(row.payload),
     )
 
 

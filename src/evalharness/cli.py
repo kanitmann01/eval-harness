@@ -17,8 +17,11 @@ from typing import Any, Callable, Sequence
 
 from sqlalchemy.engine import make_url
 
+import uvicorn
+
 from evalharness import exit_codes
 from evalharness.adapters.verify.http_verifier import build as build_verifier
+from evalharness.api.app import create_app
 from evalharness.conformance import KINDS, run_all, run_suite
 from evalharness.conformance.suite import ConformanceReport
 from evalharness.core.cancel import CancellationToken
@@ -189,6 +192,14 @@ def _build_parser() -> argparse.ArgumentParser:
         handler=_credentials,
         credentials_parser=credentials_parser,
     )
+    serve_parser = commands.add_parser(
+        "serve", help="serve the read-only console on the CLI's database"
+    )
+    serve_parser.add_argument("--host", default="127.0.0.1")
+    serve_parser.add_argument("--port", type=int, default=8000)
+    serve_parser.add_argument("--db", help="override EVALH_DATABASE_URL")
+    serve_parser.add_argument("--artifacts", help="override EVALH_ARTIFACTS_DIR")
+    serve_parser.set_defaults(handler=_serve)
     return parser
 
 
@@ -353,6 +364,33 @@ def _estimate(
         median_prompt_tokens=prompt,
         median_completion_tokens=completion,
     )
+
+
+def _settings_for(args: argparse.Namespace) -> Settings:
+    """Return environment settings with the command's path overrides applied."""
+    settings = Settings.from_env()
+    if args.db:
+        settings = replace(settings, database_url=args.db)
+    if args.artifacts:
+        settings = replace(settings, artifacts_dir=Path(args.artifacts))
+    return settings
+
+
+def _serve(args: argparse.Namespace) -> int:
+    """Serve the read-only console against the CLI's database and artifacts."""
+    settings = _settings_for(args)
+    app = create_app(settings)
+    try:
+        uvicorn.run(
+            app,
+            host=args.host,
+            port=args.port,
+            access_log=False,
+        )
+    finally:
+        if app.state.database is not None:
+            app.state.database.dispose()
+    return exit_codes.SUCCESS
 
 
 def _print_dry_run(
@@ -563,11 +601,7 @@ def _sigint_handler(token: CancellationToken) -> Callable[[int, Any], None]:
 
 def _run(args: argparse.Namespace) -> int:
     """Execute one spec or resume an existing run and return its exit code."""
-    settings = Settings.from_env()
-    if args.db:
-        settings = replace(settings, database_url=args.db)
-    if args.artifacts:
-        settings = replace(settings, artifacts_dir=Path(args.artifacts))
+    settings = _settings_for(args)
     try:
         resolved = load_and_validate(
             args.spec,

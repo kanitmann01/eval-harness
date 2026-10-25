@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% block title %}{{ run.spec_snapshot.name or "Run detail" }} &middot; evalharness console{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Breadcrumb">
+  <a href="{{ url_for('run_list') }}">Runs</a>
+  <span aria-hidden="true">/</span>
+  <span class="mono">{{ run.run_id }}</span>
+</nav>
+
+<div class="page-head">
+  <div>
+    <h1>{{ run.spec_snapshot.name or "(unnamed spec)" }}</h1>
+    <p class="lede">
+      Run <span class="mono">{{ run.run_id }}</span>, started {{ run.started_at|timestamp }}{% if run.finished_at %}, finished {{ run.finished_at|timestamp }}{% endif %}.
+    </p>
+  </div>
+  <span class="status status-{{ run.status }}">{{ run.status }}</span>
+</div>
+
+<section class="stat-grid" aria-label="Run summary">
+  <div class="stat"><span class="stat-label">Cells</span><span class="stat-value">{{ run.n_ok }}/{{ run.n_cells }} ok</span></div>
+  <div class="stat"><span class="stat-label">Cost</span><span class="stat-value">{{ run.cost_usd|usd }}</span></div>
+  <div class="stat"><span class="stat-label">Budget</span><span class="stat-value">{{ run.budget_usd|usd }}</span></div>
+  <div class="stat"><span class="stat-label">Duration</span><span class="stat-value">{{ duration_s|duration }}</span></div>
+  <div class="stat"><span class="stat-label">Seed</span><span class="stat-value mono">{{ run.seed }}</span></div>
+  <div class="stat"><span class="stat-label">Harness</span><span class="stat-value mono">{{ run.harness_sha }}</span></div>
+</section>
+
+<section class="panel" aria-labelledby="heatmap-heading">
+  <div class="panel-head">
+    <div>
+      <h2 id="heatmap-heading">Candidate by case</h2>
+      <p class="subtle">Rows are candidates, columns are cases. Every planned cell is one link.</p>
+    </div>
+    <ul class="legend" aria-label="Heatmap legend">
+      <li><span class="swatch pass" aria-hidden="true">✓</span> pass</li>
+      <li><span class="swatch fail" aria-hidden="true">✗</span> fail</li>
+      <li><span class="swatch error" aria-hidden="true">!</span> error</li>
+      <li><span class="swatch muted" aria-hidden="true">–</span> cancelled</li>
+      <li><span class="swatch unknown" aria-hidden="true">?</span> no checks</li>
+    </ul>
+  </div>
+  {% if rows %}
+  <div class="heatmap-wrap" tabindex="0" role="region" aria-label="Scrollable heatmap">
+    <table class="heatmap">
+      <caption class="sr-only">Candidate by case heatmap; each cell links to its evidence</caption>
+      <thead>
+        <tr>
+          <th scope="col" class="row-head">Candidate</th>
+          {% for column in columns %}
+          <th scope="col" class="case-head" title="{{ column.case_id }} (replica {{ column.replica }})">{{ column.label }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr>
+          <th scope="row" class="row-head">{{ row.candidate }}</th>
+          {% for cell in row.cells %}
+          {% if cell %}
+          <td class="heat-cell {{ cell.tone }}{% if cell.selected %} selected{% endif %}">
+            <a href="{{ cell.detail_url }}" title="{{ cell.tooltip }}" aria-label="{{ cell.tooltip }}" data-cell-id="{{ cell.cell_id }}"{% if cell.selected %} aria-current="true"{% endif %}>
+              <span aria-hidden="true">{{ cell.glyph }}</span>
+            </a>
+          </td>
+          {% else %}
+          <td class="heat-cell empty" title="not recorded">·</td>
+          {% endif %}
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty-state">This run has no cells yet. Start a run and reload.</p>
+  {% endif %}
+</section>
+
+<section class="panel" aria-labelledby="aggregates-heading">
+  <div class="panel-head">
+    <div>
+      <h2 id="aggregates-heading">Aggregates</h2>
+      <p class="subtle">One overall row per candidate and metric, then one row per case tier.</p>
+    </div>
+  </div>
+  {% if aggregates %}
+  <div class="table-wrap">
+    <table class="aggregates">
+      <caption class="sr-only">Aggregates with 95 percent Wilson intervals and pass claims</caption>
+      <thead>
+        <tr>
+          <th scope="col">Candidate</th>
+          <th scope="col">Metric</th>
+          <th scope="col" class="num">Tier</th>
+          <th scope="col" class="num">n</th>
+          <th scope="col" class="num">Value</th>
+          <th scope="col" class="num">95% interval</th>
+          <th scope="col" class="num">pass@k</th>
+          <th scope="col" class="num">pass^k</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for aggregate in aggregates %}
+        <tr>
+          <td>{{ aggregate.candidate }}</td>
+          <td class="mono">{{ aggregate.metric }}</td>
+          <td class="num">{{ "all" if aggregate.tier is none else aggregate.tier }}</td>
+          <td class="num">{{ aggregate.n }}</td>
+          <td class="num">{{ aggregate.value|pct }}</td>
+          <td class="num">{{ aggregate.ci_low|interval(aggregate.ci_high) }}</td>
+          <td class="num">{{ aggregate.pass_at_k|pct }}</td>
+          <td class="num">{{ aggregate.pass_k|pct }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty-state">No aggregates were recorded for this run.</p>
+  {% endif %}
+</section>
+
+<section class="panel" aria-labelledby="gates-heading">
+  <h2 id="gates-heading">Gates</h2>
+  {% if gates %}
+  <ul class="gate-list">
+    {% for gate in gates %}
+    <li class="gate {{ 'gate-pass' if gate.passed else 'gate-fail' }}">
+      <span class="gate-glyph" aria-hidden="true">{{ "✓" if gate.passed else "✗" }}</span>
+      <span><strong>{{ gate.metric }}</strong> {{ "passed" if gate.passed else "failed" }}: value {{ gate.detail.value|pct }}, n={{ gate.detail.n }}{% if gate.detail.min is not none %}, min {{ gate.detail.min }}{% endif %}{% if gate.detail.max is not none %}, max {{ gate.detail.max }}{% endif %}{% if gate.detail.reason %}, {{ gate.detail.reason }}{% endif %}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty-state">No gates were declared for this run.</p>
+  {% endif %}
+</section>
+
+<section class="panel cell-panel" aria-labelledby="cell-heading">
+  <div class="panel-head">
+    <div>
+      <h2 id="cell-heading">Cell detail</h2>
+      <p class="subtle">Select a cell above, or change <code>?cell=&lt;id&gt;</code> in the URL.</p>
+    </div>
+    {% if selected_cell %}<span class="mono subtle">{{ selected_cell.cell_id }}</span>{% endif %}
+  </div>
+  {% if selected_cell %}
+  <div class="cell-meta">
+    <span>{{ selected_cell.candidate }}</span>
+    <span>{{ selected_cell.case_id }}</span>
+    <span>replica {{ selected_cell.replica }}</span>
+    <span class="status status-{{ selected_cell.status }}">{{ selected_cell.status }}</span>
+  </div>
+  <dl class="facts">
+    <div><dt>Prompt tokens</dt><dd>{{ selected_cell.prompt_tokens }}</dd></div>
+    <div><dt>Completion tokens</dt><dd>{{ selected_cell.completion_tokens }}</dd></div>
+    <div><dt>Tool calls</dt><dd>{{ selected_cell.tool_calls }}</dd></div>
+    <div><dt>Cost</dt><dd>{{ selected_cell.cost_usd|usd }}</dd></div>
+    <div><dt>Latency</dt><dd>{{ selected_cell.wall_ms }} ms</dd></div>
+    <div><dt>Usage source</dt><dd>{{ selected_cell.usage_source }}</dd></div>
+  </dl>
+
+  <h3>Answer</h3>
+  {% if selected_error %}<p class="callout callout-error" role="alert">{{ selected_error }}</p>{% endif %}
+  <pre class="answer">{{ selected_cell.answer or "(no answer recorded)" }}</pre>
+
+  <h3>Citations</h3>
+  {% if selected_citations %}
+  <ol class="citations">{% for citation in selected_citations %}<li class="mono">{{ citation }}</li>{% endfor %}</ol>
+  {% else %}
+  <p class="subtle">No citations were returned for this cell.</p>
+  {% endif %}
+
+  <h3>Checks</h3>
+  {% if selected_checks %}
+  <div class="checks">
+    {% for check in selected_checks %}
+    <article class="check {{ 'check-pass' if check.passed else 'check-fail' }}">
+      <header>
+        <span class="gate-glyph" aria-hidden="true">{{ "✓" if check.passed else "✗" }}</span>
+        <strong>{{ check.metric }}</strong>
+        <span class="status {{ 'status-ok' if check.passed else 'status-error' }}">{{ "pass" if check.passed else "fail" }}</span>
+      </header>
+      {% if check.reason %}<p>{{ check.reason }}</p>{% endif %}
+      {% if check.score is not none %}<p class="subtle">score {{ check.score }}</p>{% endif %}
+      <h4>Evidence</h4>
+      <pre class="evidence">{{ check.evidence|tojson(indent=2) }}</pre>
+      {% if check.judge_config_hash %}<p class="subtle mono">judge {{ check.judge_config_hash }}</p>{% endif %}
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="empty-state">No checks were recorded for this cell.</p>
+  {% endif %}
+
+  <p class="artifact-links">
+    <a class="button-link" href="/runs/{{ run.run_id }}/cells/{{ selected_cell.cell_id }}/artifact">Raw artifact (cell.json)</a>
+    <a class="button-link" href="/runs/{{ run.run_id }}/cells/{{ selected_cell.cell_id }}/artifact?file=answer.txt">Answer file</a>
+  </p>
+  {% else %}
+  <p class="empty-state">Select a cell in the heatmap to read its answer, citations, tokens, cost, latency and every check with evidence.</p>
+  {% endif %}
+</section>
+
+<section class="panel" aria-labelledby="progress-heading" data-sse-url="/runs/{{ run.run_id }}/events">
+  <div class="panel-head">
+    <div>
+      <h2 id="progress-heading">Live progress</h2>
+      <p class="subtle">Events are read from the stored event table, so a run started in a terminal appears here without an in-process page.</p>
+    </div>
+    <span class="subtle" id="stream-state">{{ "streaming" if run.status == "running" else "replay" }}</span>
+  </div>
+  <ol class="event-log" id="event-log" aria-live="polite">
+    <li class="subtle" id="event-placeholder">Waiting for the event stream…</li>
+  </ol>
+  <noscript><p class="empty-state">Enable JavaScript for live progress; the stored history below still works.</p></noscript>
+  {% if events %}
+  <details class="event-history">
+    <summary>Stored event history ({{ events|length }})</summary>
+    <ol>
+      {% for event in events %}
+      <li><span class="mono subtle">#{{ event.seq }}</span> <strong>{{ event.kind }}</strong> <span class="subtle">{{ event.ts|timestamp }}</span></li>
+      {% endfor %}
+    </ol>
+  </details>
+  {% endif %}
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='console.js') }}" defer></script>{% endblock %}

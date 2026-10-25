@@ -118,6 +118,26 @@ class ReplicaCandidate:
         )
 
 
+class CitedCandidate:
+    """Answer correctly with citations, for the console cell drilldown."""
+
+    capabilities = Capabilities()
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    async def run(self, case: Case, ctx: RunContext) -> CandidateOutput:
+        return CandidateOutput(
+            answer="42",
+            citations=["policy-1", "policy-2"],
+            prompt_tokens=12,
+            completion_tokens=8,
+            latency_ms=5,
+            model=ctx.model,
+            usage_source="provider",
+        )
+
+
 class InterruptingCandidate:
     """Raise SIGINT on its first call, proving the CLI cancels between cells."""
 
@@ -233,6 +253,10 @@ def _replica_mix(identity: str, options: Mapping[str, Any]) -> ReplicaCandidate:
     return ReplicaCandidate(identity)
 
 
+def _cited(identity: str, options: Mapping[str, Any]) -> CitedCandidate:
+    return CitedCandidate(identity)
+
+
 def _interrupting(
     identity: str, options: Mapping[str, Any]
 ) -> InterruptingCandidate:
@@ -271,6 +295,7 @@ register("test:exploding", _exploding)
 register("test:no_context", _no_context)
 register("test:no_capabilities", _no_capabilities)
 register("test:replica_mix", _replica_mix)
+register("test:cited", _cited)
 register("test:interrupting", _interrupting)
 register("test:credential_echo", _credential_echo)
 register("test:judge", _judge)
