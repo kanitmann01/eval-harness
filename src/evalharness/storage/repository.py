@@ -131,14 +131,26 @@ class Repository:
                 session.add(_aggregate_row(aggregate))
 
     def list_aggregates(self, run_id: str) -> list[Aggregate]:
-        """Return a run's aggregates ordered by candidate and metric."""
+        """Return a run's aggregates: overall rows first, then each tier."""
         with self._database.session() as session:
             rows = session.scalars(
                 select(AggregateRow)
                 .where(AggregateRow.run_id == run_id)
                 .order_by(AggregateRow.candidate, AggregateRow.metric)
             ).all()
-            return [_aggregate_record(row) for row in rows]
+            records = [_aggregate_record(row) for row in rows]
+        # Sorting in Python keeps NULL ordering identical on SQLite and
+        # PostgreSQL, which disagree on where NULLs fall by default, and puts
+        # the overall row for a candidate and metric before its tier rows.
+        return sorted(
+            records,
+            key=lambda aggregate: (
+                aggregate.candidate,
+                aggregate.metric,
+                aggregate.tier is not None,
+                aggregate.tier or 0,
+            ),
+        )
 
     def record_gates(self, run_id: str, gates: list[GateResult]) -> None:
         """Replace a run's gate outcomes."""
@@ -315,6 +327,7 @@ def _aggregate_row(aggregate: Aggregate) -> AggregateRow:
         run_id=aggregate.run_id,
         candidate=aggregate.candidate,
         metric=aggregate.metric,
+        tier=aggregate.tier,
         n=aggregate.n,
         value=aggregate.value,
         ci_low=aggregate.ci_low,
@@ -329,6 +342,7 @@ def _aggregate_record(row: AggregateRow) -> Aggregate:
         run_id=row.run_id,
         candidate=row.candidate,
         metric=row.metric,
+        tier=row.tier,
         n=row.n,
         value=row.value,
         ci_low=row.ci_low,

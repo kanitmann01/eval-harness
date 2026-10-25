@@ -177,9 +177,15 @@ worker and reuses it for that worker's cells.
 ~~~text
 evalh validate SPEC                 validate and print one line, exit 0 or 2
 evalh run SPEC --dry-run            print cells, per-candidate counts, estimate; execute nothing
-evalh run SPEC                     execute, print a run table, exit 0
+evalh run SPEC                     execute, print a run table and aggregates, exit 0
 evalh run SPEC --db URL --artifacts DIR
 ~~~
+
+After the run table, the aggregates table prints candidate, metric, tier
+(`all` for the overall row), n, the value as a percentage or `undefined`,
+the 95 percent Wilson interval, pass@k and pass^k. See
+[statistics.md](statistics.md) for the formulas and for why an empty
+proportion is undefined rather than zero.
 
 Exit codes: 0 success, 1 gate failure, 2 spec error, 3 budget abort.
 Validation failures print spec error: <field>=<value>: <reason>. Fix: <fix>.

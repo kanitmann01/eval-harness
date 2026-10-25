@@ -262,15 +262,38 @@ def test_cost_math_and_estimate():
 
 
 def test_scorer_aggregates_and_gate_bounds():
-    assert aggregate_cells("run", [], {}) == []
+    assert aggregate_cells("run", {}, [], {}, []) == []
     checks = {"cell": [Check(metric="m", passed=True)]}
     failing_max = evaluate_gates([GateSpec(metric="m", min=0.5, max=0.9)], checks)[0]
     assert failing_max.passed is False
     passing_min = evaluate_gates([GateSpec(metric="m", min=0.5)], checks)[0]
     assert passing_min.passed is True
+    passing_max = evaluate_gates([GateSpec(metric="m", max=1.0)], checks)[0]
+    assert passing_max.passed is True
     empty = evaluate_gates([GateSpec(metric="missing", min=0.1)], {})[0]
     assert empty.passed is False
     assert empty.detail["n"] == 0
+    assert empty.detail["value"] is None
+    assert empty.detail["reason"] == "no samples"
+
+
+def test_scorer_seeds_an_undefined_row_from_cells_without_checks():
+    cases = {"case-1": Case(case_id="case-1", prompt="p", tier=2)}
+    cells = [
+        CellRecord(
+            cell_id="cell",
+            run_id="run",
+            candidate="cand",
+            case_id="case-1",
+            replica=1,
+        )
+    ]
+    rows = aggregate_cells("run", cases, cells, {}, ["exact_match"], replicas=2)
+    assert [(row.tier, row.n, row.value) for row in rows] == [
+        (None, 0, None),
+        (2, 0, None),
+    ]
+    assert all(row.ci_low is None and row.pass_at_k is None for row in rows)
 
 
 def test_contains_metric_passes_and_fails():

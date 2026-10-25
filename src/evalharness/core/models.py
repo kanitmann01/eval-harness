@@ -61,17 +61,25 @@ class Check(BaseModel):
 
 
 class Aggregate(BaseModel):
-    """One candidate's proportion for one metric.
+    """One candidate's value for one metric in one run, overall or per tier.
 
-    Intervals and pass@k arrive in a later ticket; the shape is already the
-    storage contract.
+    The storage contract, made explicit:
+
+    * There is one overall row per candidate and metric, with tier None, plus
+      one row per case tier present in the run.
+    * n is the number of checks behind the row. value is None when n is zero,
+      because an empty proportion is undefined rather than zero or one.
+    * ci_low and ci_high are the 95 percent Wilson bounds, None when n is zero.
+    * pass_at_k and pass_k are None unless the spec ran more than one replica;
+      they are proportions over cases, not over replicas.
     """
 
     run_id: str
     candidate: str
     metric: str
+    tier: int | None = None
     n: int
-    value: float
+    value: float | None = None
     ci_low: float | None = None
     ci_high: float | None = None
     pass_at_k: float | None = None

@@ -95,6 +95,27 @@ class NoContextCandidate:
         return CandidateOutput(answer="42", model=ctx.model)
 
 
+class ReplicaCandidate:
+    """Answer correctly on even replicas and wrongly on odd ones.
+
+    Mixed per-replica outcomes are what separate pass@k from pass^k.
+    """
+
+    capabilities = Capabilities()
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    async def run(self, case: Case, ctx: RunContext) -> CandidateOutput:
+        return CandidateOutput(
+            answer="42" if ctx.replica % 2 == 0 else "wrong",
+            prompt_tokens=10,
+            completion_tokens=5,
+            model=ctx.model,
+            usage_source="provider",
+        )
+
+
 class StubJudge:
     """A judge that always passes, used to exercise judge validation."""
 
@@ -151,6 +172,10 @@ def _no_capabilities(
     return NoCapabilitiesCandidate(identity)
 
 
+def _replica_mix(identity: str, options: Mapping[str, Any]) -> ReplicaCandidate:
+    return ReplicaCandidate(identity)
+
+
 def _judge(identity: str, options: Mapping[str, Any]) -> StubJudge:
     return StubJudge(identity)
 
@@ -176,6 +201,7 @@ register("test:wrong", _wrong)
 register("test:exploding", _exploding)
 register("test:no_context", _no_context)
 register("test:no_capabilities", _no_capabilities)
+register("test:replica_mix", _replica_mix)
 register("test:judge", _judge)
 register("test:wrong_key_metric", _wrong_key)
 register("test:failing_source", _failing_source)

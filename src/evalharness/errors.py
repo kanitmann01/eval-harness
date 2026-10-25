@@ -36,6 +36,19 @@ class RegistryError(HarnessError):
         return f"{self.path!r}: {self.reason}. Fix: {self.fix}"
 
 
+class SchemaMigrationError(HarnessError):
+    """A stored database is too old to migrate without inventing data."""
+
+    def __init__(self, field: str, reason: str, fix: str) -> None:
+        self.field = field
+        self.reason = reason
+        self.fix = fix
+        super().__init__(f"{field}: {reason}. Fix: {fix}")
+
+    def __str__(self) -> str:
+        return f"{self.field}: {self.reason}. Fix: {self.fix}"
+
+
 class TransportError(HarnessError):
     """A candidate transport failed in a way that is safe to retry."""
 
