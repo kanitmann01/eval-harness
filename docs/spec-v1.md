@@ -232,6 +232,15 @@ secret, not just a declared name) and `max_attempts` (the total attempt budget
 for a typed transport failure; the default 2 means one call plus one retry, and
 the HTTP candidate declares 3). See [adapters.md](adapters.md).
 
+## One validator
+
+`evalh validate`, `evalh run` and the browser spec editor call the same loader
+in `core/spec.py`: `parse_spec` then `validate_spec`, wrapped for the HTTP
+surface as `validate_yaml_text`. The browser therefore reports the same field
+name, rejected value, reason and fix that the CLI prints, and a document that
+the console refuses to save is a document `evalh run` would refuse too. See
+[console.md](console.md#spec-editor) for the editor routes.
+
 ## CLI contract
 
 ~~~text
