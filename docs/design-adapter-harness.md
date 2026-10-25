@@ -402,7 +402,9 @@ checks       (cell_id uuid, metric text, passed bool, score float,
               reason text, evidence jsonb, judge_config_hash text)
 aggregates   (run_id uuid, candidate text, metric text, n int, value float,
               ci_low float, ci_high float, pass_at_k float, pass_k float)
-gates        (run_id uuid, name text, passed bool, detail jsonb)
+gates        (run_id uuid, name text, metric text, candidate text,
+              passed bool, comparison text, threshold float, observed float,
+              n int, detail jsonb)
 events       (run_id uuid, seq bigint, ts timestamptz, kind text, payload jsonb)
 credentials  (name text pk, provider text, ciphertext bytea, created_at,
               last_ok_at, last_error text)
@@ -458,9 +460,11 @@ context bought 0". That sentence is the deliverable, not a chart.
 
 ## 12. CI and the gate
 
-- `harness run --spec specs/<name>.yaml --fail-on-gate` replaces
-  `python -m app score` in the workflow. Exit 1 on gate failure, exit 2 on
-  spec error, exit 3 on budget abort.
+- `harness run SPEC` replaces `python -m app score` in the workflow. It
+  exits 0 on success, 1 on gate failure, 2 on spec error and 3 on budget
+  abort; gate failure always exits 1, with no flag to turn it off. A
+  cancelled run exits 0 unless a gate failed. The full matrix is in
+  [runs.md](runs.md).
 - CI uses the `ollama` credential if present, otherwise it runs the
   `deterministic` judge-only path against committed fixtures. The harness
   must still run green with zero paid keys, which is the existing

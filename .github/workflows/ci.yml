@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  pytest:
+    name: pytest (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The package declares >=3.11; CI pins the two newest supported
+        # interpreters so a new syntax or stdlib assumption fails here.
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install the harness with dev extras
+        run: python -m pip install -e ".[dev]"
+      - name: Run the suite (the 100 percent coverage gate lives in pyproject)
+        run: python -m pytest
+      - name: Run the first-party adapter conformance suite
+        run: python -m evalharness conformance --all
+
+  no-credential-run:
+    name: No-credential run and gate exit codes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install the harness with dev extras
+        run: python -m pip install -e ".[dev]"
+      - name: Run both gated specs and assert the exit codes
+        env:
+          EVALH_HOME: ${{ runner.temp }}/evalh
+        run: |
+          set -euo pipefail
+          python -m evalharness run examples/specs/smoke.yaml --db sqlite:///ci.db
+          python -m evalharness run examples/specs/gated.yaml --db sqlite:///ci.db
+          set +e
+          python -m evalharness run examples/specs/gated-failing.yaml --db sqlite:///ci.db
+          code=$?
+          set -e
+          echo "gated-failing exited $code"
+          test "$code" -eq 1

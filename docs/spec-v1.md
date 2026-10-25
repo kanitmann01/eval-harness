@@ -88,7 +88,7 @@ silently ignored.
 | budget_usd | number >= 0 | no | unset | The launch estimate is compared with it: above the cap the run is refused (exit 2). Mid-run, spend above it marks the remaining cells cancelled, sets status budget_exceeded and exits 3. See [runs.md](runs.md). |
 | metrics | list of metrics | yes | none | At least one; keys are unique. |
 | judges | list of judges | no | [] | Named judges a metric may name. |
-| gates | list of gates | no | [] | Thresholds on run-wide metric proportions. |
+| gates | list of gates | no | [] | Thresholds on metric aggregates, run-wide or for one named candidate. |
 | prices | mapping model -> price | no | {} | Every candidate model, and every declared judge model, needs a price. |
 | sink | mapping | no | JSON artifact sink | Optional sink override with adapter and options. |
 
@@ -149,10 +149,28 @@ are ambient: the candidate reads them from RunContext, not from settings.
 
 A metric has a unique key, an adapter and options. A metric option named judge
 must match a declared judge name. The adapter must return a metric whose key is
-the spec key. A gate names a declared metric and sets min, max, or both; the
-run-wide proportion for that metric is compared against them. A latency gate
+the spec key.
+
+A gate names a declared metric and sets min, max, or both. It optionally names
+a declared candidate: without `candidate` the gate reads the run-wide
+aggregate for the metric, and with `candidate` it reads that candidate's
+overall aggregate row only. A metric and candidate pair may have at most one
+gate; the same metric may be gated run-wide and per candidate. A latency gate
 with concurrency greater than 1 prints a warning because latency then measures
 queueing, not the model.
+
+~~~yaml
+gates:
+  - metric: exact_match
+    min: 0.90
+  - metric: exact_match
+    candidate: stub-concise
+    max: 0.95
+~~~
+
+Gate results store metric, candidate, comparison, threshold, observed value
+and n. A gate on a metric with no samples fails with `no samples` in its
+detail. See [runs.md](runs.md) for the exit-code contract.
 
 ## prices
 
@@ -204,10 +222,11 @@ the 95 percent Wilson interval, pass@k and pass^k. See
 proportion is undefined rather than zero.
 
 Exit codes: 0 success, 1 gate failure (or a rejected credential from
-`credentials test`), 2 spec error, 3 budget abort.
-Validation failures print spec error: <field>=<value>: <reason>. Fix: <fix>.
-A cancelled run exits 0 unless a gate failed or the budget abort already decided
-the code. [runs.md](runs.md) is the reference for budget, cancel, resume, the
-state x exit-code matrix and the one-run-at-a-time rule. The credential vault,
-its master key and its redaction guarantees are in
+`credentials test`), 2 spec error, 3 budget abort. A run whose cells errored
+but whose gates passed exits 0. Validation failures print spec error:
+<field>=<value>: <reason>. Fix: <fix>. A cancelled run exits 0 unless a gate
+failed or the budget abort already decided the code. [runs.md](runs.md) is the
+reference for budget, cancel, resume, the state x exit-code matrix, how gates
+are evaluated against aggregates and the one-run-at-a-time rule. The credential
+vault, its master key and its redaction guarantees are in
 [docs/credentials.md](credentials.md).
