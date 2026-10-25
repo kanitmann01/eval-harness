@@ -18,7 +18,8 @@ import json
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping
 
-from evalharness.core.models import CellRecord, Check, RunRecord
+from evalharness.core.judges import judge_config_hash
+from evalharness.core.models import CellRecord, Check, JudgeSpec, RunRecord
 from evalharness.core.stats import (
     delta_or_none,
     difference_interval,
@@ -37,6 +38,9 @@ INCONCLUSIVE = "inconclusive"
 
 UNDEFINED = "undefined"
 """A side has no samples, so there is no delta to judge."""
+
+_NO_JUDGE_HASH = hashlib.sha256(b"no-judge").hexdigest()
+"""Stable identity for a deterministic metric that names no judge."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -380,21 +384,22 @@ def _judge_identity(
 
     A check's judge_config_hash is the authoritative record of what scored the
     cell. Before a run stores one, the same identity is derived from the spec
-    snapshot so two runs can still be told apart.
+    snapshot with the scorer's own configuration hash, so a stored hash and a
+    derived hash for the same declaration are directly comparable.
     """
     name, adapter, model, options = _judge_config(spec, metric)
-    snapshot_hash = hashlib.sha256(
-        json.dumps(
-            {
-                "judge": name,
-                "adapter": adapter,
-                "model": model,
-                "options": options,
-            },
-            sort_keys=True,
-            separators=(",", ":"),
-        ).encode("utf-8")
-    ).hexdigest()
+    snapshot_hash = (
+        judge_config_hash(
+            JudgeSpec(
+                name=name,
+                adapter=str(adapter or ""),
+                model=model,
+                options=options,
+            )
+        )
+        if name is not None
+        else _NO_JUDGE_HASH
+    )
     stored = sorted(
         {check.judge_config_hash for check in checks if check.judge_config_hash}
     )

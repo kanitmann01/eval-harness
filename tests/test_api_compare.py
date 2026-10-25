@@ -17,6 +17,9 @@ from evalharness.core.config import Settings
 from evalharness.storage.db import Database
 from evalharness.storage.repository import Repository
 from tests.helpers import EXACT_MATCH, base_spec, write_spec
+
+CITATION_SUPPORT = "evalharness.adapters.metrics.citation_support:build"
+SCRIPTED_JUDGE = "evalharness.adapters.judges.scripted:build"
 from tests.test_api_console import (  # noqa: F401 - console is a fixture
     Console,
     _client,
@@ -204,6 +207,36 @@ def _judged_spec(
         }
     ]
     spec["gates"] = []
+    return spec
+
+
+def _citation_spec(
+    name: str,
+    judge_name: str,
+    claims: list[str],
+    cases: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Return a one-candidate spec scored by a real scripted judge."""
+    spec = _judged_spec(name, judge_name, "42", cases)
+    spec["candidates"][0]["name"] = "cited"
+    spec["candidates"][0]["adapter"] = "test:cited"
+    spec["candidates"][0]["options"] = {}
+    spec["metrics"] = [
+        {
+            "key": "citation_support",
+            "adapter": CITATION_SUPPORT,
+            "options": {"judge": judge_name},
+        }
+    ]
+    spec["judges"] = [
+        {
+            "name": judge_name,
+            "adapter": SCRIPTED_JUDGE,
+            "model": "scripted-judge",
+            "options": {"claims": claims, "instructions": judge_name},
+        }
+    ]
+    spec["prices"]["scripted-judge"] = {"input": 1.0, "output": 1.0}
     return spec
 
 
@@ -414,3 +447,86 @@ async def test_compare_with_no_runs_explains_how_to_start(
             assert "needs two run ids" in api.json()["detail"]
     finally:
         app.state.database.dispose()
+
+
+@pytest.fixture
+def judged_citations(
+    evalh_home: Any,
+    workdir: Any,
+    capsys: pytest.CaptureFixture[str],
+) -> Iterator[dict[str, Any]]:
+    """Seed two six-case runs scored by two real scripted judge configurations."""
+    cases = [
+        {
+            "case_id": f"case-{index}",
+            "prompt": "What is 6 times 7?",
+            "expected": {"answer": "42"},
+            "tier": 1,
+        }
+        for index in range(1, 7)
+    ]
+    run_a = _seed(
+        capsys,
+        write_spec(
+            workdir / "cite-a.yaml",
+            _citation_spec("cite-a-spec", "judge-a", ["policy"], cases),
+        ),
+    )
+    run_b = _seed(
+        capsys,
+        write_spec(
+            workdir / "cite-b.yaml",
+            _citation_spec("cite-b-spec", "judge-b", ["absent"], cases),
+        ),
+    )
+    settings = Settings.from_env()
+    database = Database(settings.database_url)
+    database.create_all()
+    repository = Repository(database)
+    app = create_app(settings=settings, repository=repository)
+    yield {
+        "app": app,
+        "repository": repository,
+        "runs": {"a": run_a, "b": run_b},
+    }
+    database.dispose()
+
+
+async def test_real_judge_hashes_and_judge_cost_flow_into_the_comparison(
+    judged_citations: dict[str, Any],
+) -> None:
+    """Issue #7 stores the hash and judge cost; the comparison reads both."""
+    run_a = judged_citations["runs"]["a"]
+    run_b = judged_citations["runs"]["b"]
+    cells_a = judged_citations["repository"].list_cells(run_a)
+    async with _client(judged_citations["app"]) as client:
+        data = (
+            await client.get(
+                "/api/compare", params={"a": run_a, "b": run_b}
+            )
+        ).json()
+
+    row = next(
+        item for item in data["metrics"] if item["metric"] == "citation_support"
+    )
+    assert row["a"]["n"] == 6 and row["a"]["passed"] == 6
+    assert row["b"]["n"] == 6 and row["b"]["passed"] == 0
+    assert row["a"]["judge"]["name"] == "judge-a"
+    assert row["b"]["judge"]["name"] == "judge-b"
+    assert row["a"]["judge"]["adapter"] == SCRIPTED_JUDGE
+    assert row["a"]["judge"]["hash_source"] == "checks"
+    assert row["b"]["judge"]["hash_source"] == "checks"
+    assert (
+        row["a"]["judge"]["config_hash"] != row["b"]["judge"]["config_hash"]
+    )
+    assert row["different_judge"] is True
+    assert row["verdict"] == "inconclusive"
+
+    # The compare cost per correct answer includes the judge spend issue #7
+    # stores on every cell, because it divides the total cell cost.
+    judge_spend = sum(cell.judge_cost_usd for cell in cells_a)
+    total_cost = sum(cell.cost_usd for cell in cells_a)
+    assert judge_spend > 0
+    assert data["a"]["cost_usd"] == pytest.approx(total_cost)
+    assert data["a"]["cost_per_correct"] == pytest.approx(total_cost / 6)
+    assert "scripted-judge" in data["a"]["price_table"]["prices"]

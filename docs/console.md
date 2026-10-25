@@ -222,7 +222,8 @@ used different prices.
 
 The judge is named from the run's spec snapshot, with the adapter and model,
 and its `config_hash` is the stored check hash when one exists; otherwise it
-is derived from the snapshot and `hash_source` says `spec`. When the two
+is the scorer's configuration hash of the snapshot judge and `hash_source`
+says `spec`. When the two
 sides' hashes differ for the same metric, `different_judge` is true, the
 page shows a prominent warning, and the verdict is `inconclusive`: a
 cross-judge difference is never presented as a win.
