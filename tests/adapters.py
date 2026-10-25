@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import signal
 from typing import Any, Mapping
 
 from evalharness.core.context import RunContext
@@ -116,6 +117,28 @@ class ReplicaCandidate:
         )
 
 
+class InterruptingCandidate:
+    """Raise SIGINT on its first call, proving the CLI cancels between cells."""
+
+    capabilities = Capabilities()
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+        self.calls = 0
+
+    async def run(self, case: Case, ctx: RunContext) -> CandidateOutput:
+        self.calls += 1
+        if self.calls == 1:
+            signal.raise_signal(signal.SIGINT)
+        return CandidateOutput(
+            answer="42",
+            prompt_tokens=10,
+            completion_tokens=5,
+            model=ctx.model,
+            usage_source="provider",
+        )
+
+
 class StubJudge:
     """A judge that always passes, used to exercise judge validation."""
 
@@ -176,6 +199,12 @@ def _replica_mix(identity: str, options: Mapping[str, Any]) -> ReplicaCandidate:
     return ReplicaCandidate(identity)
 
 
+def _interrupting(
+    identity: str, options: Mapping[str, Any]
+) -> InterruptingCandidate:
+    return InterruptingCandidate(identity)
+
+
 def _judge(identity: str, options: Mapping[str, Any]) -> StubJudge:
     return StubJudge(identity)
 
@@ -202,6 +231,7 @@ register("test:exploding", _exploding)
 register("test:no_context", _no_context)
 register("test:no_capabilities", _no_capabilities)
 register("test:replica_mix", _replica_mix)
+register("test:interrupting", _interrupting)
 register("test:judge", _judge)
 register("test:wrong_key_metric", _wrong_key)
 register("test:failing_source", _failing_source)
