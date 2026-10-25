@@ -37,8 +37,14 @@ MANIFEST: tuple[ManifestEntry, ...] = (
         "evalharness.adapters.candidates.stub:build_fixed_prompt", "candidate"
     ),
     ManifestEntry("evalharness.adapters.judges.rule_based:build", "judge"),
+    ManifestEntry("evalharness.adapters.judges.scripted:build", "judge"),
     ManifestEntry("evalharness.adapters.metrics.exact_match:build", "metric"),
     ManifestEntry("evalharness.adapters.metrics.contains:build", "metric"),
+    ManifestEntry(
+        "evalharness.adapters.metrics.citation_support:build",
+        "metric",
+        {"judge": "conformance-judge"},
+    ),
     ManifestEntry("evalharness.adapters.sinks.json_sink:build", "sink"),
 )
 """Every first-party adapter the public suite must cover."""

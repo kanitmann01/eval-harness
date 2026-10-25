@@ -33,7 +33,8 @@ src/evalharness/
     context.py         RunContext: credential, cases, prompt variant, chunks, seed, budget
     cancel.py          cooperative cancellation token, checked between cells
     executor.py        bounded concurrency, retries, budget guard, cancel, resume
-    scorer.py          metrics -> checks per cell; judge wiring; config hashing
+    scorer.py          metrics -> checks per cell, awaiting each metric
+    judges.py          judge config hashing and per-cell usage sessions
     stats.py           Wilson interval, pass@k, pass^k, per-tier breakdowns
     cost.py            price tables, token estimation, answer/judge/tool cost split
     vault.py           master key bootstrap, encrypt at rest, verify, redact
@@ -48,7 +49,7 @@ src/evalharness/
   adapters/
     manifest.py        every first-party adapter path and kind; the conformance gate
     candidates/        scripted, slow, always-failing and prompt-fixed stubs
-    judges/            deterministic rule-based stub
+    judges/            deterministic rule-based and scripted claim judges
     metrics/           exact match, containment, citation support, latency
     sources/           inline, jsonl file
     sinks/             json file
@@ -67,7 +68,7 @@ src/evalharness/
 ```python
 async def Candidate.run(case: Case, ctx: RunContext) -> CandidateOutput
 async def Judge.verdict(request: JudgeRequest) -> Verdict
-async def Metric.check(cell: CellView, ctx: ScoreContext) -> list[Check]
+async def Metric.check(cell: CellRecord, ctx: ScoreContext) -> list[Check]
 async def Source.load(spec: Spec, ctx: RunContext) -> list[Case]
 async def Sink.open_run(run: RunRecord) / record_cell(cell) / close_run(run)
 ```
@@ -78,6 +79,9 @@ async def Sink.open_run(run: RunRecord) / record_cell(cell) / close_run(run)
 - `RunContext` carries everything ambient: resolved credential handle, prompt variant,
   injected chunks, seed, remaining budget, event emitter. No adapter receives settings
   and no adapter reads global configuration.
+- `Metric.check` is async, so a judge-backed metric awaits the judge the spec wires to
+  it. `ScoreContext` carries a fresh `JudgeSession` per declared judge plus the
+  redactor; the session records judge tokens and cost on the cell that triggered it.
 - A candidate declares what it does not support (`capabilities`); the planner refuses to
   build those cells with a validation error naming the candidate and the axis.
 
@@ -95,6 +99,8 @@ async def Sink.open_run(run: RunRecord) / record_cell(cell) / close_run(run)
   seeded, so a resumed run continues the same matrix.
 - Every state change appends to `events`; SSE replays from an event id.
 - A run records spec snapshot, resolved price snapshot, harness revision, seed, status.
+- A cell stores its cost split (`answer_cost_usd`, `judge_cost_usd`, `tool_cost_usd`)
+  and the judge tokens it spent; `cost_usd` is always their sum.
 - Artifacts are files under the artifacts directory; the database stores paths only.
 - Budget, cancel and resume keep one run id: a resume skips cells already `ok`
   and rewrites the run's aggregates and gates in place. [runs.md](runs.md) is the

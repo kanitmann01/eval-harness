@@ -55,10 +55,10 @@ def usage_cost(
     tool_calls: int = 0,
 ) -> float:
     """Convert token and tool usage into USD at the given price."""
-    return (
-        prompt_tokens / 1_000_000 * price.input
-        + completion_tokens / 1_000_000 * price.output
-        + tool_calls * price.tool
+    return price.usage_usd(
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        tool_calls=tool_calls,
     )
 
 

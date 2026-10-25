@@ -29,6 +29,7 @@ class StubCandidate:
         completion_tokens: int = 8,
         latency_ms: int = 5,
         tool_calls: int = 0,
+        citations: list[str] | None = None,
         delay_ms: int = 0,
         fail: str = "",
         usage_source: str = "provider",
@@ -42,6 +43,7 @@ class StubCandidate:
         self._completion_tokens = completion_tokens
         self._latency_ms = latency_ms
         self._tool_calls = tool_calls
+        self._citations = list(citations or [])
         self._delay_ms = delay_ms
         self._fail = fail
         self._usage_source = usage_source
@@ -59,6 +61,7 @@ class StubCandidate:
             tool_calls=self._tool_calls,
             prompt_tokens=self._prompt_tokens,
             completion_tokens=self._completion_tokens,
+            citations=self._citations,
             latency_ms=self._latency_ms,
             model=ctx.model or self.name,
             usage_source=self._usage_source,  # type: ignore[arg-type]
@@ -85,6 +88,10 @@ def _build(
         completion_tokens=int(options.get("completion_tokens", 8)),
         latency_ms=int(options.get("latency_ms", 5)),
         tool_calls=int(options.get("tool_calls", 0)),
+        citations=[
+            str(citation)
+            for citation in list(options.get("citations") or [])
+        ],
         delay_ms=int(options.get("delay_ms", delay_ms)),
         fail=str(options.get("fail", fail)),
         usage_source=str(options.get("usage_source", "provider")),

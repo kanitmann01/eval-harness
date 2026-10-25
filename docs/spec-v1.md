@@ -149,7 +149,25 @@ are ambient: the candidate reads them from RunContext, not from settings.
 
 A metric has a unique key, an adapter and options. A metric option named judge
 must match a declared judge name. The adapter must return a metric whose key is
-the spec key.
+the spec key. `Metric.check` is async, so a judge-backed metric can await its
+judge; [judges.md](judges.md) covers the wiring, hashing and cost split.
+
+A judge has a unique name, an adapter, an optional credential and an optional
+`model`. When `model` is set it needs a price and it is the key used to price
+the judge's tokens; when it is omitted the judge costs zero. Everything else
+that changes judge behaviour (temperature, instructions, claims) belongs under
+`options` and is covered by the check's `judge_config_hash`.
+
+~~~yaml
+metrics:
+  - {key: citation_support, adapter: evalharness.adapters.metrics.citation_support:build,
+     options: {judge: strict-judge}}
+judges:
+  - name: strict-judge
+    adapter: evalharness.adapters.judges.scripted:build
+    model: scripted-strong
+    options: {model: scripted-strong, instructions: Require every claim.}
+~~~
 
 A gate names a declared metric and sets min, max, or both. It optionally names
 a declared candidate: without `candidate` the gate reads the run-wide
@@ -181,10 +199,13 @@ prices:
   stub-1: {input: 0.15, output: 0.60, tool: 0.0}
 ~~~
 
-Missing prices are a validation error naming prices.<model>. The resolved table
-is snapshotted on the run. Cost is split into answer, judge and tool parts
-internally; this ticket stores the total per cell and records usage_source as
-provider or estimated.
+Missing prices are a validation error naming prices.<model>, including the model
+of a declared judge. The resolved table is snapshotted on the run. Cost is split
+into answer, judge and tool parts; every cell stores `answer_cost_usd`,
+`judge_cost_usd`, `tool_cost_usd` and their sum in `cost_usd`, plus the judge
+prompt and completion tokens it triggered. Judge cost is charged to the cell
+that triggered it. A candidate records `usage_source` as provider or estimated;
+a verdict records its own.
 
 ## Adapter factory contract
 
@@ -215,10 +236,11 @@ evalh credentials test NAME [--verify-url URL]
 evalh credentials delete NAME [--yes]
 ~~~
 
-After the run table, the aggregates table prints candidate, metric, tier
-(`all` for the overall row), n, the value as a percentage or `undefined`,
-the 95 percent Wilson interval, pass@k and pass^k. See
-[statistics.md](statistics.md) for the formulas and for why an empty
+After the run table, a cost line prints the split from the stored cells:
+`cost: answer $x, judge $y, tools $z`. The aggregates table then prints
+candidate, metric, tier (`all` for the overall row), n, the value as a
+percentage or `undefined`, the 95 percent Wilson interval, pass@k and pass^k.
+See [statistics.md](statistics.md) for the formulas and for why an empty
 proportion is undefined rather than zero.
 
 Exit codes: 0 success, 1 gate failure (or a rejected credential from

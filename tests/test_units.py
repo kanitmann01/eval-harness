@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import runpy
 import sys
 from pathlib import Path
@@ -349,9 +350,9 @@ def test_contains_metric_passes_and_fails():
         replica=1,
         answer="the answer is 42",
     )
-    assert metric.check(passing, context)[0].passed is True
+    assert asyncio.run(metric.check(passing, context))[0].passed is True
     failing = passing.model_copy(update={"answer": "nope"})
-    assert metric.check(failing, context)[0].passed is False
+    assert asyncio.run(metric.check(failing, context))[0].passed is False
 
 
 def test_json_sink_derives_artifact_directory(workdir):

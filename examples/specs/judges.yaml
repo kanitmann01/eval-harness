@@ -1,0 +1,68 @@
+# Two judges, two judge-backed metrics, two prices, no network.
+# The same answer is judged twice: a strict judge and a cheap judge.
+spec_version: 1
+name: judge-metrics
+description: Two judges price two citation checks against one cited answer.
+seed: 7
+
+source:
+  adapter: evalharness.adapters.sources.inline:build
+  options:
+    cases:
+      - case_id: case-1
+        prompt: What is 6 times 7?
+        expected: {answer: "42"}
+        tier: 1
+
+credentials:
+  - name: stub
+    provider: none
+
+candidates:
+  - name: stub-cited
+    adapter: evalharness.adapters.candidates.stub:build
+    credential: stub
+    model: stub-1
+    options:
+      answer: The answer is 42, because 6 times 7 is 42.
+      citations:
+        - 6 times 7 is 42, so the answer is 42.
+        - A multiplication table confirms that 6 times 7 is 42.
+
+metrics:
+  - key: citation_support_strict
+    adapter: evalharness.adapters.metrics.citation_support:build
+    options: {judge: strict-judge}
+  - key: citation_support_cheap
+    adapter: evalharness.adapters.metrics.citation_support:build
+    options: {judge: cheap-judge}
+
+judges:
+  - name: strict-judge
+    adapter: evalharness.adapters.judges.scripted:build
+    model: scripted-strong
+    options:
+      model: scripted-strong
+      instructions: Require every claim to appear verbatim in the citation.
+      prompt_tokens: 120
+      completion_tokens: 12
+  - name: cheap-judge
+    adapter: evalharness.adapters.judges.scripted:build
+    model: scripted-cheap
+    options:
+      model: scripted-cheap
+      instructions: Accept a citation that contains the claim.
+      prompt_tokens: 40
+      completion_tokens: 6
+
+replicas: 1
+concurrency: 1
+budget_usd: 1.00
+
+gates:
+  - {metric: citation_support_strict, min: 1.0}
+
+prices:
+  stub-1: {input: 0.15, output: 0.60}
+  scripted-strong: {input: 2.00, output: 8.00}
+  scripted-cheap: {input: 0.10, output: 0.40}

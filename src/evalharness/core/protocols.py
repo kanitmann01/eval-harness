@@ -51,11 +51,15 @@ class Judge(Protocol):
 
 
 class Metric(Protocol):
-    """A metric turns one cell into one or more checks."""
+    """A metric turns one cell into one or more checks.
+
+    ``check`` is async because a judge-backed metric awaits its judge; a
+    deterministic metric simply has nothing to await.
+    """
 
     key: str
 
-    def check(self, cell: CellRecord, ctx: ScoreContext) -> list[Check]:
+    async def check(self, cell: CellRecord, ctx: ScoreContext) -> list[Check]:
         """Score one cell and return its checks."""
         ...
 

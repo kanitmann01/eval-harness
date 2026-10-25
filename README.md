@@ -2,10 +2,12 @@
 
 Adapter-based evaluation harness. The harness is the product; pipelines, agents and corpora are candidates behind adapters.
 
-Status: walking skeleton plus the encrypted credential vault, the public adapter
-contract suite and the read-only console. One command validates a spec, expands it into
-cells, executes them with bounded concurrency, and writes a run with cells, checks,
-aggregates with intervals, and artifact paths that read back. Provider keys are added,
+Status: walking skeleton plus the encrypted credential vault, judge-backed metrics,
+the public adapter contract suite and the read-only console. One command validates
+a spec, expands it into cells, executes them with bounded concurrency, and writes a
+run with cells, checks, aggregates with intervals, and artifact paths that read back.
+A judge verdict carries a reason, evidence and its own tokens and cost, attributed to
+the cell that triggered it and split from the answer's cost. Provider keys are added,
 listed, verified and deleted from the command line, encrypted at rest and redacted
 everywhere. The console serves the run list, the candidate by case heatmap and per-cell
 evidence; the compare view follows.
@@ -22,6 +24,7 @@ Credentials are BYOK. One container per person, keys verified on demand, encrypt
 - `docs/design-adapter-harness.md` — the design note: layering, protocols, spec schema, credential and cost model, executor semantics, storage schema, migration phases.
 - `docs/spec-v1.md` — the spec schema as implemented, field by field.
 - `docs/adapters.md` — the five adapter contracts, clause numbering, the manifest and the conformance command.
+- `docs/judges.md` — the judge contract, reference judges, configuration hashing, cost attribution and two judges in one run.
 - `docs/credentials.md` — BYOK flow, master key lifecycle, what is stored, redaction guarantees, verification request.
 - `docs/console.md` — the page map, JSON API, SSE contract and how to serve a run in a browser.
 - Issue #1 — the spec: problem, solution, 58 user stories, implementation decisions, testing decisions, out of scope.
@@ -34,6 +37,7 @@ python -m evalharness validate examples/specs/smoke.yaml
 python -m evalharness run examples/specs/smoke.yaml --dry-run
 python -m evalharness run examples/specs/smoke.yaml
 python -m evalharness run examples/specs/stub-pack.yaml
+python -m evalharness run examples/specs/judges.yaml
 python -m evalharness serve
 python -m evalharness conformance --all
 ~~~
@@ -45,9 +49,10 @@ Set `EVALH_HOME` to choose where the SQLite database and artifacts live;
 `EVALH_DATABASE_URL` and `EVALH_ARTIFACTS_DIR` override them individually.
 The stub-pack demo runs all four candidate stubs (scripted, slow, prompt-fixed
 and always-failing) plus the deterministic judge in one spec. It exits 0, records
-the always-failing cells as errors, and needs no credentials. The
-`evalh conformance --all` command runs the same public contract suite as CI and
-prints one line per clause.
+the always-failing cells as errors, and needs no credentials. The judge example runs
+two scripted judges against the same cited answer and prints both verdicts and the
+answer/judge/tool cost split. The `evalh conformance --all` command runs the same
+public contract suite as CI and prints one line per clause.
 
 ## Exit codes and gates
 

@@ -23,6 +23,7 @@ from evalharness.core.models import (
     CellRecord,
     Check,
     JudgeRequest,
+    JudgeSession,
     RunRecord,
     ScoreContext,
     SourceSpec,
@@ -193,11 +194,46 @@ def _run_context(prompt_override: str | None = None) -> RunContext:
     )
 
 
-def _score_context() -> ScoreContext:
+class _ConformanceJudge:
+    """A deterministic in-suite judge so a judge-backed metric can be scored."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    async def verdict(self, request: JudgeRequest) -> Verdict:
+        """Pass when the judged text contains the conformance answer."""
+        passed = "42" in request.answer
+        return Verdict(
+            passed=passed,
+            reason=(
+                "conformance judge found 42"
+                if passed
+                else "conformance judge missed 42"
+            ),
+            evidence={"answer": request.answer},
+        )
+
+
+def _score_context(target: ConformanceContext) -> ScoreContext:
+    """Build a score context with a session for every judge the metric names."""
+    names = {"conformance-judge"}
+    named = target.options.get("judge")
+    if isinstance(named, str) and named:
+        names.add(named)
+    judges = {
+        name: JudgeSession(
+            name=name,
+            judge=_ConformanceJudge(name),
+            model="conformance-judge",
+            config_hash=f"conformance-{name}",
+        )
+        for name in sorted(names)
+    }
     return ScoreContext(
         run_id=RUN_ID,
         candidate=CANDIDATE_NAME,
         cases={CASE_ID: _case()},
+        judges=judges,
     )
 
 
@@ -209,6 +245,7 @@ def _cell() -> CellRecord:
         case_id=CASE_ID,
         replica=1,
         answer="42",
+        output={"citations": ["42"]},
     )
 
 
@@ -403,7 +440,7 @@ def _judge_determinism(target: ConformanceContext) -> None:
 
 
 def _checks(target: ConformanceContext) -> Any:
-    return target.build().check(_cell(), _score_context())
+    return asyncio.run(target.build().check(_cell(), _score_context(target)))
 
 
 def _metric_checks(target: ConformanceContext) -> None:
@@ -475,7 +512,7 @@ def _metric_evidence(target: ConformanceContext) -> None:
 def _metric_immutable(target: ConformanceContext) -> None:
     cell = _cell()
     before = cell.model_dump(mode="json")
-    target.build().check(cell, _score_context())
+    asyncio.run(target.build().check(cell, _score_context(target)))
     _expect(
         cell.model_dump(mode="json") == before,
         "the metric to leave the cell unchanged",

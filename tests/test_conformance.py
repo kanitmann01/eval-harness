@@ -181,7 +181,7 @@ class _Metric:
         self.key = name
         self.options = dict(options)
 
-    def check(self, cell: CellRecord, ctx: Any) -> Any:
+    async def check(self, cell: CellRecord, ctx: Any) -> Any:
         return [
             Check(
                 metric=self.key,
@@ -192,22 +192,22 @@ class _Metric:
 
 
 class DictChecksMetric(_Metric):
-    def check(self, cell: CellRecord, ctx: Any) -> Any:
+    async def check(self, cell: CellRecord, ctx: Any) -> Any:
         return {"metric": self.key}
 
 
 class EmptyChecksMetric(_Metric):
-    def check(self, cell: CellRecord, ctx: Any) -> Any:
+    async def check(self, cell: CellRecord, ctx: Any) -> Any:
         return []
 
 
 class WrongKeyMetric(_Metric):
-    def check(self, cell: CellRecord, ctx: Any) -> Any:
+    async def check(self, cell: CellRecord, ctx: Any) -> Any:
         return [Check(metric="not-this-key", passed=True)]
 
 
 class BadEvidenceMetric(_Metric):
-    def check(self, cell: CellRecord, ctx: Any) -> Any:
+    async def check(self, cell: CellRecord, ctx: Any) -> Any:
         return [
             Check.model_construct(
                 metric=self.key,
@@ -218,7 +218,7 @@ class BadEvidenceMetric(_Metric):
 
 
 class MutatingMetric(_Metric):
-    def check(self, cell: CellRecord, ctx: Any) -> Any:
+    async def check(self, cell: CellRecord, ctx: Any) -> Any:
         cell.answer = "mutated"
         return [Check(metric=self.key, passed=False)]
 

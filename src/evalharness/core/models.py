@@ -7,6 +7,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from evalharness.core.redaction import NoOpRedactor
+
 
 def utc_now() -> datetime:
     """Return the current time with a UTC timezone."""
@@ -108,7 +110,12 @@ class GateResult(BaseModel):
 
 
 class CellRecord(BaseModel):
-    """One executed cell: identity, usage, answer and artifact location."""
+    """One executed cell: identity, usage, cost split, answer and artifacts.
+
+    cost_usd is always answer_cost_usd + judge_cost_usd + tool_cost_usd. The
+    three components are stored separately so judge spend is visible against
+    the answer it judged, and a deterministic run keeps judge cost at zero.
+    """
 
     cell_id: str
     run_id: str
@@ -122,6 +129,11 @@ class CellRecord(BaseModel):
     completion_tokens: int = 0
     tool_calls: int = 0
     cost_usd: float = 0.0
+    answer_cost_usd: float = 0.0
+    judge_cost_usd: float = 0.0
+    tool_cost_usd: float = 0.0
+    judge_prompt_tokens: int = 0
+    judge_completion_tokens: int = 0
     usage_source: str = "estimated"
     answer: str = ""
     output: dict[str, Any] = Field(default_factory=dict)
@@ -161,20 +173,16 @@ class JudgeRequest(BaseModel):
 
 
 class Verdict(BaseModel):
-    """A judge's verdict with the reason and evidence behind it."""
+    """A judge's verdict with its reason, evidence and the usage it cost."""
 
     passed: bool
     score: float | None = None
     reason: str = ""
     evidence: dict[str, Any] = Field(default_factory=dict)
-
-
-class ScoreContext(BaseModel):
-    """Ambient data a metric needs that is not carried by the cell."""
-
-    run_id: str
-    candidate: str
-    cases: dict[str, Case] = Field(default_factory=dict)
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    model: str = ""
+    usage_source: Literal["provider", "estimated"] = "estimated"
 
 
 class Price(BaseModel):
@@ -185,6 +193,67 @@ class Price(BaseModel):
     input: float
     output: float
     tool: float = 0.0
+
+    def usage_usd(
+        self,
+        *,
+        prompt_tokens: int = 0,
+        completion_tokens: int = 0,
+        tool_calls: int = 0,
+    ) -> float:
+        """Convert a usage triple into USD at this price."""
+        return (
+            prompt_tokens / 1_000_000 * self.input
+            + completion_tokens / 1_000_000 * self.output
+            + tool_calls * self.tool
+        )
+
+
+class JudgeSession(BaseModel):
+    """One judge resolved for one cell, with the usage this cell accumulated.
+
+    The judge instance is shared across cells; the counters are not, so a
+    concurrent run attributes every verdict to the cell that triggered it. A
+    judge without a declared model has no price and costs zero.
+    """
+
+    name: str
+    judge: Any
+    model: str = ""
+    config_hash: str = ""
+    price: Price | None = None
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+
+    async def verdict(self, request: JudgeRequest) -> Verdict:
+        """Ask the wrapped judge and add the verdict's usage to this cell."""
+        verdict = await self.judge.verdict(request)
+        self.prompt_tokens += verdict.prompt_tokens
+        self.completion_tokens += verdict.completion_tokens
+        return verdict
+
+    def usage_usd(self) -> float:
+        """Return what this cell's judge usage costs at the declared price."""
+        if self.price is None:
+            return 0.0
+        return self.price.usage_usd(
+            prompt_tokens=self.prompt_tokens,
+            completion_tokens=self.completion_tokens,
+        )
+
+
+class ScoreContext(BaseModel):
+    """Ambient data a metric needs that is not carried by the cell.
+
+    judges holds one fresh session per declared judge, so a metric calls the
+    judge by the name its options declare and the usage lands on this cell.
+    """
+
+    run_id: str
+    candidate: str
+    cases: dict[str, Case] = Field(default_factory=dict)
+    judges: dict[str, JudgeSession] = Field(default_factory=dict)
+    redactor: Any = Field(default_factory=NoOpRedactor)
 
 
 class SourceSpec(BaseModel):
