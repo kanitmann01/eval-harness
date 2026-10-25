@@ -4,6 +4,10 @@ Bring your own key. A credential is a logical name, a provider and one secret. T
 names the credential; a candidate or judge receives a resolved handle on `RunContext`
 and never a settings object. The secret lives in the encrypted vault, not in the YAML.
 
+The same vault is managed from a browser at [console.md#credentials](console.md#credentials):
+add, test, disable, enable and delete are ordinary form posts backed by the JSON API,
+and every page shows metadata and a fingerprint prefix rather than a secret.
+
 ## Master key
 
 The vault encrypts with Fernet (AES-128-CBC plus HMAC-SHA256). The master key is 32
@@ -28,8 +32,8 @@ to an unmodified key printed by the first run
 ```
 
 Commands that open the vault (`run` and every `credentials` subcommand) require a key.
-`run --dry-run` and `validate` do not: they read credential names only, and they do not
-create the database.
+`run --dry-run` and `validate` do not: they read credential metadata only, and they do
+not create the database.
 
 Generate a key by hand when provisioning a container:
 
@@ -79,10 +83,12 @@ The `credentials` table holds only ciphertext and metadata:
 | `created_at` | When the credential was added. |
 | `last_ok_at` | The last successful verification, or NULL. |
 | `last_error` | The last provider message, redacted, or NULL. |
+| `disabled` | False by default. A disabled credential is never used by the harness. |
 
 Specs, run snapshots, prices, artifacts and events never contain the secret. A database
 dump, including the raw SQLite file, contains ciphertext only; the test suite asserts
-this with a canary value.
+this with a canary value. The schema version is 5: version 5 adds `disabled` with a
+false default, so a row stored by issue #6 reads back as enabled.
 
 ## Verification request
 
@@ -108,7 +114,9 @@ this with a canary value.
 - On success `last_ok_at` is stamped and `last_error` is cleared. On failure
   `last_error` is stamped and the last successful time is kept.
 - The CLI redacts the message before it prints or stores it, so a provider that echoes
-  the key in its error text does not leak it.
+  the key in its error text does not leak it. The console's Test button takes the same
+  one-request path through `credential_service.verify_credential` and stores the same
+  redacted row; it restores the message from `last_error` rather than from the redirect.
 
 ### Contract for a second verifier
 
@@ -138,6 +146,8 @@ Every string that can surface passes through it:
 - the provider message printed and stored by `credentials test`.
 
 A known secret is replaced with `[redacted:<credential-name>]`, longest secret first.
+The console reuses the same redactor for a provider message before it stores or renders
+it, and never puts a secret in an error value, a redirect or a log line.
 
 The canary test
 `tests/test_credentials_cli.py::test_vault_secret_is_redacted_from_logs_events_artifacts_and_cells`
@@ -146,6 +156,20 @@ returns it as its answer, then asserts the canary is absent from the CLI output,
 lines, the database dump, every event payload, both artifact files, the cell answer and
 output, and the stored checks. `tests/test_cli_run.py` repeats the assertion for a
 credential declared in the spec.
+`tests/test_api_credentials.py::test_the_canary_never_surfaces_anywhere` covers the
+browser seam: it submits a canary through the form and the JSON API, makes a stub
+provider echo it in a rejection, and asserts it is absent from every HTML and JSON
+body, every redirect, the captured log output, the database file and the stored row.
+
+## Enable and disable
+
+`disabled` is the one console-only switch: the command line has no
+`credentials enable` or `credentials disable` subcommand, and the repository
+method behind the routes is `set_credential_disabled`. A disabled credential
+cannot be selected in the spec editor and is refused by the shared validator
+in both the console and the CLI, so a spec cannot smuggle one in. Enabling it
+again restores whatever state its test history describes: `verified` after a
+passing test, `unverified` before one.
 
 ## Credentials for an HTTP candidate
 

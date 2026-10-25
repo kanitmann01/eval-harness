@@ -9,8 +9,8 @@ The results pages are read-only: they never edit a run, a cell or a stored
 record. Launch and cancel, described under
 [Launch and cancel](#launch-and-cancel), are the write actions on runs; they use
 the CLI's orchestration, so a console run and a command line run of one spec
-produce the same record. The [spec editor](#spec-editor) is the write surface
-for spec files.
+produce the same record. The [spec editor](#spec-editor) writes spec files and
+the [credentials page](#credentials) writes the encrypted vault.
 
 ## Run it
 
@@ -35,6 +35,7 @@ headers or bodies.
 | Run detail | `GET /runs/{run_id}` | Candidate by case heatmap, aggregates with 95 percent Wilson intervals and pass@k / pass^k, gates, and the selected cell. Add `?cell=<cell_id>` to select one. |
 | Cell detail | `GET /runs/{run_id}/cells/{cell_id}` | The same run detail page with that cell selected. |
 | Artifact | `GET /runs/{run_id}/cells/{cell_id}/artifact` | The stored `cell.json` for the cell. Add `?file=answer.txt` for the answer file. |
+| Credentials | `GET /credentials` | Every stored credential, masked: name, provider, fingerprint prefix, created and last verified times, last error, state and actions. |
 | Not found | any unknown id | A 404 page with a link back to the run list. |
 
 The heatmap has one link per planned cell. Colour is never the only signal:
@@ -64,8 +65,8 @@ The spec editor is the console's write surface for spec files: it edits,
 validates and saves YAML spec files under `EVALH_SPECS_DIR` (default `specs`
 beside the database; `EVALH_HOME/specs` when the database has no file). It writes no
 harness state to the database, so the file is the only source of truth and a
-run reads exactly the text the editor saved. Runs, artifacts and credentials
-stay read-only.
+run reads exactly the text the editor saved. Runs and artifacts stay read-only;
+credentials are managed on the [credentials page](#credentials).
 
 | Route | What it does |
 | --- | --- |
@@ -94,13 +95,101 @@ the planner (`expand`, `per_candidate_counts`) and
 `core.cost.estimate_cost`, with the observed medians of an earlier run of the
 same spec when one exists and the 500 prompt / 200 completion token fallback
 otherwise. `cost_usd` therefore matches `evalh run --dry-run` for a spec that
-has not run yet.
+has not run yet. The editor also reads the vault's credential states, so a
+spec that names a disabled or never-tested credential is refused with the
+credential field and the fix; see [the editor rule](#the-editor-rule).
 
 The page works without JavaScript: Check and Save are ordinary submit buttons,
 and the server re-renders the same error list and summary. A small debounced
 script on top posts the textarea to `/api/specs/validate` and updates the
 errors, cells per candidate, cost and the Save button, but it never replaces
 the form path.
+
+## Credentials
+
+The credentials page is the browser surface for the vault described in
+[credentials.md](credentials.md). A key is added, tested, disabled, enabled and
+deleted without a terminal, and the page is safe to screenshot: it renders a
+name, a provider, a non-reversible fingerprint prefix, the created and last
+verified times, the last redacted error and a state, never a secret and never
+the ciphertext.
+
+| Route | What it does |
+| --- | --- |
+| `GET /credentials` | Every stored credential with its state and actions, plus the add form. |
+| `POST /credentials` | The no-JS add form: `name`, `provider`, `secret`. Encrypts, then redirects (303) to `/credentials?added={name}`. The redirect carries the name only. |
+| `POST /credentials/{name}/test` | One provider request, then redirects (303) to `/credentials?tested={name}&ok=1` for a pass or `ok=0` for a failure. The provider message is stored redacted and read back from the row. |
+| `POST /credentials/{name}/disable` | Switches the credential off and redirects (303). |
+| `POST /credentials/{name}/enable` | Switches it back on (303). |
+| `POST /credentials/{name}/delete` | Deletes the row and its ciphertext (303). |
+| `GET /api/credentials` | JSON array of the masked rows. |
+| `POST /api/credentials` | JSON `{"name", "provider", "secret"}`; 201 with the masked row, 400 with a field-named error, 409 for an existing name. |
+| `POST /api/credentials/{name}/test` | 200 with `verified`, the redacted `message` and the updated `credential`; 404 for an unknown name, 400 when no verify URL is set. |
+| `POST /api/credentials/{name}/enable` and `/disable` | 200 with the updated masked row. |
+| `DELETE /api/credentials/{name}` | 200 with `{"deleted": name}`. |
+
+The provider choices are the verifier's auth table, so the form offers exactly
+the shapes `adapters/verify/http_verifier.py` knows: `openai` (Bearer token),
+`anthropic` (`x-api-key`), `azure-openai` (`api-key`) and `none` (no auth
+header). A provider outside that table is refused with a `provider` error
+naming the choices; the CLI still accepts any provider and treats it as bearer.
+
+### Masking and states
+
+A row carries `name`, `provider`, `fingerprint`, `created_at`,
+`last_ok_at`, `last_error`, `disabled`, `state` and `usable`. The
+fingerprint is `Vault.fingerprint`: a truncated SHA-256 of the decrypted secret
+(`sha256:` plus sixteen hex characters). It is not reversible, and two
+credentials holding the same secret share it. The page shows `-` when the
+stored ciphertext cannot be decrypted with the current master key. Neither the
+secret nor the Fernet token appears in any HTML response, JSON response,
+redirect `Location`, log line or error page.
+
+The state comes from stored metadata, never from the request:
+
+| State | Meaning | Editor |
+| --- | --- | --- |
+| `verified` | A test passed and no later test failed. | selectable |
+| `unverified` | No test has ever passed. | refused |
+| `disabled` | The disable switch is on, whatever the test history. | refused |
+| `error` | A test passed earlier and a later one failed; the last error is shown. | selectable |
+
+`usable` is true for `verified` and `error`, because both carry a successful
+test. The page works without JavaScript: add, test, disable, enable and delete
+are ordinary form POSTs that redirect to the masked list. Testing with no
+`EVALH_VERIFY_URL` renders a field error naming the variable; the CLI's
+`--verify-url` stays the per-call override.
+
+A missing or malformed master key renders a 503 page naming
+`EVALH_MASTER_KEY`, its reason and its fix. A key generated by that failure is
+printed to the terminal only, never to the page.
+
+The canary test
+`tests/test_api_credentials.py::test_the_canary_never_surfaces_anywhere`
+submits a canary through the form and the JSON API, makes a stub provider echo
+it in a rejection message, and asserts it is absent from every HTML and JSON
+body, every redirect, the captured log output, the raw SQLite file and the
+stored row, whose `last_error` reads `[redacted:<name>]`. The provider
+message goes through the same `SecretRedactor` a run uses.
+
+### The editor rule
+
+The spec editor lists every stored credential with its state and marks a
+`disabled` or `unverified` one as not selectable. The rule lives in
+`core.spec.validate_spec`, the shared validator: when the console passes the
+vault's states, a candidate or judge that names a disabled credential fails
+with that field (`candidates[i].credential` or `judges[i].credential`), the
+name and an `enable it at /credentials` fix; a never-tested credential fails
+with a `test it at /credentials` fix. `POST /api/specs/validate` and the Save
+button therefore refuse the same document, so a spec cannot smuggle one in by
+posting the API directly. A name that is only declared in the spec and is not
+stored keeps its previous behaviour for an adapter that needs no secret.
+
+The CLI reads the same states for the disabled rule, so `evalh validate` and
+`evalh run` refuse a disabled credential too. It does not require a test
+first: the issue #6 contract is unchanged, so an unverified credential still
+validates and a run surfaces the provider's rejection at call time. The console
+is stricter because the browser is where a key is chosen.
 
 ## JSON API
 
@@ -191,7 +280,8 @@ back to a plain text field.
 ### What a launch does
 
 - The spec is loaded, validated, planned and estimated exactly as `evalh run`
-  does. The estimate uses the medians an earlier run of the same spec measured,
+  does, including the shared refusal of a disabled credential. The estimate
+  uses the medians an earlier run of the same spec measured,
   falling back to 500 prompt and 200 completion tokens per cell. Showing the
   estimate loads the spec, so a broken spec is named on the page before anyone
   presses Launch.
@@ -241,7 +331,7 @@ in-flight launch and joins its thread with a ten second timeout, so a run is
 left cancelled rather than `running` and a test does not leak a thread.
 
 The read-only pages are untouched by this feature. `base.html` carries the
-primary navigation (Specs, Compare, Launch) and, when the page context has a
+primary navigation (Specs, Credentials, Compare, Launch) and, when the page context has a
 `run` whose status is `running`, the cancel form; `api/routes/launch.py` is
 one more discovered route module.
 

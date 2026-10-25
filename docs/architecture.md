@@ -43,7 +43,7 @@ src/evalharness/
     config.py          environment-derived settings for the process, never for adapters
   storage/
     db.py              engine/session factory, SQLite and Postgres, schema creation
-    migrations.py      schema_version marker, additive nullable columns, issue #2 rebuild
+    migrations.py      schema_version marker, additive columns, issue #2 rebuild
     models.py          ORM tables: specs, runs, cells, checks, aggregates, gates, events, credentials
     repository.py      the only code that talks SQL, returns core records
   adapters/
