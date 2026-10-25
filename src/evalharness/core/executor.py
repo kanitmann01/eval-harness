@@ -32,9 +32,6 @@ if TYPE_CHECKING:
     from evalharness.core.spec import ResolvedSpec
     from evalharness.storage.repository import Repository
 
-MAX_ATTEMPTS = 2
-"""Total attempts for a transport failure: the first call plus one retry."""
-
 RETRY_BASE_DELAY_SECONDS = 0.05
 """Base delay; the retry waits this long, doubling per extra attempt."""
 
@@ -119,18 +116,30 @@ async def execute_run(
     return await execution.run(cells)
 
 
+def _attempt_budget(candidate: Candidate) -> int:
+    """Return the adapter-declared attempt budget, never below one."""
+    return max(1, int(candidate.capabilities.max_attempts))
+
+
 async def _call_with_retries(
     candidate: Candidate,
     case: Case,
     ctx: RunContext,
 ) -> CandidateOutput:
-    """Call a candidate, retrying only typed transport failures."""
+    """Call a candidate, retrying only typed transport failures.
+
+    The candidate declares how many total attempts it allows; a candidate that
+    declares nothing keeps the two-attempt default from before this was
+    configurable. Only `TransportError` is retried, so a wrong answer is
+    returned and scored on its first request.
+    """
+    max_attempts = _attempt_budget(candidate)
     attempt = 1
     while True:
         try:
             return await candidate.run(case, ctx)
         except TransportError:
-            if attempt >= MAX_ATTEMPTS:
+            if attempt >= max_attempts:
                 raise
             await asyncio.sleep(RETRY_BASE_DELAY_SECONDS * (2 ** (attempt - 1)))
             attempt += 1
@@ -295,7 +304,11 @@ class _Execution:
             factory = self.resolved.candidate_factories[cell.candidate]
             candidate = factory(cell.candidate, dict(candidate_spec.options))
             instances[cell.candidate] = candidate
-        credential = self.credentials.get(candidate_spec.credential)
+        credential = (
+            self.credentials.get(candidate_spec.credential)
+            if candidate_spec.credential is not None
+            else None
+        )
         budget_remaining = (
             None
             if self.run_record.budget_usd is None

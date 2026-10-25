@@ -1,0 +1,53 @@
+spec_version: 1
+name: http-candidate
+description: >
+  Point the harness at someone else's agent. The endpoint owns its key here,
+  so the candidate declares auth: none and the spec names no credential.
+  Start examples/http_candidate_server.py first; see docs/http-candidate.md.
+seed: 7
+
+source:
+  adapter: evalharness.adapters.sources.inline:build
+  options:
+    cases:
+      - case_id: case-1
+        prompt: What is 6 times 7?
+        expected: {answer: "42"}
+        tier: 1
+      - case_id: case-2
+        prompt: What is 7 times 6?
+        expected: {answer: "42"}
+        tier: 1
+
+contexts:
+  policy:
+    - chunk_id: policy-1
+      text: Answer with a bare number.
+
+candidates:
+  - name: remote-agent
+    adapter: evalharness.adapters.candidates.http:build
+    model: reference-agent-v1
+    options:
+      base_url: http://127.0.0.1:8765
+      path: /run
+      timeout_s: 10
+      auth: none
+      context: policy
+
+replicas: 1
+concurrency: 1
+budget_usd: 1.00
+
+metrics:
+  - key: exact_match
+    adapter: evalharness.adapters.metrics.exact_match:build
+    options: {}
+
+judges: []
+gates: []
+
+prices:
+  reference-agent-v1:
+    input: 0.15
+    output: 0.60

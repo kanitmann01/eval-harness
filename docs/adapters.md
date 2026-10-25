@@ -57,6 +57,7 @@ kind. A CI failure therefore points at the same sentence it always did.
 | `candidate/5` | prompt override is ignored when unsupported | a candidate declaring `supports_prompt_override=False` does not quietly use the override |
 | `candidate/6` | a transport failure raises TransportError | retryable failures are typed |
 | `candidate/7` | a wrong answer is an output, not an error | a bad answer is scored, not retried |
+| `candidate/8` | a retry budget is declared | `capabilities.max_attempts` is an integer >= 1, so the executor knows how many total attempts a transport failure gets |
 
 ### judge
 
@@ -182,6 +183,34 @@ To register an adapter:
 3. Run `python -m evalharness conformance --adapter <path> --kind <kind>`.
 4. Run `python -m pytest`. The manifest tests are the gate.
 
+## The HTTP candidate
+
+`evalharness.adapters.candidates.http:build` implements the wire contract in
+[`contract/candidate-v1.schema.json`](../contract/candidate-v1.schema.json).
+The endpoint author's guide, including auth, retries, error mapping and the
+usage-estimation rule, is [http-candidate.md](http-candidate.md).
+
+Two capability fields exist because of this adapter:
+
+- `requires_credential` is true unless `options.auth` is `none`. Validation
+  refuses a candidate that needs a secret the vault cannot resolve, before any
+  cell runs, and names `candidates[i].credential`.
+- `max_attempts` is the total attempt budget for a typed transport failure.
+  `candidate/8` publishes that contract. The HTTP candidate declares 3 (one
+  call plus two retries); every other adapter keeps the default 2, so the
+  issue #3 retry tests stay green.
+
+The manifest row for the HTTP candidate carries `auth: none` and a
+`base_url` pointing at the reference demo server's default loopback port. That
+is a live process, not a mock: start `examples/http_candidate_server.py` before
+`evalh conformance --all`, or the HTTP clauses fail with a connection error.
+CI does exactly that in `.github/workflows/ci.yml`: it starts the reference
+server and sets `EVALH_HTTP_CONFORMANCE_BASE_URL` for the conformance step. A
+different host or port is configured through the same variable; an explicit
+`base_url` on the manifest row wins over it. The test fixture that starts the
+stub server replaces `base_url` with an ephemeral port for that run; the suite
+already merges entry options into every clause.
+
 ## The command
 
 ```text
@@ -207,6 +236,7 @@ same registry production uses resolves them:
 | candidate | `candidates.stub:build_slow` | sleeps, for concurrency and queueing tests |
 | candidate | `candidates.stub:build_failing` | always raises TransportError |
 | candidate | `candidates.stub:build_fixed_prompt` | refuses prompt overrides |
+| candidate | `candidates.http:build` | POSTs the v1 contract to another agent's endpoint |
 | judge | `judges.rule_based:build` | deterministic expected-substring verdict |
 | judge | `judges.scripted:build` | deterministic rubric/claim verdict with estimated usage |
 | metric | `metrics.exact_match:build` | exact match against the expected answer |
@@ -228,6 +258,9 @@ six passing checks and reports `pass`.
 ## Decisions later tickets must keep
 
 - Clause identifiers are append-only. Add a clause, never renumber one.
+- A candidate's retry budget comes from `capabilities.max_attempts`, not from a
+  fixed constant in the executor. A new adapter that needs more or fewer
+  attempts declares it and `candidate/8` checks it.
 - A new first-party adapter needs a manifest row and a green suite; the
   manifest test is the CI gate, not a convention.
 - `Metric.check` is async. Adding a metric means implementing

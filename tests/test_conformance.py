@@ -120,6 +120,10 @@ class WrongRaisesOtherCandidate(_Candidate):
         return await super().run(case, ctx)
 
 
+class RetryBudgetCandidate(_Candidate):
+    capabilities = Capabilities.model_construct(max_attempts=0)
+
+
 class _Judge:
     """Base broken judge."""
 
@@ -304,6 +308,7 @@ build_wrong_error_type_candidate = _factory(WrongErrorTypeCandidate)
 build_silent_transport_candidate = _factory(SilentTransportCandidate)
 build_wrong_raises_candidate = _factory(WrongRaisesCandidate)
 build_wrong_raises_other_candidate = _factory(WrongRaisesOtherCandidate)
+build_retry_budget_candidate = _factory(RetryBudgetCandidate)
 build_dict_verdict_judge = _factory(DictVerdictJudge)
 build_int_passed_judge = _factory(IntPassedJudge)
 build_empty_reason_judge = _factory(EmptyReasonJudge)
@@ -332,6 +337,7 @@ BROKEN_CASES = [
     ("build_silent_transport_candidate", "candidate", "candidate/6"),
     ("build_wrong_raises_candidate", "candidate", "candidate/7"),
     ("build_wrong_raises_other_candidate", "candidate", "candidate/7"),
+    ("build_retry_budget_candidate", "candidate", "candidate/8"),
     ("build_dict_verdict_judge", "judge", "judge/1"),
     ("build_raising_judge", "judge", "judge/1"),
     ("build_int_passed_judge", "judge", "judge/2"),
@@ -380,7 +386,7 @@ def test_stub_candidate_passes_every_candidate_clause(evalh_home):
 
     assert report.passed is True
     assert [result.clause for result in report.results] == [
-        f"candidate/{number}" for number in range(1, 8)
+        f"candidate/{number}" for number in range(1, 9)
     ]
     assert report.clauses == report.results
     report.raise_for_failure()

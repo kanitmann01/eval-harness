@@ -272,7 +272,7 @@ class CandidateSpec(BaseModel):
 
     name: str
     adapter: str
-    credential: str
+    credential: str | None = None
     model: str
     options: dict[str, Any] = Field(default_factory=dict)
 

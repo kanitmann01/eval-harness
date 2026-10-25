@@ -27,6 +27,8 @@ Credentials are BYOK. One container per person, keys verified on demand, encrypt
 - `docs/judges.md` — the judge contract, reference judges, configuration hashing, cost attribution and two judges in one run.
 - `docs/credentials.md` — BYOK flow, master key lifecycle, what is stored, redaction guarantees, verification request.
 - `docs/console.md` — the page map, JSON API, SSE contract and how to serve a run in a browser.
+- `docs/http-candidate.md` — the v1 wire contract for someone else's agent: request, response, auth, retries, error mapping, usage estimation.
+- `contract/candidate-v1.schema.json` — the same contract as JSON Schema (append-compatible only).
 - Issue #1 — the spec: problem, solution, 58 user stories, implementation decisions, testing decisions, out of scope.
 
 ## Quick start
@@ -52,7 +54,10 @@ and always-failing) plus the deterministic judge in one spec. It exits 0, record
 the always-failing cells as errors, and needs no credentials. The judge example runs
 two scripted judges against the same cited answer and prints both verdicts and the
 answer/judge/tool cost split. The `evalh conformance --all` command runs the same
-public contract suite as CI and prints one line per clause.
+public contract suite as CI and prints one line per clause. Its HTTP candidate row
+needs a live endpoint: CI starts `examples/http_candidate_server.py` first and
+points the row at it with `EVALH_HTTP_CONFORMANCE_BASE_URL`; locally start the
+demo server, or set the same variable, or that row reports a connection error.
 
 ## Exit codes and gates
 
@@ -88,6 +93,33 @@ contract and [examples/specs/gated.yaml](examples/specs/gated.yaml) for a spec
 that passes its gate without a paid credential. A run still needs the vault
 master key described below; CI generates an ephemeral one for its disposable
 database.
+
+## Someone else's agent over HTTP
+
+A candidate can be any endpoint that implements the v1 contract. The endpoint
+author reads [docs/http-candidate.md](docs/http-candidate.md) and
+[`contract/candidate-v1.schema.json`](contract/candidate-v1.schema.json);
+nothing else in this repository is needed. Auth is harness-owned by default,
+with `auth: none` for an endpoint that holds its own key.
+
+The reference demo needs no key:
+
+~~~bash
+# terminal 1
+python examples/http_candidate_server.py
+
+# terminal 2
+python -m evalharness run examples/specs/http-candidate.yaml
+~~~
+
+The bearer path stores the key once and starts the same server with a token:
+
+~~~bash
+export HTTP_DEMO_KEY=local-demo-token
+python examples/http_candidate_server.py --token "$HTTP_DEMO_KEY"   # terminal 1
+evalh credentials add http-demo --provider custom --secret-env HTTP_DEMO_KEY
+evalh run examples/specs/http-candidate-bearer.yaml                  # terminal 2
+~~~
 
 ## Credentials
 

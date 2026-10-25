@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, Mapping
 
-from evalharness.adapters.manifest import MANIFEST
+from evalharness.adapters.manifest import MANIFEST, conformance_options
 from evalharness.conformance.suite import (
     CANDIDATE,
     JUDGE,
@@ -121,7 +121,7 @@ def run_all(*, workdir: Path | None = None) -> list[ConformanceReport]:
         run_suite(
             entry.adapter,
             entry.kind,
-            options=entry.options,
+            options=conformance_options(entry),
             workdir=workdir,
         )
         for entry in MANIFEST

@@ -147,6 +147,17 @@ lines, the database dump, every event payload, both artifact files, the cell ans
 output, and the stored checks. `tests/test_cli_run.py` repeats the assertion for a
 credential declared in the spec.
 
+## Credentials for an HTTP candidate
+
+The HTTP candidate uses the same vault. A spec names a credential, and the
+adapter sends the resolved secret from `RunContext.credential` as
+`Authorization: Bearer <secret>` by default, or in a named header with
+`auth: header`. An endpoint that holds its own key uses `auth: none`, which
+sends no header and needs no credential. The harness-owned default and the
+missing-credential validation error are specified in
+[http-candidate.md](http-candidate.md); this file remains the reference for the
+vault itself.
+
 ## Rotation
 
 Provider keys: a duplicate name is rejected, so rotate with `delete` then `add`, or add a
