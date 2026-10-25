@@ -263,9 +263,13 @@ transport.
 The manifest row carries `auth: none` and a `base_url` on the reference
 demo server's default loopback port. Start the demo server before
 `evalh conformance --all`; without a live process the HTTP clauses fail with a
-connection error. The test fixture that starts the stub replaces `base_url`
-with an ephemeral port before `run_all()`, and the suite's existing options
-mechanism passes it to every clause. To check the adapter yourself:
+connection error. CI starts that process as a step and sets
+`EVALH_HTTP_CONFORMANCE_BASE_URL` for the conformance step, so a clean runner
+needs no manual server. Set the same variable to point at another host or port;
+an explicit `base_url` in the manifest row wins over it. The test fixture that
+starts the stub replaces `base_url` with an ephemeral port before `run_all()`,
+and the suite's existing options mechanism passes it to every clause. To check
+the adapter yourself:
 
 ```bash
 python -m pytest tests/test_http_candidate.py -q

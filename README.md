@@ -55,8 +55,9 @@ the always-failing cells as errors, and needs no credentials. The judge example 
 two scripted judges against the same cited answer and prints both verdicts and the
 answer/judge/tool cost split. The `evalh conformance --all` command runs the same
 public contract suite as CI and prints one line per clause. Its HTTP candidate row
-needs a live endpoint: start `python examples/http_candidate_server.py` first, or
-that row reports a connection error.
+needs a live endpoint: CI starts `examples/http_candidate_server.py` first and
+points the row at it with `EVALH_HTTP_CONFORMANCE_BASE_URL`; locally start the
+demo server, or set the same variable, or that row reports a connection error.
 
 ## Exit codes and gates
 

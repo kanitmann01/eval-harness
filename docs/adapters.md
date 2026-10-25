@@ -204,9 +204,12 @@ The manifest row for the HTTP candidate carries `auth: none` and a
 `base_url` pointing at the reference demo server's default loopback port. That
 is a live process, not a mock: start `examples/http_candidate_server.py` before
 `evalh conformance --all`, or the HTTP clauses fail with a connection error.
-The test fixture that starts the stub server replaces `base_url` with an
-ephemeral port for that run; the suite already merges entry options into every
-clause.
+CI does exactly that in `.github/workflows/ci.yml`: it starts the reference
+server and sets `EVALH_HTTP_CONFORMANCE_BASE_URL` for the conformance step. A
+different host or port is configured through the same variable; an explicit
+`base_url` on the manifest row wins over it. The test fixture that starts the
+stub server replaces `base_url` with an ephemeral port for that run; the suite
+already merges entry options into every clause.
 
 ## The command
 
