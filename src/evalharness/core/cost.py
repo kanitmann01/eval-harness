@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import statistics
+from typing import Iterable
+
 from pydantic import BaseModel
 
-from evalharness.core.models import CandidateOutput, Price, Spec
+from evalharness.core.models import CandidateOutput, CellRecord, Price, Spec
 
 __all__ = [
     "DEFAULT_MEDIAN_COMPLETION_TOKENS",
@@ -13,6 +16,7 @@ __all__ = [
     "CostSplit",
     "Price",
     "estimate_cost",
+    "observed_medians",
     "split_cost",
     "usage_cost",
 ]
@@ -77,6 +81,20 @@ def split_cost(
         tool_usd=tool_usd,
         total_usd=answer_usd + judge_usd + tool_usd,
     )
+
+
+def observed_medians(cells: Iterable[CellRecord]) -> tuple[int, int] | None:
+    """Return median (prompt, completion) tokens from ok cells, or None.
+
+    The CLI feeds an earlier run of the same spec into the next launch estimate,
+    so the budget check reflects measured usage instead of the fallback.
+    """
+    measured = [cell for cell in cells if cell.status == "ok"]
+    if not measured:
+        return None
+    prompt = int(statistics.median(cell.prompt_tokens for cell in measured))
+    completion = int(statistics.median(cell.completion_tokens for cell in measured))
+    return prompt, completion
 
 
 def estimate_cost(
