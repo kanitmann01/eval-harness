@@ -33,7 +33,7 @@ def test_conformance_adapter_fails_with_exit_one(evalh_home, capsys):
 
 
 def test_conformance_all_runs_the_manifest(
-    evalh_home, http_conformance_stub, capsys
+    evalh_home, http_conformance_stub, provider_conformance_stub, capsys
 ):
     code = main(["conformance", "--all"])
 

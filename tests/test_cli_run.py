@@ -50,7 +50,8 @@ def test_run_smoke_end_to_end(evalh_home, workdir, capsys):
         assert run.finished_at is not None
         assert run.harness_sha.startswith("evalharness/")
         assert run.spec_snapshot["name"] == "test-spec"
-        assert run.prices_snapshot["stub-1"]["input"] == 0.15
+        assert run.prices_snapshot["version"] == 2
+        assert run.prices_snapshot["providers"][""]["stub-1"]["input"] == 0.15
 
         spec_row = repository.get_spec(run.spec_id)
         assert spec_row is not None

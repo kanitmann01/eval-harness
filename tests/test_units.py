@@ -21,7 +21,14 @@ from evalharness.core.context import (
     RunContext,
     credential_env_var,
 )
-from evalharness.core.cost import Price, estimate_cost, split_cost, usage_cost
+from evalharness.core.compare import compare_runs
+from evalharness.core.cost import (
+    Price,
+    estimate_cost,
+    provider_cost_rows,
+    split_cost,
+    usage_cost,
+)
 from evalharness.core.events import EventEmitter
 from evalharness.core.models import (
     Aggregate,
@@ -32,6 +39,7 @@ from evalharness.core.models import (
     ContextChunk,
     CredentialSpec,
     GateSpec,
+    ProviderUsage,
     RunRecord,
     ScoreContext,
     Spec,
@@ -261,12 +269,99 @@ def test_cost_math_and_estimate():
 
     spec = Spec.model_validate(base_spec())
     estimate = estimate_cost(
-        spec, {"stub-1": price}, {"stub-concise": 2, "stub-explained": 1}
+        spec,
+        {"stub-concise": price, "stub-explained": price},
+        {"stub-concise": 2, "stub-explained": 1},
     )
     assert estimate.cells == 3
     assert estimate.prompt_tokens == 3 * 500
     assert estimate.completion_tokens == 3 * 200
     assert estimate.cost_usd == pytest.approx(3 * (500 * 1.0 + 200 * 2.0) / 1_000_000)
+
+
+def test_provider_cost_rows_attribute_judge_cost_and_fall_back_for_legacy_cells():
+    cells = [
+        CellRecord(
+            cell_id="c1",
+            run_id="run",
+            candidate="a",
+            case_id="case",
+            replica=1,
+            provider="openai-compatible",
+            prompt_tokens=10,
+            completion_tokens=5,
+            answer_cost_usd=0.1,
+            tool_cost_usd=0.01,
+            judge_cost_usd=0.3,
+            judge_prompt_tokens=7,
+            judge_completion_tokens=3,
+            judge_provider_usage={
+                "anthropic": ProviderUsage(
+                    prompt_tokens=7, completion_tokens=3, cost_usd=0.3
+                )
+            },
+        ),
+        # A cell stored before issue #17 has no per-provider judge split, so its
+        # judge cost falls back to its own provider.
+        CellRecord(
+            cell_id="c2",
+            run_id="run",
+            candidate="b",
+            case_id="case",
+            replica=1,
+            prompt_tokens=1,
+            completion_tokens=1,
+            answer_cost_usd=0.15,
+            judge_cost_usd=0.05,
+            judge_prompt_tokens=2,
+            judge_completion_tokens=1,
+        ),
+    ]
+
+    rows = {row.provider: row for row in provider_cost_rows("run", cells)}
+
+    assert rows["openai-compatible"].cost_usd == pytest.approx(0.11)
+    assert rows["openai-compatible"].judge_cost_usd == pytest.approx(0.0)
+    assert rows["anthropic"].cost_usd == pytest.approx(0.3)
+    assert rows["anthropic"].judge_prompt_tokens == 7
+    assert rows[""].cost_usd == pytest.approx(0.2)
+    assert rows[""].judge_cost_usd == pytest.approx(0.05)
+    assert sum(row.cost_usd for row in rows.values()) == pytest.approx(
+        sum(
+            cell.answer_cost_usd + cell.judge_cost_usd + cell.tool_cost_usd
+            for cell in cells
+        )
+    )
+
+
+def test_compare_reads_both_price_snapshot_shapes():
+    legacy = RunRecord(
+        run_id="a", prices_snapshot={"stub-1": {"input": 0.15, "output": 0.6}}
+    )
+    current = RunRecord(
+        run_id="b",
+        prices_snapshot={
+            "version": 2,
+            "providers": {
+                "": {"stub-1": {"input": 0.15, "output": 0.6}},
+                "openai-compatible": {
+                    "gpt-4o-mini": {"input": 0.15, "output": 0.6}
+                },
+            },
+        },
+    )
+
+    comparison = compare_runs(legacy, [], {}, current, [], {})
+
+    assert comparison.a.price_table.prices == {
+        "stub-1": {"input": 0.15, "output": 0.6}
+    }
+    assert comparison.b.price_table.prices["stub-1"]["input"] == 0.15
+    assert (
+        comparison.b.price_table.prices["openai-compatible/gpt-4o-mini"]["output"]
+        == 0.6
+    )
+    assert comparison.a.price_table.id != comparison.b.price_table.id
 
 
 def _aggregate(
