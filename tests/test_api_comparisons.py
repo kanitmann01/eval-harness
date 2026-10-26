@@ -58,7 +58,8 @@ def _shell(page: str, step: int) -> None:
     """Assert the step strip, the rail and the current step marker."""
     assert re.search(rf'data-step="{step}"[^>]*aria-current="step"', page), step
     assert page.count('aria-current="step"') == 1
-    assert "spec-graph--thumb" in page
+    assert "spec-graph--rail" in page
+    assert 'viewBox="0 0 320.0 ' in page
     assert "data-estimate-cells" in page
 
 
@@ -206,6 +207,10 @@ async def test_get_steps_and_navigation(wizard: Console) -> None:
         assert "http://console.test/comparisons/new" in page.text
         assert ">Compare</a>" not in page.text
         assert ">Launch</a>" not in page.text
+        assert 'class="btn btn-secondary btn-add"' in page.text
+        assert '<span class="btn-add-glyph" aria-hidden="true">+</span>' in page.text
+        assert 'name="action" value="add:case"' in page.text
+        assert "Add another case" in page.text
 
         for step in (2, 3, 4):
             fresh = await client.get(f"/comparisons/new/{step}")

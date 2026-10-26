@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_macros.html" import status with context %}
+{% from "_graph.html" import render_graph %}
 {% block title %}Compare &middot; evalharness console{% endblock %}
 {% block content %}
 <nav class="crumbs" aria-label="Breadcrumb">
@@ -115,6 +116,25 @@
   </article>
 </section>
 
+<section class="panel graph-panel" aria-labelledby="graphs-heading">
+  <div class="panel-head">
+    <div>
+      <h2 id="graphs-heading">Spec graphs</h2>
+      <p class="subtle">Both sides on the same five columns. Boxes and wires report each side's own cells and gates, so the same shape is easy to compare.</p>
+    </div>
+  </div>
+  <div class="graph-pair">
+    <figure class="spec-graph-figure">
+      {{ render_graph(graph_a, classes="spec-graph--pair", title_id="graph-a-title", desc_id="graph-a-desc") }}
+      <figcaption class="spec-graph-caption">Side A · baseline: {{ comparison.a.label }}</figcaption>
+    </figure>
+    <figure class="spec-graph-figure">
+      {{ render_graph(graph_b, classes="spec-graph--pair", title_id="graph-b-title", desc_id="graph-b-desc") }}
+      <figcaption class="spec-graph-caption">Side B · candidate: {{ comparison.b.label }}</figcaption>
+    </figure>
+  </div>
+</section>
+
 <section class="panel" aria-labelledby="metrics-heading">
   <div class="panel-head">
     <div>
@@ -127,6 +147,15 @@
   <div class="table-wrap" tabindex="0" role="region" aria-label="Metric comparison table">
     <table class="compare-metrics">
       <caption class="sr-only">Per metric: sample size, value and 95 percent interval on each side, the delta and its interval, the verdict, cost per correct answer and the judge</caption>
+      <colgroup>
+        <col class="col-metric">
+        <col class="col-a">
+        <col class="col-b">
+        <col class="col-delta">
+        <col class="col-verdict">
+        <col class="col-cost">
+        <col class="col-judge">
+      </colgroup>
       <thead>
         <tr>
           <th scope="col">Metric</th>
@@ -141,7 +170,7 @@
       <tbody>
         {% for row in comparison.metrics %}
         <tr{% if row.different_judge %} class="different-judge-row"{% endif %}>
-          <th scope="row" class="mono">{{ row.metric }}</th>
+          <th scope="row" class="mono metric-name" title="{{ row.metric }}">{{ row.metric }}</th>
           <td class="num" data-label="A · 95% interval">
             <span class="metric-value">{{ row.a_value_text }}</span>
             <span class="metric-sub">n={{ row.a_n }} · {{ row.a_interval_text }}</span>
@@ -157,18 +186,21 @@
           <td data-label="Verdict">
             <div class="verdict-cell">
               <span class="verdict verdict-{{ row.verdict_class }}"><span aria-hidden="true">{{ row.verdict_glyph }}</span> {{ row.verdict_label }}</span>
-              <span class="verdict-reason">{{ row.reason }}</span>
+              <span class="verdict-reason" title="{{ row.reason }}">{{ row.reason }}</span>
             </div>
           </td>
-          <td class="num col-lg" data-label="Cost / correct">
+          <td class="num col-lg cost-cell" data-label="Cost / correct" title="A {{ row.a_cost_text }} · B {{ row.b_cost_text }}">
             <span class="metric-value">{{ row.a_cost_text }}</span>
             <span class="metric-sub">A · B {{ row.b_cost_text }}</span>
           </td>
-          <td class="col-lg" data-label="Judge">
-            <span class="judge-name">{{ row.judge_a_name }}</span>
-            <span class="judge-detail">{{ row.judge_a_detail }}</span>
-            <span class="judge-name">{{ row.judge_b_name }}</span>
-            <span class="judge-detail">{{ row.judge_b_detail }}</span>
+          <td class="col-lg judge-cell" data-label="Judge">
+            {% if row.judge_a_name == row.judge_b_name and row.judge_a_detail == row.judge_b_detail %}
+            <span class="judge-name" title="{{ row.judge_a_name }}">{{ row.judge_a_name }}</span>
+            <span class="judge-detail" title="{{ row.judge_a_detail }}">{{ row.judge_a_detail }}</span>
+            {% else %}
+            <span class="judge-name" title="A · {{ row.judge_a_name }}: {{ row.judge_a_detail }}">A · {{ row.judge_a_name }}</span>
+            <span class="judge-name" title="B · {{ row.judge_b_name }}: {{ row.judge_b_detail }}">B · {{ row.judge_b_name }}</span>
+            {% endif %}
           </td>
         </tr>
         {% endfor %}

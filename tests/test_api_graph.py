@@ -2,14 +2,23 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import pytest
 from jinja2 import Environment, FileSystemLoader
 
-from evalharness.api.graph_views import SpecGraph, run_graph, spec_graph
+from evalharness.api.graph_views import (
+    SpecGraph,
+    rail_graph,
+    run_graph,
+    spec_graph,
+    thumbnail,
+)
+from evalharness.api.views import run_thumbnails
 from evalharness.core.models import CellRecord, GateResult, RunRecord
+from evalharness.storage.repository import RunSummary
 
 TEMPLATES = Path(__file__).parents[1] / "src" / "evalharness" / "api" / "templates"
 
@@ -446,3 +455,143 @@ def test_graph_macro_renders_one_server_side_svg() -> None:
     assert "sg-state-fail" in svg
     assert "stroke-width: 6.0px" in svg
     assert "stroke-dasharray: 2 3" in svg
+
+
+def _render(source: str, **context: Any) -> str:
+    """Render one template fragment against the console templates."""
+    environment = Environment(
+        loader=FileSystemLoader(str(TEMPLATES)),
+        autoescape=True,
+    )
+    return environment.from_string(source).render(**context)
+
+
+def _summary(run_id: str, spec: dict[str, Any]) -> RunSummary:
+    """Build the run-list row the thumbnail view model reads."""
+    return RunSummary(
+        run_id=run_id,
+        spec_name=str(spec.get("name", "")),
+        status="ok",
+        cost_usd=0.0,
+        pass_rate=1.0,
+        duration_s=1.0,
+        n_cells=1,
+        n_ok=1,
+        started_at=datetime(2026, 1, 1, tzinfo=UTC),
+        finished_at=None,
+        candidates=(),
+        metrics=("exact_match",),
+        failed_gates=(),
+        spec_snapshot=spec,
+    )
+
+
+def test_thumbnail_keeps_shape_tones_and_aria() -> None:
+    """The mini graph keeps every box, wire and tone inside its 96x32 box."""
+    graph = spec_graph(_full_spec(), cells=_full_cells(), gates=_full_gates())
+    mini = thumbnail(graph)
+    assert mini.width == 96.0
+    assert mini.height == 32.0
+    assert mini.variant == "thumb"
+    assert mini.aria == graph.aria
+    assert [node.key for node in mini.nodes] == [node.key for node in graph.nodes]
+    assert [node.tone for node in mini.nodes] == [node.tone for node in graph.nodes]
+    assert len(mini.edges) == len(graph.edges)
+    assert {node.key: node for node in mini.nodes}["verdict"].tone == "bad"
+    assert all(0.0 <= node.x <= 96.0 - node.w for node in mini.nodes)
+    assert all(0.0 <= node.y <= 32.0 - node.h for node in mini.nodes)
+
+
+def test_thumbnail_edges_join_the_scaled_boxes() -> None:
+    """Every scaled wire still starts at a source box and lands on its target."""
+    graph = spec_graph(_tones_spec())
+    mini = thumbnail(graph)
+    nodes = {node.key: node for node in mini.nodes}
+    for edge in mini.edges:
+        source = nodes[edge.source_key]
+        target = nodes[edge.target_key]
+        tokens = edge.path.replace("M", " ").replace("H", " ").replace("V", " ").split()
+        assert len(tokens) == 4
+        start_x, start_y, elbow_x, end_y = (float(token) for token in tokens)
+        assert start_x == pytest.approx(source.x + source.w, abs=0.01)
+        assert start_y == pytest.approx(source.cy, abs=0.01)
+        assert elbow_x == pytest.approx(target.x, abs=0.01)
+        assert end_y == pytest.approx(target.cy, abs=0.01)
+
+
+def test_row_thumbnail_is_aria_hidden_and_drops_labels() -> None:
+    """A decorative table thumbnail loses its accessible name and text labels."""
+    graph = thumbnail(spec_graph(_tones_spec()))
+    svg = _render(
+        '{% from "_graph.html" import render_graph %}'
+        "{{ render_graph(graph, hidden=true) }}",
+        graph=graph,
+    )
+    assert 'aria-hidden="true"' in svg
+    assert 'focusable="false"' in svg
+    assert 'role="img"' not in svg
+    assert "aria-label" not in svg
+    assert "sg-label" not in svg
+    assert "sg-detail" not in svg
+    assert svg.count('class="sg-node ') == len(graph.nodes)
+    assert svg.count('class="sg-edge ') == len(graph.edges)
+
+
+def test_rail_graph_is_compact_but_keeps_every_node() -> None:
+    """The rail graph stacks the same nodes at 320 units without node text."""
+    full = spec_graph(_full_spec())
+    rail = rail_graph(_full_spec())
+    assert rail.variant == "compact"
+    assert rail.width == 320.0
+    assert [column.key for column in rail.columns] == [
+        "cases",
+        "feeds",
+        "candidates",
+        "metrics",
+        "gates",
+    ]
+    assert [column.label for column in rail.columns] == [
+        "Cases",
+        "Prompts",
+        "Candidates",
+        "Metrics",
+        "Gates",
+    ]
+    assert [node.key for node in rail.nodes] == [node.key for node in full.nodes]
+    assert [node.tone for node in rail.nodes] == [node.tone for node in full.nodes]
+    assert all(node.h == 18.0 for node in rail.nodes)
+    assert all(0.0 <= node.x <= 320.0 - node.w for node in rail.nodes)
+    assert all(0.0 <= node.y <= rail.height - node.h for node in rail.nodes)
+    svg = _render(
+        '{% from "_graph.html" import render_graph %}{{ render_graph(graph) }}',
+        graph=rail,
+    )
+    assert "Prompts and contexts" not in svg
+    assert "sg-label" not in svg
+    assert "<title>" in svg
+    assert svg.count('class="sg-node ') == len(rail.nodes)
+
+
+def test_full_graph_can_be_named_by_its_own_title_and_description() -> None:
+    """Passing ids gives the svg a title and a long description for screen readers."""
+    graph = spec_graph(_tones_spec())
+    svg = _render(
+        '{% from "_graph.html" import render_graph %}'
+        '{{ render_graph(graph, title_id="graph-title", desc_id="graph-desc") }}',
+        graph=graph,
+    )
+    assert 'aria-labelledby="graph-title graph-desc"' in svg
+    assert '<title id="graph-title">Spec graph</title>' in svg
+    assert f'<desc id="graph-desc">{graph.aria}</desc>' in svg
+    assert 'aria-label="' not in svg
+
+
+def test_run_thumbnails_builds_one_mini_graph_per_run() -> None:
+    """The runs list gets one 96-wide decorative graph per row, keyed by run id."""
+    spec = _tones_spec()
+    runs = [_summary("run-a", spec), _summary("run-b", spec)]
+    thumbnails = run_thumbnails(runs)
+    assert sorted(thumbnails) == ["run-a", "run-b"]
+    assert all(graph.width == 96.0 for graph in thumbnails.values())
+    assert all(graph.height == 32.0 for graph in thumbnails.values())
+    assert all(graph.variant == "thumb" for graph in thumbnails.values())

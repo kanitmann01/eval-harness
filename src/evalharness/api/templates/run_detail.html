@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_macros.html" import status, copy_button with context %}
+{% from "_graph.html" import render_graph %}
 {% block title %}{{ run.spec_snapshot.name or "Run detail" }} &middot; evalharness console{% endblock %}
 {% block content %}
 <nav class="crumbs" aria-label="Breadcrumb">
@@ -41,7 +42,7 @@
     <div class="verdict-body">
       <div class="verdict-kicker">
         {{ status(run.status) }}
-        <span class="chip">{{ verdict.label }}</span>
+        {% if verdict.label|lower != run.status|lower %}<span class="chip">{{ verdict.label }}</span>{% endif %}
         {% if run.status == "running" %}<span class="live-indicator"><span class="live-dot" aria-hidden="true"></span>Live</span>{% endif %}
       </div>
       <p class="verdict-headline">{{ verdict.headline }}</p>
@@ -113,6 +114,19 @@
   {% endif %}
 </section>
 
+<section class="panel graph-panel" aria-labelledby="graph-heading">
+  <div class="panel-head">
+    <div>
+      <h2 id="graph-heading">Spec graph</h2>
+      <p class="subtle">The same five columns the spec declares. Box and wire carry state; only the verdict node is filled.</p>
+    </div>
+  </div>
+  <figure class="spec-graph-figure">
+    {{ render_graph(graph, title_id="graph-title", desc_id="graph-desc") }}
+    <figcaption class="spec-graph-caption">{{ graph.aria }}</figcaption>
+  </figure>
+</section>
+
 <section class="panel" aria-labelledby="heatmap-heading">
   <div class="panel-head">
     <div>
@@ -144,7 +158,10 @@
       <tbody>
         {% for row in rows %}
         <tr>
-          <th scope="row" class="row-head" title="{{ row.candidate }}">{{ row.candidate }}</th>
+          <th scope="row" class="row-head" title="{{ row.candidate }}">
+            <span class="row-head-name">{{ row.candidate }}</span>
+            <span class="heat-rate">{{ row.check_rate|pct }}</span>
+          </th>
           {% for cell in row.cells %}
           {% if cell %}
           <td class="heat-cell {{ cell.tone }}{% if cell.selected %} selected{% endif %}">

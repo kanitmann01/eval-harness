@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlencode
 
+from evalharness.api.graph_views import SpecGraph, run_graph
 from evalharness.api.templating import format_usd
 from evalharness.core.compare import (
     BETTER,
@@ -29,6 +30,9 @@ from evalharness.core.compare import (
 )
 from evalharness.core.models import CellRecord, RunRecord
 from evalharness.storage.repository import Repository, RunSummary
+
+GRAPH_WIDTH = 640.0
+"""The compare page draws two labelled graphs side by side, so each one is narrow."""
 
 
 class CompareError(Exception):
@@ -299,13 +303,46 @@ def comparison_page(
         "candidate_a": candidate_a,
         "candidate_b": candidate_b,
         "comparison": None,
+        "graph_a": None,
+        "graph_b": None,
         "empty_message": _empty_message(bool(runs)),
         "json_url": _json_url(a, b, run, candidate_a, candidate_b),
         "swap_url": _swap_url(a, b, run, candidate_a, candidate_b),
     }
     if comparison is not None:
         context["comparison"] = comparison_view(comparison)
+        context["graph_a"], context["graph_b"] = side_graphs(repository, comparison)
     return context
+
+
+def side_graphs(
+    repository: Repository,
+    comparison: Comparison,
+) -> tuple[SpecGraph, SpecGraph]:
+    """Return one spec graph per compared side.
+
+    Parameters:
+        repository: The run store.
+        comparison: A loaded comparison; load_comparison has already refused a
+            selection whose runs do not exist.
+
+    Each side reads its own cells and gates, so the picture reports real run
+    outcomes rather than the pending draft the wizard rail shows.
+    """
+    graphs: list[SpecGraph] = []
+    for side in (comparison.a, comparison.b):
+        run = repository.get_run(side.run_id)
+        assert run is not None
+        graphs.append(
+            run_graph(
+                run,
+                repository.list_cells(side.run_id),
+                repository.list_gates(side.run_id),
+                width=GRAPH_WIDTH,
+                short_labels=True,
+            )
+        )
+    return graphs[0], graphs[1]
 
 
 def _run_label(summary: RunSummary) -> str:

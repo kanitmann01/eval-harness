@@ -13,6 +13,7 @@ from evalharness.core.models import (
     GateResult,
     RunRecord,
 )
+from evalharness.api.graph_views import SpecGraph, spec_graph, thumbnail
 from evalharness.core.stats import wilson_interval
 from evalharness.storage.repository import RunSummary
 
@@ -430,6 +431,15 @@ def run_list_stats(runs: list[RunSummary]) -> RunListStats:
         running=sum(1 for run in runs if run.status == "running"),
         cost_usd=sum(run.cost_usd for run in runs),
     )
+
+
+def run_thumbnails(runs: list[RunSummary]) -> dict[str, SpecGraph]:
+    """Return one decorative spec graph per run-list row, keyed by run id.
+
+    The snapshot comes from the row already loaded for the list, so drawing the
+    graph column costs no extra query per row.
+    """
+    return {run.run_id: thumbnail(spec_graph(run.spec_snapshot)) for run in runs}
 
 
 def _heatmap_columns(cells: list[CellRecord]) -> list[HeatmapColumn]:

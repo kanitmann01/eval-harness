@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -57,6 +58,7 @@ class RunSummary:
     candidates: tuple[str, ...]
     metrics: tuple[str, ...]
     failed_gates: tuple[str, ...]
+    spec_snapshot: Mapping[str, Any]
 
 
 @dataclass(frozen=True, slots=True)
@@ -581,6 +583,7 @@ def _run_summary(
         candidates=tuple(sorted(candidates)),
         metrics=tuple(sorted(metrics)),
         failed_gates=tuple(sorted(failed_gates)),
+        spec_snapshot=dict(row.spec_snapshot),
     )
 
 

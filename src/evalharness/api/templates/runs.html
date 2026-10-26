@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_macros.html" import status, copy_button with context %}
+{% from "_graph.html" import render_graph %}
 {% block title %}Runs &middot; evalharness console{% endblock %}
 {% block content %}
 <div class="page-header">
@@ -51,6 +52,7 @@
     <thead>
       <tr>
         <th scope="col">Spec</th>
+        <th scope="col" class="col-graph"><span class="sr-only">Spec graph</span></th>
         <th scope="col">Status</th>
         <th scope="col" class="col-md">Candidates</th>
         <th scope="col" class="num col-sm">Cells ok</th>
@@ -70,7 +72,11 @@
               <span class="mono" title="{{ run.run_id }}">{{ run.run_id[:8] }}</span>
               {{ copy_button(run.run_id) }}
             </span>
+            <span class="run-candidates-mobile">{{ run.candidates|join(", ") or "no candidates" }}</span>
           </div>
+        </td>
+        <td class="run-graph col-graph">
+          {{ render_graph(thumbnails[run.run_id], classes="spec-graph--mini", hidden=true) }}
         </td>
         <td class="run-status">
           {{ status(run.status) }}

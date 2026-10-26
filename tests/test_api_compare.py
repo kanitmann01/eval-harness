@@ -59,6 +59,28 @@ async def test_two_runs_compare_with_deltas_intervals_and_cost(
         assert "95% interval" in page.text
         assert "A is better on exact_match" in page.text
         assert "Swap A and B" in page.text
+        assert "Spec graphs" in page.text
+        assert page.text.count('class="spec-graph spec-graph--pair"') == 2
+        assert 'class="graph-pair"' in page.text
+        assert "Side A · baseline: all candidates" in page.text
+        assert "Side B · candidate: all candidates" in page.text
+        assert 'viewBox="0 0 640.0 ' in page.text
+        # Both sides keep their box labels and use the short headings.
+        assert 'class="sg-label"' in page.text
+        assert ">Prompts</text>" in page.text and ">Gates</text>" in page.text
+        assert ">Prompts and contexts</text>" not in page.text
+        assert ">Gates and verdict</text>" not in page.text
+        assert 'id="graph-a-desc"' in page.text and 'id="graph-b-desc"' in page.text
+        assert "<colgroup>" in page.text
+        assert 'class="col-judge"' in page.text
+        assert 'class="num col-lg cost-cell" data-label="Cost / correct" title=' in (
+            page.text
+        )
+        assert 'class="mono metric-name" title="exact_match"' in page.text
+        # One judge on both sides reads as two lines, not four.
+        assert page.text.count('class="judge-name"') == 1
+        assert page.text.count('class="judge-detail"') == 1
+        assert 'class="judge-detail" title=' in page.text
 
         response = await client.get(
             "/api/compare", params={"a": run_a, "b": run_b}
@@ -321,6 +343,9 @@ async def test_different_judges_are_flagged_and_never_called_a_win(
         assert "not a win" in page.text
         assert "Not comparable" in page.text
         assert "verdict-better" not in page.text
+        assert ">A · judge-a<" in page.text
+        assert ">B · judge-b<" in page.text
+        assert page.text.count('class="judge-name"') == 2
 
         data = (
             await client.get("/api/compare", params={"a": run_a, "b": run_b})

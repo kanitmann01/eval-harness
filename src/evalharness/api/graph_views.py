@@ -55,6 +55,17 @@ _NODE_BOTTOM = 12.0
 _MIN_STROKE = 1.0
 _MAX_STROKE = 6.0
 _STROKE_PER_CELL = 0.25
+_THUMB_WIDTH = 96.0
+_THUMB_HEIGHT = 32.0
+_RAIL_WIDTH = 320.0
+_RAIL_NODE_HEIGHT = 18.0
+_RAIL_NODE_GAP = 5.0
+_RAIL_NODE_TOP = 20.0
+_RAIL_NODE_BOTTOM = 8.0
+_VARIANT_FULL = "full"
+_VARIANT_RAIL = "compact"
+_VARIANT_THUMB = "thumb"
+_RAIL_LABELS = {"feeds": "Prompts", "gates": "Gates"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,6 +144,7 @@ class SpecGraph:
     nodes: tuple[GraphNode, ...]
     edges: tuple[GraphEdge, ...]
     aria: str
+    variant: str = "full"
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,6 +163,7 @@ def spec_graph(
     cells: Sequence[CellRecord] = (),
     gates: Sequence[GateResult] = (),
     width: float = 960.0,
+    short_labels: bool = False,
 ) -> SpecGraph:
     """Return the spec graph for one resolved spec, optionally with run data.
 
@@ -160,11 +173,20 @@ def spec_graph(
         gates: Gate results of the run. When omitted, declared gates show as
             pending.
         width: The total width of the SVG in pixels.
+        short_labels: Use the abbreviated column headings. A narrow graph keeps
+            its box labels but cannot fit the long headings.
 
     The model is pure and tolerant: missing keys and empty collections only
     remove boxes, they never raise.
     """
-    return _build_graph(spec, cells=cells, gates=gates, width=width, running=False)
+    return _build_graph(
+        spec,
+        cells=cells,
+        gates=gates,
+        width=width,
+        running=False,
+        short=short_labels,
+    )
 
 
 def run_graph(
@@ -173,6 +195,7 @@ def run_graph(
     gates: Sequence[GateResult] = (),
     *,
     width: float = 960.0,
+    short_labels: bool = False,
 ) -> SpecGraph:
     """Return the spec graph for a stored run, with live run state applied.
 
@@ -181,6 +204,7 @@ def run_graph(
         cells: Stored cells of the run.
         gates: Stored gate results of the run.
         width: The total width of the SVG in pixels.
+        short_labels: Use the abbreviated column headings.
 
     A run that is still pending or running shows its verdict as pending even
     when gate results are already present.
@@ -192,7 +216,139 @@ def run_graph(
         gates=gates,
         width=width,
         running=run.status in _RUNNING_STATUSES,
+        short=short_labels,
     )
+
+
+def thumbnail(
+    graph: SpecGraph,
+    *,
+    width: float = _THUMB_WIDTH,
+    height: float = _THUMB_HEIGHT,
+) -> SpecGraph:
+    """Return a miniature copy of a graph for a decorative table cell.
+
+    Parameters:
+        graph: The full graph to shrink.
+        width: The width of the miniature in pixels.
+        height: The height of the miniature in pixels.
+
+    Boxes, wires and tones survive the scale. The labels stay in the model but
+    the template omits them, because no label is legible at 96 by 32 pixels.
+    """
+    scale_x = width / graph.width if graph.width else 1.0
+    scale_y = height / graph.height if graph.height else 1.0
+    columns = tuple(
+        GraphColumn(
+            key=column.key,
+            label=column.label,
+            x=column.x * scale_x,
+            w=column.w * scale_x,
+        )
+        for column in graph.columns
+    )
+    nodes = tuple(
+        GraphNode(
+            key=node.key,
+            column=node.column,
+            label=node.label,
+            detail=node.detail,
+            tone=node.tone,
+            x=node.x * scale_x,
+            y=node.y * scale_y,
+            w=node.w * scale_x,
+            h=node.h * scale_y,
+        )
+        for node in graph.nodes
+    )
+    return SpecGraph(
+        width=float(width),
+        height=float(height),
+        columns=columns,
+        nodes=nodes,
+        edges=_rebuild_edges(graph.edges, nodes),
+        aria=graph.aria,
+        variant=_VARIANT_THUMB,
+    )
+
+
+def compact_graph(graph: SpecGraph) -> SpecGraph:
+    """Return the same graph re-laid out for a narrow panel.
+
+    Parameters:
+        graph: The full graph to compress.
+
+    The columns and tones are the ones the full graph uses, the geometry is not:
+    a rail or a side-by-side pair is a few hundred pixels wide, so node labels
+    would be grey mush. Only the short column headings, the box order and the
+    wire weights remain.
+    """
+    columns = _columns(graph.width, short=True)
+    by_column = {column.key: column for column in columns}
+    depth: dict[str, int] = {}
+    nodes: list[GraphNode] = []
+    for node in graph.nodes:
+        index = depth.get(node.column, 0)
+        depth[node.column] = index + 1
+        nodes.append(
+            GraphNode(
+                key=node.key,
+                column=node.column,
+                label=node.label,
+                detail=node.detail,
+                tone=node.tone,
+                x=by_column[node.column].x,
+                y=_RAIL_NODE_TOP + index * (_RAIL_NODE_HEIGHT + _RAIL_NODE_GAP),
+                w=by_column[node.column].w,
+                h=_RAIL_NODE_HEIGHT,
+            )
+        )
+    rows = max(depth.values(), default=1)
+    height = (
+        _RAIL_NODE_TOP
+        + (rows - 1) * (_RAIL_NODE_HEIGHT + _RAIL_NODE_GAP)
+        + _RAIL_NODE_HEIGHT
+        + _RAIL_NODE_BOTTOM
+    )
+    return SpecGraph(
+        width=graph.width,
+        height=height,
+        columns=columns,
+        nodes=tuple(nodes),
+        edges=_rebuild_edges(graph.edges, tuple(nodes)),
+        aria=graph.aria,
+        variant=_VARIANT_RAIL,
+    )
+
+
+def rail_graph(spec: Mapping[str, Any]) -> SpecGraph:
+    """Return the compact graph drawn inside the wizard rail.
+
+    Parameters:
+        spec: The draft spec being edited.
+    """
+    return compact_graph(spec_graph(spec, width=_RAIL_WIDTH))
+
+
+def _rebuild_edges(
+    edges: Sequence[GraphEdge],
+    nodes: Sequence[GraphNode],
+) -> tuple[GraphEdge, ...]:
+    """Return the same wires routed between boxes at their new positions."""
+    by_key = {node.key: node for node in nodes}
+    rebuilt: list[GraphEdge] = []
+    for edge in edges:
+        rebuilt.append(
+            GraphEdge(
+                source_key=edge.source_key,
+                target_key=edge.target_key,
+                cells=edge.cells,
+                tone=edge.tone,
+                state=edge.state,
+                path=_edge_path(by_key[edge.source_key], by_key[edge.target_key]),
+            )
+        )
+    return tuple(rebuilt)
 
 
 def _build_graph(
@@ -202,6 +358,7 @@ def _build_graph(
     gates: Sequence[GateResult],
     width: float,
     running: bool,
+    short: bool = False,
 ) -> SpecGraph:
     """Assemble the columns, boxes, wires and aria sentence for one graph."""
     source = _mapping(spec.get("source"))
@@ -230,7 +387,7 @@ def _build_graph(
     faces = _gate_faces(gates, spec)
     replicas = _replicas(spec)
 
-    columns = _columns(width)
+    columns = _columns(width, short=short)
 
     case_nodes = [
         _node(
@@ -443,8 +600,13 @@ def _node(
     )
 
 
-def _columns(width: float) -> tuple[GraphColumn, ...]:
-    """Return the five fixed columns, left to right."""
+def _columns(width: float, *, short: bool = False) -> tuple[GraphColumn, ...]:
+    """Return the five fixed columns, left to right.
+
+    Parameters:
+        width: The width of the drawing in pixels.
+        short: Use the abbreviated headings the narrow rail has room for.
+    """
     column_w = width * _COLUMN_WIDTH_RATIO
     stride = width * (_COLUMN_WIDTH_RATIO + _COLUMN_GAP_RATIO)
     margin = width * _MARGIN_RATIO
@@ -455,10 +617,14 @@ def _columns(width: float) -> tuple[GraphColumn, ...]:
         ("metrics", "Metrics"),
         ("gates", "Gates and verdict"),
     )
-    return tuple(
-        GraphColumn(key=key, label=label, x=margin + stride * index, w=column_w)
-        for index, (key, label) in enumerate(definitions)
-    )
+    columns: list[GraphColumn] = []
+    for index, (key, label) in enumerate(definitions):
+        if short:
+            label = _RAIL_LABELS.get(key, label)
+        columns.append(
+            GraphColumn(key=key, label=label, x=margin + stride * index, w=column_w)
+        )
+    return tuple(columns)
 
 
 def _stack_boxes(index: int) -> float:

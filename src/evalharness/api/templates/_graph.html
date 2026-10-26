@@ -1,19 +1,30 @@
 {# Spec graph: the console signature element, rendered as one static SVG. #}
-{% macro render_graph(graph, classes='') %}
-<svg class="spec-graph {{ classes }}" role="img" aria-label="{{ graph.aria }}" viewBox="0 0 {{ graph.width }} {{ graph.height }}" preserveAspectRatio="xMidYMin meet" xmlns="http://www.w3.org/2000/svg">
+{% macro render_graph(graph, classes='', hidden=false, title_id='', desc_id='') %}
+{%- set compact = graph.variant == 'compact' -%}
+{%- set thumb = graph.variant == 'thumb' -%}
+<svg class="spec-graph {{ classes }}"{% if hidden %} aria-hidden="true" focusable="false"{% elif title_id and desc_id %} role="img" aria-labelledby="{{ title_id }} {{ desc_id }}"{% else %} role="img" aria-label="{{ graph.aria }}"{% endif %} viewBox="0 0 {{ graph.width }} {{ graph.height }}" preserveAspectRatio="xMidYMin meet" xmlns="http://www.w3.org/2000/svg">
+  {%- if not hidden and title_id and desc_id %}
+  <title id="{{ title_id }}">Spec graph</title>
+  <desc id="{{ desc_id }}">{{ graph.aria }}</desc>
+  {%- endif %}
   {% for column in graph.columns %}
   <g class="sg-col">
+    {%- if not thumb %}
     <text class="sg-col-label" x="{{ column.x }}" y="14">{{ column.label }}</text>
+    {%- endif %}
   </g>
   {% endfor %}
   {% for edge in graph.edges %}
-  <path class="sg-edge sg-state-{{ edge.state }}" d="{{ edge.path }}" style="stroke-width: {{ edge.stroke_width }}px; stroke-dasharray: {{ edge.dasharray }}"></path>
+  <path class="sg-edge sg-state-{{ edge.state }}" d="{{ edge.path }}" style="stroke-width: {% if thumb %}1{% else %}{{ edge.stroke_width }}{% endif %}px; stroke-dasharray: {% if thumb %}none{% else %}{{ edge.dasharray }}{% endif %}" vector-effect="non-scaling-stroke"></path>
   {% endfor %}
   {% for node in graph.nodes %}
   <g class="sg-node sg-tone-{{ node.tone }}">
-    <rect x="{{ node.x }}" y="{{ node.y }}" width="{{ node.w }}" height="{{ node.h }}" rx="2"></rect>
+    <title>{{ node.label }}</title>
+    <rect x="{{ node.x }}" y="{{ node.y }}" width="{{ node.w }}" height="{{ node.h }}" rx="{% if thumb %}1{% else %}2{% endif %}"></rect>
+    {%- if not compact and not thumb %}
     <text class="sg-label" x="{{ node.x }}" y="{{ node.y }}" transform="translate(8 16)">{{ node.label }}</text>
     <text class="sg-detail" x="{{ node.x }}" y="{{ node.y }}" transform="translate(8 30)">{{ node.detail }}</text>
+    {%- endif %}
   </g>
   {% endfor %}
 </svg>

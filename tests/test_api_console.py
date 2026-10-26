@@ -150,6 +150,8 @@ async def test_run_list_shows_status_spec_cost_pass_rate_and_duration(
         assert "$" in text
         assert "s</td>" in text
         assert text.count('class="run-row"') == 3
+        assert text.count('class="spec-graph spec-graph--mini"') == 3
+        assert text.count('aria-hidden="true"') >= 3
         assert "2 need attention" in text
 
         rows = (await client.get("/api/runs")).json()
@@ -202,6 +204,12 @@ async def test_heatmap_has_one_link_per_planned_cell(console: Console) -> None:
         for cell in cells:
             assert f'data-cell-id="{cell.cell_id}"' in text
         assert "Candidate by case" in text
+        assert "Spec graph" in text
+        assert 'id="graph-title"' in text
+        assert 'class="spec-graph-figure"' in text
+        assert 'class="spec-graph-caption"' in text
+        assert "over 2 cases produce 4 cells" in text
+        assert 'class="heat-rate"' in text
         assert "95% interval" in text
         assert "gate-pass" in text
         assert "exact_match" in text
