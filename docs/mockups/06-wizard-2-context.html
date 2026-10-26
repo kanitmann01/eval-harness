@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>06 wizard step 2, context - console v2 wireframes</title>
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<div class="strip">
+  <span class="strip-l">screen 06 / 11</span>
+  <span class="strip-m">wizard step 2, context</span>
+  <span class="strip-r">route <code>/comparisons/new?step=2</code> &middot; <a href="index.html">index</a> &middot; <a href="05-wizard-1-vary.html">prev: wizard 1 vary</a> &middot; <a href="07-wizard-3-candidates.html">next: wizard 3 candidates</a></span>
+</div>
+<div class="page">
+  <main class="wf" aria-label="wireframe of wizard step 2, context">
+  <div class="pnav">
+    <span class="brand">evalh</span>
+    <a class="nav" href="01-runs.html">Runs</a>
+    <a class="nav on" href="04-comparisons.html">Comparisons</a>
+    <a class="nav" href="10-credentials.html">Credentials</a>
+    <span class="spacer"></span>
+    <a class="btn btn-primary btn-sm" href="05-wizard-1-vary.html">+ New comparison</a>
+  </div>
+  <div class="wf-sec">
+    <div class="crumbs"><a href="04-comparisons.html">Comparisons</a> / new / step 2 of 4</div>
+    <div class="row between mt10">
+      <div class="stack" style="gap:3px">
+        <h1>Context <span class="mk">02</span></h1>
+        <p class="lede">Attach the reference material a candidate may read. Chunk counts are measured now, with the same chunker the run will use.</p>
+      </div>
+      <span class="chip">draft not written yet</span>
+    </div>
+  </div>
+  <div class="wizard">
+      <div class="rail">
+        <span class="rail-h">steps <span class="mk">01</span></span>
+        <ol>
+        <li class="done"><a href="05-wizard-1-vary.html" style="border:0;display:flex;justify-content:space-between;gap:5px;width:100%"><span>1 what varies</span><span>3 prompts, 2 models</span></a></li>
+        <li class="now"><a href="06-wizard-2-context.html" style="border:0;display:flex;justify-content:space-between;gap:5px;width:100%"><span>2 context</span><span>1 set</span></a></li>
+        <li class=""><a href="07-wizard-3-candidates.html" style="border:0;display:flex;justify-content:space-between;gap:5px;width:100%"><span>3 candidates</span><span>6</span></a></li>
+        <li class=""><a href="08-wizard-4-cost.html" style="border:0;display:flex;justify-content:space-between;gap:5px;width:100%"><span>4 cost</span><span>-</span></a></li>
+        </ol>
+        <div class="est">estimate so far <span class="mk">10</span>
+          <b>$0.0851</b>
+          <span>24 cells, 6 candidates</span>
+          <span class="thumb" style="display:block;margin:5px 0;padding:2px"><svg class="g thumb" viewBox="0 0 148 68" width="148" height="68" role="img" aria-label="preview: 3 prompts and 2 models, 4 cases, 24 cells, exact_match gate"><rect class="node" x="2" y="34" width="20" height="16"/><rect class="node" x="30" y="8" width="26" height="16"/><rect class="node" x="30" y="50" width="26" height="16"/><rect class="node" x="64" y="8" width="24" height="14"/><rect class="node" x="64" y="28" width="24" height="14"/><rect class="node" x="64" y="52" width="24" height="14"/><rect class="node" x="96" y="16" width="22" height="14"/><rect class="node" x="96" y="38" width="22" height="14"/><rect class="node bad" x="124" y="2" width="22" height="14"/><rect class="node" x="124" y="22" width="22" height="14"/><rect class="node open" x="124" y="52" width="22" height="14"/><path class="edge" d="M22 42 H59 M56 16 H59 M56 58 H59 M59 15 V59 M59 15 H64 M59 35 H64 M59 59 H64"/><path class="edge w2" d="M88 15 H92 M88 35 H92 M88 59 H92 M92 15 V59 M92 23 H96 M92 45 H96"/><path class="edge fail" d="M118 23 H124"/><path class="edge" d="M118 45 H124 M133 36 V50 M129 47 L133 52 L137 47"/><text class="xg" x="119" y="21" text-anchor="middle">x</text></svg></span>
+          <span>medians 1,240 + 180 tokens per cell, prices from table stub-1, claude-sonnet-4-6</span>
+        </div>
+      </div>
+    <div class="wbody">
+      <div class="field">
+        <label>context sets, 1 attached <span class="mk">02</span></label>
+        <table>
+          <thead><tr><th>name</th><th>source</th><th class="num">chunks</th><th class="num">characters</th><th>attach</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="mono-sm">policy <span class="chip chip-strong">attached</span></td>
+              <td class="mono-sm dim">chunk policy-1, from support-routing.yaml</td>
+              <td class="num">3</td>
+              <td class="num">412</td>
+              <td class="mono-sm">all 6 candidates</td>
+            </tr>
+            <tr>
+              <td class="mono-sm">policy-v2</td>
+              <td class="mono-sm dim">uploaded policy-v2.txt, 19:48</td>
+              <td class="num">5</td>
+              <td class="num">690</td>
+              <td><span class="btn btn-sm">attach</span></td>
+            </tr>
+            <tr>
+              <td class="mono-sm">none</td>
+              <td class="mono-sm dim">no context, prompt only</td>
+              <td class="num">0</td>
+              <td class="num">0</td>
+              <td><span class="btn btn-sm">attach</span></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="row mt6">
+          <span class="btn btn-sm btn-ghost">paste text <span class="mk">03</span></span>
+          <span class="btn btn-sm btn-ghost">upload file</span>
+          <span class="btn btn-sm btn-ghost">import knowledge graph export</span>
+          <span class="hint">chunk size 200, overlap 40, fixed at run time</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>attach to candidates <span class="mk">04</span></label>
+        <div class="row">
+          <span class="chip">policy, all 6</span>
+          <span class="chip">override per candidate on step 3</span>
+        </div>
+        <p class="hint">One attached set means contexts do not multiply the cell count. Two sets would double it, 24 cells to 48.</p>
+      </div>
+      <div class="field" style="margin:0">
+        <label>credentials this step needs <span class="mk">05</span></label>
+        <table>
+          <thead><tr><th>adapter</th><th>credential</th><th>vault state</th><th>needed for</th><th></th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="mono-sm">openai</td>
+              <td class="mono-sm">openai-prod <span class="dim">fp 9f2c41ae</span></td>
+              <td><span class="st"><b>ok</b> verified 10-24 18:02</span></td>
+              <td class="mono-sm dim">3 candidates, gpt-5.4-mini</td>
+              <td><span class="btn-link">test</span></td>
+            </tr>
+            <tr>
+              <td class="mono-sm">anthropic</td>
+              <td class="mono-sm">anthropic-prod <span class="dim">fp 4b7e0d13</span></td>
+              <td><span class="st"><b>!</b> never tested</span></td>
+              <td class="mono-sm dim">3 candidates, claude-sonnet-4-6</td>
+              <td><a href="10-credentials.html">test on credentials</a></td>
+            </tr>
+          </tbody>
+        </table>
+        <div class="callout mt10">
+          <span class="g">!</span>
+          <div><span class="callout-title">anthropic-prod is not tested <span class="mk">06</span></span> Step 3 cannot select it until a test passes. The button below the table opens the credentials page with the row already open.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="wfoot">
+    <span class="step-note">step 2 of 4, nothing written to disk yet <span class="mk">09</span></span>
+    <div class="row"><a class="btn" href="05-wizard-1-vary.html">Back</a><a class="btn btn-primary" href="07-wizard-3-candidates.html">Next: candidates</a></div>
+  </div>
+  </main>
+  <aside class="notes" aria-label="annotations">
+    <h2 class="notes-h">annotations 01-12</h2>
+    <ol class="nlist">
+    <li><span class="n">01</span><div><strong>step rail</strong><p>Second step marked current, first step still clickable so a name change is one click away. The estimate stays put: contexts do not change it until one is attached.</p></div></li>
+    <li><span class="n">02</span><div><strong>context sets</strong><p>One row per named set with the chunk count and total characters measured now. A cell that reads 5 chunks at 690 characters is a cost the operator can see.</p></div></li>
+    <li><span class="n">03</span><div><strong>sources</strong><p>Paste text, upload a file, or import a knowledge graph export. The exported graph arrives as one named set, not as loose nodes.</p></div></li>
+    <li><span class="n">04</span><div><strong>attach here or in step 3</strong><p>Attaching to all candidates here is the shortcut. Step 3 keeps a per candidate selector, which wins over this default.</p></div></li>
+    <li><span class="n">05</span><div><strong>credentials block</strong><p>Lists the adapter each model needs, the credential in the vault, its fingerprint prefix and its last test. It does not ask for a key on this page.</p></div></li>
+    <li><span class="n">06</span><div><strong>untested credential</strong><p>Untested is not the same as broken. It blocks selection on step 3 and points at the credentials page, it does not stop the draft from being saved.</p></div></li>
+    <li><span class="n">07</span><div><strong>chunking</strong><p>Chunk count and characters are produced by the same chunker and settings the run will use, at 200 characters with 40 overlap. No estimate from a different tokenizer.</p></div></li>
+    <li><span class="n">08</span><div><strong>multiplication</strong><p>Contexts are an axis too. One set attached to all candidates leaves the count alone, two sets attached to all candidates double it.</p></div></li>
+    <li><span class="n">09</span><div><strong>nothing written</strong><p>The footer repeats that the draft is still in the form. Leaving here keeps the draft, nothing is created on disk.</p></div></li>
+    <li><span class="n">10</span><div><strong>footer</strong><p>Back and Next. Back does not lose edits, the draft YAML travels in the hidden field either way.</p></div></li>
+    <li><span class="n">11</span><div><strong>upload errors</strong><p>An unreadable upload names the file, the line and the fix, and the set is not attached. Partial attachment is never silent.</p></div></li>
+    <li><span class="n">12</span><div><strong>mobile</strong><p>The rail becomes a horizontal strip, the context table becomes one card per set with the counts on the second line.</p></div></li>
+    </ol>
+  </aside>
+</div>
+<section class="mob" aria-labelledby="mob-h">
+  <h2 class="mob-h" id="mob-h">375px <span>same screen at 375 wide, single column, 44px targets</span></h2>
+  <div class="phones">
+    <div class="phone">
+      <div class="pbar"><span>375 x 812</span><span>wizard 2</span></div>
+      <div class="pnav-m"><span>Runs</span><b>Comparisons</b><span>Credentials</span></div>
+      <div class="pbody">
+        <span class="crumbs">Comparisons / new / step 2 of 4</span>
+        <div class="row" style="gap:4px"><span class="chip">1 what varies</span><span class="chip chip-strong">2 context</span><span class="chip">3 candidates</span><span class="chip">4 cost</span></div>
+        <div class="pline"><span>$0.0851 estimate</span><span>24 cells</span></div>
+        <h1 style="font-size:19px">Context</h1>
+        <div class="pcard">
+          <div class="pline"><span class="pname">policy</span><span class="chip chip-strong">attached</span></div>
+          <div class="pline"><span>3 chunks, 412 characters</span><span></span></div>
+          <div class="pline"><span class="dim">chunk policy-1</span><span>all 6</span></div>
+        </div>
+        <div class="pcard">
+          <div class="pline"><span class="pname">policy-v2</span><span>5 chunks</span></div>
+          <div class="pline"><span>690 characters</span><span class="pbtn">attach</span></div>
+        </div>
+        <div class="row" style="gap:4px"><span class="pbtn" style="flex:1">paste</span><span class="pbtn" style="flex:1">upload</span></div>
+        <div class="pcard">
+          <div class="pline"><span>openai-prod</span><span>ok verified</span></div>
+          <div class="pline"><span>anthropic-prod</span><span>! never tested</span></div>
+          <div class="pline"><a href="10-credentials.html">test on credentials</a><span></span></div>
+        </div>
+        <div class="row" style="gap:5px"><a class="pbtn" href="05-wizard-1-vary.html" style="flex:1">Back</a><a class="pbtn pbtn-primary" href="07-wizard-3-candidates.html" style="flex:2">Next: candidates</a></div>
+      </div>
+    </div>
+  </div>
+</section>
+</body>
+</html>

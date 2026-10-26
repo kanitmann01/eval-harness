@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>02 run detail - console v2 wireframes</title>
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<div class="strip">
+  <span class="strip-l">screen 02 / 11</span>
+  <span class="strip-m">run detail</span>
+  <span class="strip-r">route <code>/runs/2f9ac1d7</code> &middot; <a href="index.html">index</a> &middot; <a href="01-runs.html">prev: runs</a> &middot; <a href="03-compare.html">next: compare</a></span>
+</div>
+<div class="page">
+  <main class="wf" aria-label="wireframe of run detail">
+  <div class="pnav">
+    <span class="brand">evalh</span>
+    <a class="nav on" href="01-runs.html">Runs</a>
+    <a class="nav" href="04-comparisons.html">Comparisons</a>
+    <a class="nav" href="10-credentials.html">Credentials</a>
+    <span class="spacer"></span>
+    <a class="btn btn-primary btn-sm" href="05-wizard-1-vary.html">+ New comparison</a>
+  </div>
+  <div class="wf-sec">
+    <div class="crumbs"><a href="01-runs.html">Runs</a> / support-routing / <b>2f9ac1d7</b> <span class="mk">01</span></div>
+    <div class="row between mt10">
+      <div class="stack" style="gap:4px">
+        <h1>support-routing</h1>
+        <div class="identity">
+          <span>run <b>2f9ac1d7</b></span><span>seed 7</span><span>harness 0.4.2</span><span>started 2026-10-25 19:12:44</span>
+        </div>
+      </div>
+      <div class="row">
+        <a class="btn" href="03-compare.html">Compare with v2</a>
+        <span class="btn btn-ghost">Re-run</span>
+      </div>
+    </div>
+  </div>
+  <div class="wf-sec">
+    <div class="row between">
+      <div class="row">
+        <span class="st"><b>ok</b> finished</span>
+        <span class="chip chip-warn">x 1 gate failed</span>
+        <span class="mk">03</span>
+      </div>
+      <span class="chip">12 cells, 4 cases, 3 candidates</span>
+    </div>
+    <div class="row mt10" style="gap:0;align-items:stretch">
+      <div class="grow" style="flex:1 1 0;min-width:0;border-right:1px solid var(--line);padding-right:9px">
+        <span class="eyebrow">pass rate <span class="mk">04</span></span>
+        <div class="rate" style="font-size:19px">83.3%</div>
+        <div class="mono-sm dim">10/12 cells, 95% interval 65.0 to 85.5</div>
+      </div>
+      <div class="grow" style="flex:1 1 0;min-width:0;border-right:1px solid var(--line);padding:0 9px">
+        <span class="eyebrow">cost <span class="mk">05</span></span>
+        <div class="rate" style="font-size:19px">$0.0143</div>
+        <div class="mono-sm dim">of $1.00 cap <span class="meter"><span style="width:1.4%"></span></span></div>
+      </div>
+      <div class="grow" style="flex:1 1 0;min-width:0;border-right:1px solid var(--line);padding:0 9px">
+        <span class="eyebrow">cells</span>
+        <div class="rate" style="font-size:19px">12</div>
+        <div class="mono-sm dim">2 failed, 0 error, 0 cancelled</div>
+      </div>
+      <div class="grow" style="flex:1 1 0;min-width:0;border-right:1px solid var(--line);padding:0 9px">
+        <span class="eyebrow">gates</span>
+        <div class="rate" style="font-size:19px">1/2</div>
+        <div class="mono-sm dim">exact_match failed</div>
+      </div>
+      <div class="grow" style="flex:1 1 0;min-width:0;padding-left:9px">
+        <span class="eyebrow">duration <span class="mk">06</span></span>
+        <div class="rate" style="font-size:19px">41.2s</div>
+        <div class="mono-sm dim">cancel shows only while live</div>
+      </div>
+    </div>
+  </div>
+  <div class="wf-sec">
+    <div class="sec-h"><span><b>Spec graph</b> <span class="mk">07</span></span><span>server rendered svg, one role img <span class="mk">08</span></span></div>
+    <div class="graph-wrap"><svg class="g" viewBox="0 0 660 208" width="660" height="208" role="img" aria-label="support-routing run 2f9ac1d7: 3 candidates over 4 cases produce 12 cells, 2 metrics, 2 gates, exact_match failed at 0.833 against a floor of 0.90"><text class="axis" x="49" y="10" text-anchor="middle">cases</text><text class="axis" x="174" y="10" text-anchor="middle">prompts + contexts</text><text class="axis" x="326" y="10" text-anchor="middle">candidates</text><text class="axis" x="484" y="10" text-anchor="middle">metrics</text><text class="axis" x="612" y="10" text-anchor="middle">gates + verdict</text><path class="edge" d="M92 101 H244 M230 60 H244 M230 138 H244 M244 38 V166 M244 38 H262 M244 102 H262 M244 166 H262"/><path class="edge w2" d="M390 38 H406 M390 102 H406 M390 166 H406 M406 38 V166 M406 79 H424 M406 131 H424"/><path class="edge fail" d="M544 79 H558 V57 H566"/><path class="edge" d="M544 131 H558 V119 H566"/><path class="edge" d="M612 78 V152 M612 140 V152 M607 148 L612 156 L617 148"/><text class="xg" x="551" y="74" text-anchor="middle">x</text><rect class="node" x="6" y="78" width="86" height="46"/><text class="gn" x="49" y="100" text-anchor="middle">cases</text><text class="gc" x="49" y="110" text-anchor="middle">4</text><rect class="node" x="118" y="38" width="112" height="44"/><text class="gn" x="174" y="59" text-anchor="middle">prompts</text><text class="gc" x="174" y="69" text-anchor="middle">3 - concise, explained, cited</text><rect class="node" x="118" y="116" width="112" height="44"/><text class="gn" x="174" y="137" text-anchor="middle">contexts</text><text class="gc" x="174" y="147" text-anchor="middle">1 - policy, 3 chunks</text><rect class="node" x="262" y="22" width="128" height="32"/><text class="gn" x="326" y="37" text-anchor="middle">mini-concise</text><text class="gc" x="326" y="47" text-anchor="middle">4 cells</text><rect class="node" x="262" y="86" width="128" height="32"/><text class="gn" x="326" y="101" text-anchor="mi... (line truncated to 2000 chars)
+    <div class="graph-cap"><span>3 candidates over 4 cases make 12 cells. 2 metrics, 2 gates, 1 failed.</span><span>edge weight = cells carried</span></div>
+  </div>
+  <div class="wf-sec">
+    <div class="sec-h"><span><b>Heatmap</b> candidate rows, case columns <span class="mk">09</span></span><span>cell opens the sheet below <span class="mk">10</span></span></div>
+    <div class="row between" style="align-items:flex-start">
+      <table class="heat-table">
+        <caption>12 cells. p pass, x fail, ! error, - no cell recorded</caption>
+        <thead><tr><th class="caseh" scope="col">candidate</th><th class="caseh" scope="col" title="What is 6 times 7?">case-1</th><th class="caseh" scope="col" title="Refund window in days">case-2</th><th class="caseh" scope="col" title="What is 7 times 6?">case-3</th><th class="caseh" scope="col" title="Which team owns escalated refunds">case-4</th><th class="caseh" scope="col">cells</th></tr></thead>
+        <tbody>
+          <tr><th class="rowh" scope="row">mini-concise</th><td class="cell pass" title="case-1 pass">p</td><td class="cell pass" title="case-2 pass">p</td><td class="cell pass" title="case-3 pass">p</td><td class="cell pass" title="case-4 pass">p</td><td class="sumcol">4/4</td></tr>
+          <tr><th class="rowh" scope="row">mini-explained</th><td class="cell pass" title="case-1 pass">p</td><td class="cell pass" title="case-2 pass">p</td><td class="cell sel" title="case-3 fail, selected">x</td><td class="cell pass" title="case-4 pass">p</td><td class="sumcol">3/4</td></tr>
+          <tr><th class="rowh" scope="row">mini-cited</th><td class="cell pass" title="case-1 pass">p</td><td class="cell pass" title="case-2 pass">p</td><td class="cell pass" title="case-3 pass">p</td><td class="cell fail" title="case-4 fail">x</td><td class="sumcol">3/4</td></tr>
+        </tbody>
+      </table>
+      <div class="stack" style="gap:4px;max-width:220px">
+        <span class="eyebrow">legend</span>
+        <div class="legend"><span>p</span> pass <span>x</span> fail <span>!</span> error <span>-</span> no checks</div>
+        <p class="hint">Grey fill marks pass. Fail carries a dashed border and an x, error a dotted border and a !, so state never rests on tone.</p>
+      </div>
+    </div>
+  </div>
+  <div class="wf-sec">
+    <div class="sec-h"><span><b>Cell sheet</b> mini-explained / case-3</span><span><span class="btn-link">previous</span> &middot; <span class="btn-link">next failing cell</span></span></div>
+    <div class="row top" style="gap:14px">
+      <div class="stack grow" style="flex:2 1 260px;gap:8px">
+        <div class="field" style="margin:0">
+          <label>case prompt</label>
+          <div class="inp">What is 7 times 6?</div>
+        </div>
+        <div class="field" style="margin:0">
+          <label>answer, recorded</label>
+          <div class="inp mono">41</div>
+          <p class="err"><b>exact_match</b> expected 42, got 41. Compare is exact after trim, digits only.</p>
+        </div>
+        <div class="field" style="margin:0">
+          <label>checks, 1 fail of 2 <span class="mk">11</span></label>
+          <table>
+            <thead><tr><th>check</th><th>result</th><th>reason and evidence</th></tr></thead>
+            <tbody>
+              <tr><td class="mono-sm">exact_match</td><td><span class="st"><b>x</b> fail</span></td><td class="mono-sm">answer != expected <span class="dim">{"expected":"42","observed":"41","rule":"trim, digits only"}</span></td></tr>
+              <tr><td class="mono-sm">citation_support</td><td><span class="st"><b>o</b> pass</span></td><td class="mono-sm">no citations required for this case <span class="dim">{"judge":"strict-judge","judge_config_hash":"c1f0"}</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="row">
+          <span class="btn">cell.json</span>
+          <span class="btn">answer.txt</span>
+          <span class="hint">artifact links, 404 copy if the file is gone</span>
+        </div>
+      </div>
+      <div class="stack grow" style="flex:1 1 190px;gap:6px">
+        <span class="eyebrow">telemetry</span>
+        <table>
+          <tbody>
+            <tr><td class="dim">prompt tokens</td><td class="num">1,042</td></tr>
+            <tr><td class="dim">completion tokens</td><td class="num">12</td></tr>
+            <tr><td class="dim">tool calls</td><td class="num">0</td></tr>
+            <tr><td class="dim">latency</td><td class="num">2,140 ms</td></tr>
+            <tr><td class="dim">usage source</td><td class="num">provider</td></tr>
+            <tr><td class="dim">cost answer</td><td class="num">$0.000519</td></tr>
+            <tr><td class="dim">cost judge</td><td class="num">$0.000000</td></tr>
+            <tr><td class="dim">cost tools</td><td class="num">$0.000000</td></tr>
+          </tbody>
+        </table>
+        <p class="hint">answer 41 is the whole recorded answer, not a truncation.</p>
+      </div>
+    </div>
+  </div>
+  <div class="wf-sec">
+    <div class="sec-h"><span><b>Same page, other states</b> <span class="mk">12</span></span><span>copy only, one state renders at a time</span></div>
+    <div class="stack" style="gap:6px">
+      <div class="callout callout-info"><span class="g">o</span><div><span class="callout-title">running</span> 7 of 12 cells. Progress streams over SSE from <span class="mono">/runs/c73e81d5/events</span>. Cancel sits at the right of the verdict bar and stops after the cell in flight.</div></div>
+      <div class="callout callout-info"><span class="g">-</span><div><span class="callout-title">cancelled</span> Cancelled after 7 of 12 cells. 5 cells have no result, cost is what the 7 spent.</div></div>
+      <div class="callout callout-info"><span class="g">!</span><div><span class="callout-title">budget exceeded</span> Stopped at $0.0500 of $0.0500 cap, 18 of 24 cells recorded. Raise the cap and re-run, the recorded cells are kept.</div></div>
+      <div class="callout callout-info"><span class="g">x</span><div><span class="callout-title">artifact missing</span> answer.txt is not on disk for this cell. The run row and the checks are still here. Re-run the cell to regenerate it.</div></div>
+    </div>
+  </div>
+  </main>
+  <aside class="notes" aria-label="annotations">
+    <h2 class="notes-h">annotations 01-12</h2>
+    <ol class="nlist">
+    <li><span class="n">01</span><div><strong>crumbs and identity</strong><p>Route is /runs/2f9ac1d7. Crumb goes back to the list, the run id stays in mono next to seed and harness version so a report can be reproduced.</p></div></li>
+    <li><span class="n">02</span><div><strong>verdict bar</strong><p>One row of six facts, in the same order as the template: status, pass rate, cost, cells, gates, duration. It is the whole answer before any scrolling.</p></div></li>
+    <li><span class="n">03</span><div><strong>status and gate chip</strong><p>Two separate facts. The run finished ok and a gate failed, so both show. The chip carries an x glyph as well as the words, never tone alone.</p></div></li>
+    <li><span class="n">04</span><div><strong>pass rate</strong><p>Percentage, fraction and the 95% Wilson interval. At n=12 the interval is wide, 65.0 to 85.5, and it is shown so a 83.3% is not read as a precise score.</p></div></li>
+    <li><span class="n">05</span><div><strong>cost</strong><p>Spend against the cap with a meter. The cap comes from the spec snapshot, not from today's config, so re-running the same spec is comparable.</p></div></li>
+    <li><span class="n">06</span><div><strong>duration and cancel</strong><p>Finished runs show duration only. While live, cancel renders in this slot, and it is the only destructive control on the page.</p></div></li>
+    <li><span class="n">07</span><div><strong>spec graph</strong><p>Full width, five fixed columns: cases, prompts and contexts, candidates, metrics, gates and verdict. Same graph as the list thumbnail, larger and labelled.</p></div></li>
+    <li><span class="n">08</span><div><strong>graph edges and state</strong><p>Hairlines, square corners. The failing edge is dashed with an x glyph and the failed gate is dashed too, so the failure survives a greyscale print.</p></div></li>
+    <li><span class="n">09</span><div><strong>heatmap</strong><p>One row per candidate, one column per case, cell count on the right. Cell links are the only way into the sheet, so the sheet always has a cell in hand.</p></div></li>
+    <li><span class="n">10</span><div><strong>cell sheet</strong><p>Opens for the selected cell: prompt, recorded answer, every check with reason and evidence JSON, telemetry, cost split, artifact links. Escape closes, focus returns to the cell.</p></div></li>
+    <li><span class="n">11</span><div><strong>empty checks and error cells</strong><p>A cell with no checks says so instead of showing an empty table. An error cell shows the recorded error and its stack is not exposed, only the message.</p></div></li>
+    <li><span class="n">12</span><div><strong>other states</strong><p>Running streams over SSE, cancelled names the partial count, budget exceeded names the cap, a missing artifact names the file. All four keep the rest of the page.</p></div></li>
+    </ol>
+  </aside>
+</div>
+<section class="mob" aria-labelledby="mob-h">
+  <h2 class="mob-h" id="mob-h">375px <span>same screen at 375 wide, single column, 44px targets</span></h2>
+  <div class="phones">
+    <div class="phone">
+      <div class="pbar"><span>375 x 812</span><span>run detail</span></div>
+      <div class="pnav-m"><b>Runs</b><span>Comparisons</span><span>Credentials</span></div>
+      <div class="pbody">
+        <span class="crumbs">Runs / support-routing / 2f9ac1d7</span>
+        <h1 style="font-size:19px">support-routing</h1>
+        <div class="row" style="gap:5px"><span class="chip">ok</span><span class="chip chip-warn">x gate failed</span></div>
+        <div class="pcard">
+          <div class="pline"><span>pass rate</span><span>83.3%</span></div>
+          <div class="pline"><span class="dim">10/12, 65.0 to 85.5</span><span class="dim">12 cells</span></div>
+          <div class="pline"><span>cost</span><span>$0.0143</span></div>
+          <div class="pline"><span>gates</span><span>x 1 of 2</span></div>
+          <div class="pline"><span>duration</span><span>41.2s</span></div>
+        </div>
+        <div class="pstages">
+          <div class="pstage"><span>cases</span><span>4</span></div>
+          <div class="pstage"><span>prompts + contexts</span><span>3 / 1</span></div>
+          <div class="pstage"><span>candidates</span><span>3</span></div>
+          <div class="pstage"><span>metrics</span><span>2</span></div>
+          <div class="pstage bad"><span>gates + verdict</span><span>x 1 of 2</span></div>
+        </div>
+        <p class="hint">graph becomes a vertical stage list, top to bottom, same order as the columns.</p>
+        <div class="pcard">
+          <div class="pline"><span class="pname">mini-explained</span><span>3/4</span></div>
+          <div class="pline"><span>case-1 p</span><span>case-2 p</span><span>case-3 x</span><span>case-4 p</span></div>
+          <div class="pline"><span class="dim">row scrolls under a sticky name</span><span></span></div>
+        </div>
+        <div class="pcard">
+          <div class="pline"><span>answer</span><span>41</span></div>
+          <div class="pline"><span>exact_match</span><span>x expected 42</span></div>
+          <div class="pline"><span>1,042 + 12 tokens</span><span>$0.000519</span></div>
+        </div>
+        <span class="pbtn">cell.json</span>
+      </div>
+    </div>
+  </div>
+</section>
+</body>
+</html>

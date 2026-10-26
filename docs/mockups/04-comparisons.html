@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>04 comparisons - console v2 wireframes</title>
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<div class="strip">
+  <span class="strip-l">screen 04 / 11</span>
+  <span class="strip-m">comparisons</span>
+  <span class="strip-r">route <code>/specs</code> &middot; <a href="index.html">index</a> &middot; <a href="03-compare.html">prev: compare</a> &middot; <a href="05-wizard-1-vary.html">next: wizard 1 vary</a></span>
+</div>
+<div class="page">
+  <main class="wf" aria-label="wireframe of comparisons">
+  <div class="pnav">
+    <span class="brand">evalh</span>
+    <a class="nav" href="01-runs.html">Runs</a>
+    <a class="nav on" href="04-comparisons.html">Comparisons</a>
+    <a class="nav" href="10-credentials.html">Credentials</a>
+    <span class="spacer"></span>
+    <a class="btn btn-primary btn-sm" href="05-wizard-1-vary.html">+ New comparison</a>
+  </div>
+  <div class="wf-sec">
+    <div class="row between">
+      <div class="stack" style="gap:3px">
+        <span class="eyebrow">Workspace <span class="mk">01</span></span>
+        <h1>Comparisons <span class="mk">02</span></h1>
+        <p class="lede">Saved comparison specs. The YAML file is the object: this table reads it, Run launches it, Edit opens the structured form.</p>
+      </div>
+      <div class="row">
+        <span class="chip">7 files</span>
+        <span class="chip">6 valid</span>
+        <span class="chip chip-warn">1 invalid</span>
+        <a class="btn btn-primary" href="05-wizard-1-vary.html">+ New comparison</a>
+      </div>
+    </div>
+    <p class="hint mt10">The nav label reads Comparisons. The route is still /specs and the file name is still the comparison name, so links and scripts do not move.</p>
+  </div>
+  <div class="wf-sec">
+    <div class="sec-h"><span><b>Comparison files</b> <span class="mk">03</span></span><span>sorted by modified, newest first</span></div>
+    <table>
+      <caption>7 comparison files in this workspace</caption>
+      <thead>
+        <tr><th scope="col">Comparison</th><th scope="col">What varies <span class="mk">04</span></th><th scope="col" class="num">Estimate <span class="mk">05</span></th><th scope="col">Last run <span class="mk">06</span></th><th scope="col">Actions <span class="mk">07</span></th></tr>
+      </thead>
+      <tbody>
+      <tr>
+        <td>
+          <div class="table-title"><a href="09-edit-form.html">support-routing</a><span class="run-id mono">support-routing.yaml</span></div>
+        </td>
+        <td class="mono-sm">3 prompts x 1 model<br><span class="dim">3 candidates, 4 cases</span></td>
+        <td class="num">$0.0143</td>
+        <td>
+          <span class="st"><b>ok</b> 2f9ac1d7</span><br><span class="chip">gates passed</span>
+        </td>
+        <td>
+          <div class="row" style="gap:5px">
+            <a class="btn btn-primary btn-sm" href="08-wizard-4-cost.html">Run</a>
+            <a class="btn btn-sm" href="09-edit-form.html">Edit</a>
+            <span class="btn btn-sm btn-ghost">Duplicate</span>
+            <span class="btn-link">YAML</span>
+          </div>
+          
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div class="table-title"><a href="09-edit-form.html">support-routing-v2</a><span class="run-id mono">support-routing-v2.yaml</span></div>
+        </td>
+        <td class="mono-sm">3 prompts x 1 model<br><span class="dim">3 candidates, 4 cases</span></td>
+        <td class="num">$0.0192</td>
+        <td>
+          <span class="st"><b>ok</b> 7c03e5b1</span><br><span class="chip">gates passed</span>
+        </td>
+        <td>
+          <div class="row" style="gap:5px">
+            <a class="btn btn-primary btn-sm" href="08-wizard-4-cost.html">Run</a>
+            <a class="btn btn-sm" href="09-edit-form.html">Edit</a>
+            <span class="btn btn-sm btn-ghost">Duplicate</span>
+            <span class="btn-link">YAML</span>
+          </div>
+          
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div class="table-title"><a href="09-edit-form.html">gated-failing</a><span class="run-id mono">gated-failing.yaml</span></div>
+        </td>
+        <td class="mono-sm">1 candidate<br><span class="dim">1 candidates, 1 cases</span></td>
+        <td class="num">$0.000013</td>
+        <td>
+          <span class="st"><b>ok</b> 5e27c6a3</span><br><span class="chip chip-warn">x gate failed, 0.0% vs 90.0%</span>
+        </td>
+        <td>
+          <div class="row" style="gap:5px">
+            <a class="btn btn-primary btn-sm" href="08-wizard-4-cost.html">Run</a>
+            <a class="btn btn-sm" href="09-edit-form.html">Edit</a>
+            <span class="btn btn-sm btn-ghost">Duplicate</span>
+            <span class="btn-link">YAML</span>
+          </div>
+          
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div class="table-title"><a href="09-edit-form.html">gated</a><span class="run-id mono">gated.yaml</span></div>
+        </td>
+        <td class="mono-sm">1 candidate<br><span class="dim">1 candidates, 1 cases</span></td>
+        <td class="num">$0.000013</td>
+        <td>
+          <span class="st"><b>ok</b> b18d40fa</span><br><span class="chip">gates passed</span>
+        </td>
+        <td>
+          <div class="row" style="gap:5px">
+            <a class="btn btn-primary btn-sm" href="08-wizard-4-cost.html">Run</a>
+            <a class="btn btn-sm" href="09-edit-form.html">Edit</a>
+            <span class="btn btn-sm btn-ghost">Duplicate</span>
+            <span class="btn-link">YAML</span>
+          </div>
+          
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div class="table-title"><a href="09-edit-form.html">judge-metrics</a><span class="run-id mono">judge-metrics.yaml</span></div>
+        </td>
+        <td class="mono-sm">2 metrics x 2 judges<br><span class="dim">1 candidates, 1 cases</span></td>
+        <td class="num">$0.0021</td>
+        <td>
+          <span class="st"><b>ok</b> 9a4f2b07</span><br><span class="chip">gates passed</span>
+        </td>
+        <td>
+          <div class="row" style="gap:5px">
+            <a class="btn btn-primary btn-sm" href="08-wizard-4-cost.html">Run</a>
+            <a class="btn btn-sm" href="09-edit-form.html">Edit</a>
+            <span class="btn btn-sm btn-ghost">Duplicate</span>
+            <span class="btn-link">YAML</span>
+          </div>
+          
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div class="table-title"><a href="09-edit-form.html">smoke</a><span class="run-id mono">smoke.yaml</span></div>
+        </td>
+        <td class="mono-sm">2 prompts x 1 model<br><span class="dim">2 candidates, 1 cases</span></td>
+        <td class="num">$0.000026</td>
+        <td>
+          <span class="chip">never run</span>
+        </td>
+        <td>
+          <div class="row" style="gap:5px">
+            <a class="btn btn-primary btn-sm" href="08-wizard-4-cost.html">Run</a>
+            <a class="btn btn-sm" href="09-edit-form.html">Edit</a>
+            <span class="btn btn-sm btn-ghost">Duplicate</span>
+            <span class="btn-link">YAML</span>
+          </div>
+          
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <div class="table-title"><a href="09-edit-form.html">gated-v2</a><span class="run-id mono">gated-v2.yaml</span></div>
+        </td>
+        <td class="mono-sm">1 candidate<br><span class="dim">1 candidates, 1 cases</span></td>
+        <td class="num">$0.000013</td>
+        <td>
+          <span class="chip chip-warn">x invalid</span><br><span class="hint">gates[0].metric: 'exact-matcher' is not a declared metric. Use exact_match.</span>
+        </td>
+        <td>
+          <div class="row" style="gap:5px">
+            <span class="btn is-disabled" aria-disabled="true">Run</span>
+            <a class="btn btn-sm" href="09-edit-form.html">Edit</a>
+            <span class="btn btn-sm btn-ghost">Duplicate</span>
+            <span class="btn-link">YAML</span>
+          </div>
+          <p class="hint">Run is disabled until the file validates.</p>
+        </td>
+      </tr>
+      </tbody>
+    </table>
+    <p class="tbl-note">empty state lives in <a href="11-empty-error.html">11 empty and error</a>. Estimates recompute when a spec or the price table changes.</p>
+  </div>
+  </main>
+  <aside class="notes" aria-label="annotations">
+    <h2 class="notes-h">annotations 01-12</h2>
+    <ol class="nlist">
+    <li><span class="n">01</span><div><strong>header</strong><p>Counts on the left, one primary action on the right. The primary action is New comparison, the same one the Runs page carries, so the wizard is reachable from both places.</p></div></li>
+    <li><span class="n">02</span><div><strong>label and route</strong><p>The nav says Comparisons, the route stays /specs. The rename is a label change only, and the file name is still the name used by the CLI, so a script does not break.</p></div></li>
+    <li><span class="n">03</span><div><strong>table</strong><p>One row per YAML file. The file name is the identity, the display name comes from inside the file, and both are shown.</p></div></li>
+    <li><span class="n">04</span><div><strong>what varies</strong><p>The axes summary is the cheapest answer to what this comparison changes, 3 prompts x 1 model, with candidate and case counts under it.</p></div></li>
+    <li><span class="n">05</span><div><strong>estimate</strong><p>Price table times observed medians for the cells this spec would run. It is an estimate, the run page holds the recorded cost.</p></div></li>
+    <li><span class="n">06</span><div><strong>last run</strong><p>Run id plus the verdict of that run. A valid spec can have a failing run, and the row says which happened.</p></div></li>
+    <li><span class="n">07</span><div><strong>actions</strong><p>Run is primary here because a saved comparison exists to be run. Edit opens the structured form, Duplicate copies the YAML, YAML opens the raw file.</p></div></li>
+    <li><span class="n">08</span><div><strong>invalid spec</strong><p>The row shows the field, the bad value and the fix. Run is disabled and names the reason on the button, Edit stays open so the file can be fixed.</p></div></li>
+    <li><span class="n">09</span><div><strong>never run</strong><p>A valid file with no runs shows never run and keeps Run enabled. No verdict is invented for it.</p></div></li>
+    <li><span class="n">10</span><div><strong>gate verdict</strong><p>A run that finished ok and failed its gate shows ok plus a gate chip, never a single merged status.</p></div></li>
+    <li><span class="n">11</span><div><strong>duplicate</strong><p>Copies the file to name-copy.yaml, opens it in the YAML editor, and leaves the original untouched. Nothing is saved until the copy is written.</p></div></li>
+    <li><span class="n">12</span><div><strong>mobile</strong><p>One card per comparison: name, axes, estimate, last run, then actions in a row of 44px targets.</p></div></li>
+    </ol>
+  </aside>
+</div>
+<section class="mob" aria-labelledby="mob-h">
+  <h2 class="mob-h" id="mob-h">375px <span>same screen at 375 wide, single column, 44px targets</span></h2>
+  <div class="phones">
+    <div class="phone">
+      <div class="pbar"><span>375 x 812</span><span>comparisons</span></div>
+      <div class="pnav-m"><span>Runs</span><b>Comparisons</b><span>Credentials</span></div>
+      <div class="pbody">
+        <h1 style="font-size:19px">Comparisons</h1>
+        <div class="row" style="gap:5px"><span class="chip">7 files</span><span class="chip">6 valid</span><span class="chip chip-warn">1 invalid</span></div>
+        <a class="pbtn pbtn-primary" href="05-wizard-1-vary.html">+ New comparison</a>
+        <div class="pcard">
+          <div class="pline"><span class="pname">support-routing</span><span>ok</span></div>
+          <div class="pline"><span>3 prompts x 1 model</span><span>$0.0143</span></div>
+          <div class="pline"><span>3 candidates, 4 cases</span><span class="chip chip-warn">x gate failed</span></div>
+          <div class="pline"><span>2f9ac1d7</span><span></span></div>
+          <div class="pline"><a class="pbtn" href="08-wizard-4-cost.html">Run</a><a class="pbtn" href="09-edit-form.html">Edit</a><span class="pbtn">Duplicate</span></div>
+        </div>
+        <div class="pcard">
+          <div class="pline"><span class="pname">support-routing-v2</span><span>ok</span></div>
+          <div class="pline"><span>3 prompts x 1 model</span><span>$0.0192</span></div>
+          <div class="pline"><span>3 candidates, 4 cases</span><span class="chip">gates passed</span></div>
+          <div class="pline"><a class="pbtn" href="08-wizard-4-cost.html">Run</a><a class="pbtn" href="09-edit-form.html">Edit</a><span class="pbtn">Duplicate</span></div>
+        </div>
+        <div class="pcard">
+          <div class="pline"><span class="pname">smoke</span><span>never run</span></div>
+          <div class="pline"><span>2 prompts x 1 model</span><span>$0.000026</span></div>
+          <div class="pline"><a class="pbtn" href="08-wizard-4-cost.html">Run</a><a class="pbtn" href="09-edit-form.html">Edit</a><span class="pbtn">Duplicate</span></div>
+        </div>
+        <div class="pcard">
+          <div class="pline"><span class="pname">gated-v2</span><span class="chip chip-warn">x invalid</span></div>
+          <div class="pline"><span>gates[0].metric 'exact-matcher'</span><span></span></div>
+          <div class="pline"><span class="pbtn is-disabled">Run</span><a class="pbtn" href="09-edit-form.html">Edit</a></div>
+        </div>
+        <p class="hint">Run targets are 44px tall on touch.</p>
+      </div>
+    </div>
+  </div>
+</section>
+</body>
+</html>
