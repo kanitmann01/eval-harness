@@ -22,8 +22,14 @@ import pytest
 
 import tests.adapters  # noqa: F401 - importing registers the test adapters
 from evalharness.api.app import create_app
+from evalharness.api.views import (
+    heatmap,
+    progress_summary,
+    run_verdict,
+)
 from evalharness.cli import main
 from evalharness.core.config import Settings
+from evalharness.core.models import CellRecord, Check, GateResult, RunRecord
 from evalharness.storage.db import Database
 from evalharness.storage.repository import Repository
 from tests.helpers import (
@@ -144,6 +150,9 @@ async def test_run_list_shows_status_spec_cost_pass_rate_and_duration(
         assert "$" in text
         assert "s</td>" in text
         assert text.count('class="run-row"') == 3
+        assert text.count('class="spec-graph spec-graph--mini"') == 3
+        assert text.count('aria-hidden="true"') >= 3
+        assert "2 need attention" in text
 
         rows = (await client.get("/api/runs")).json()
         assert len(rows) == 3
@@ -195,9 +204,19 @@ async def test_heatmap_has_one_link_per_planned_cell(console: Console) -> None:
         for cell in cells:
             assert f'data-cell-id="{cell.cell_id}"' in text
         assert "Candidate by case" in text
+        assert "Spec graph" in text
+        assert 'id="graph-title"' in text
+        assert 'class="spec-graph-figure"' in text
+        assert 'class="spec-graph-caption"' in text
+        assert "over 2 cases produce 4 cells" in text
+        assert 'class="heat-rate"' in text
         assert "95% interval" in text
         assert "gate-pass" in text
         assert "exact_match" in text
+        assert "All 4 checks passed across 4 cells." in text
+        assert f'data-copy="{run_id}"' in text
+        assert 'aria-valuemax="4"' in text and 'aria-valuenow="4"' in text
+        assert "2/2 checks" in text
 
         detail = (await client.get(f"/api/runs/{run_id}")).json()
         assert detail["spec_name"] == "alpha-spec"
@@ -653,3 +672,137 @@ async def test_run_list_formats_tiny_costs_without_a_fake_zero(
         assert "$0.0000066" in beta
         assert "$0.00" in gamma
         assert "$0.000000" not in text
+
+def _verdict_run(status: str, **overrides: Any) -> RunRecord:
+    """Build a run record for the verdict view model tests."""
+    values: dict[str, Any] = {
+        "run_id": "run-1",
+        "status": status,
+        "n_cells": 1,
+        "budget_usd": 1.0,
+        "cost_usd": 0.5,
+    }
+    values.update(overrides)
+    return RunRecord(**values)
+
+
+def _verdict_cell(status: str = "ok") -> CellRecord:
+    """Build one stored cell for the heatmap and progress tests."""
+    return CellRecord(
+        cell_id=f"cell-{status}",
+        run_id="run-1",
+        candidate="stub",
+        case_id="case-1",
+        replica=1,
+        status=status,
+    )
+
+
+def test_verdict_view_covers_every_terminal_outcome() -> None:
+    """The verdict view states each outcome in words, not colour alone."""
+    passed = Check(metric="exact_match", passed=True)
+    failed = Check(metric="exact_match", passed=False)
+
+    running = run_verdict(
+        _verdict_run("running", n_cells=4), [_verdict_cell()], [passed], []
+    )
+    assert (running.tone, running.label) == ("info", "Running")
+    assert "In progress: 1 of 4 cells" in running.headline
+
+    error = run_verdict(_verdict_run("error"), [], [], [])
+    assert (error.tone, error.label) == ("bad", "Failed")
+    assert "ended with an error" in error.headline
+
+    budget = run_verdict(
+        _verdict_run("budget_exceeded", cost_usd=2.0), [], [], []
+    )
+    assert (budget.tone, budget.label) == ("bad", "Budget exceeded")
+    assert budget.budget_over is True
+    assert "budget cap stopped the run" in budget.warning
+    assert "Stopped at the budget cap" in budget.headline
+
+    cancelled = run_verdict(
+        _verdict_run("cancelled", n_cells=4), [_verdict_cell()], [], []
+    )
+    assert (cancelled.tone, cancelled.label) == ("neutral", "Cancelled")
+    assert "Cancelled after 1 of 4 cells" in cancelled.headline
+    assert "cancelled run keeps" in cancelled.warning
+
+    empty = run_verdict(_verdict_run("ok", n_cells=0), [], [], [])
+    assert (empty.tone, empty.label) == ("info", "No checks")
+    assert empty.pass_rate is None
+    assert empty.headline == "The run completed but recorded no checks."
+
+    wrong = run_verdict(_verdict_run("ok"), [_verdict_cell()], [failed], [])
+    assert (wrong.tone, wrong.label) == ("warn", "Checks failed")
+    assert wrong.headline == "0 of 1 checks passed across 1 cells."
+
+    partial = run_verdict(
+        _verdict_run("partial", n_cells=2),
+        [_verdict_cell("ok"), _verdict_cell("error")],
+        [passed],
+        [],
+    )
+    assert (partial.tone, partial.label) == ("warn", "Partial")
+    assert "did not produce an answer" in partial.headline
+    assert "1 cell errored" in partial.warning
+
+    gate = GateResult(
+        name="floor", metric="exact_match", passed=False, n=1, observed=0.0
+    )
+    gated = run_verdict(_verdict_run("ok"), [], [], [gate])
+    assert (gated.tone, gated.label) == ("warn", "Gate failed")
+    assert "Gate not cleared: exact_match" in gated.headline
+    assert "Gate failed: exact_match" in gated.warning
+
+    short = run_verdict(
+        _verdict_run("ok", n_cells=4), [_verdict_cell()], [passed], []
+    )
+    assert short.headline == "1 of 1 checks passed across 1 of 4 cells."
+
+
+def test_heatmap_marks_unplanned_positions_and_row_rates() -> None:
+    """A candidate row can miss a case the other candidate recorded."""
+    cells = [
+        CellRecord(
+            cell_id="a1",
+            run_id="run-1",
+            candidate="a",
+            case_id="case-1",
+            replica=1,
+            status="ok",
+        ),
+        CellRecord(
+            cell_id="b2",
+            run_id="run-1",
+            candidate="b",
+            case_id="case-2",
+            replica=1,
+            status="ok",
+        ),
+    ]
+    columns, rows = heatmap(
+        cells, {"a1": [Check(metric="exact_match", passed=True)]}, "run-1", "a1"
+    )
+    assert len(columns) == 2
+    assert rows[0].cells_recorded == 1
+    assert rows[0].cells_planned == 2
+    assert rows[0].cells[1] is None
+    assert rows[0].check_rate == 1.0
+    assert rows[0].cells[0] is not None and rows[0].cells[0].selected is True
+    assert rows[1].check_rate is None
+
+
+def test_progress_view_covers_empty_and_partial_runs() -> None:
+    """An empty run has no percentage; a stopped run is partially recorded."""
+    empty = progress_summary(_verdict_run("ok", n_cells=0), [])
+    assert (empty.state, empty.percent) == ("empty", 0)
+    assert empty.label == "no cells planned"
+
+    partial = progress_summary(
+        _verdict_run("cancelled", n_cells=4), [_verdict_cell()]
+    )
+    assert (partial.state, partial.percent) == ("partial", 25)
+    assert partial.note == (
+        "The run stopped before every planned cell was recorded."
+    )

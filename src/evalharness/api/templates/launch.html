@@ -1,70 +1,126 @@
 {% extends "base.html" %}
 {% block title %}Launch &middot; evalharness console{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div>
+<div class="page-header">
+  <div class="page-header-main">
+    <p class="eyebrow">Launch</p>
     <h1>Launch a run</h1>
     <p class="lede">Start a saved spec the way <code>evalh run</code> does. The run lands on its detail page and streams progress there.</p>
   </div>
-  <span class="count">{{ specs|length }} spec{{ "" if specs|length == 1 else "s" }}</span>
+  <div class="page-actions">
+    <span class="chip">{{ specs|length }} spec{{ "" if specs|length == 1 else "s" }}</span>
+    <a class="btn btn-ghost" href="{{ url_for('spec_list') }}">Specs</a>
+  </div>
 </div>
 
 {% if running_run_id %}
-<p class="callout callout-info" role="status">
-  <strong>One run at a time.</strong>
-  Run <a class="mono" href="{{ url_for('run_detail', run_id=running_run_id) }}">{{ running_run_id }}</a> is already running in this console.
-  Cancel it from its run page, or with <code>POST /api/runs/{{ running_run_id }}/cancel</code>, before launching another.
-</p>
+<div class="callout callout-info launch-lock" role="status">
+  <span class="callout-icon" aria-hidden="true">i</span>
+  <div>
+    <span class="callout-title">One run at a time.</span>
+    Run <a class="mono" href="{{ url_for('run_detail', run_id=running_run_id) }}">{{ running_run_id }}</a> is already running in this console.
+    Cancel it from its run page, or with <code>POST /api/runs/{{ running_run_id }}/cancel</code>, before launching another.
+  </div>
+</div>
 {% endif %}
 
 {% if error %}
-<p class="callout callout-error" role="alert">{{ error }}</p>
+<div class="callout callout-error" role="alert">
+  <span class="callout-icon" aria-hidden="true">✕</span>
+  <div><span class="callout-title">Launch refused.</span> {{ error }}</div>
+</div>
 {% endif %}
 
-<section class="panel" aria-labelledby="launch-heading">
-  <div class="panel-head">
-    <div>
-      <h2 id="launch-heading">Spec and budget</h2>
-      <p class="subtle">Specs are read from <code title="{{ specs_root }}">{{ specs_root|shortpath }}</code>. A launch is refused before anything executes when the estimate is over the cap.</p>
+<div class="launch-layout">
+  <section class="panel launch-form-panel" aria-labelledby="launch-heading">
+    <div class="panel-head">
+      <div>
+        <h2 id="launch-heading">Spec and budget</h2>
+        <p class="subtle">Specs are read from <code title="{{ specs_root }}">{{ specs_root|shortpath }}</code>. A launch is refused before anything executes when the estimate is over the cap.</p>
+      </div>
     </div>
-  </div>
-  <form class="launch-form" method="post" action="{{ url_for('launch_submit') }}">
-    {% if specs %}
-    <label for="spec">Spec</label>
-    <select id="spec" name="spec">
-      {% for spec in specs %}
-      <option value="{{ spec.name }}"{% if spec.name == selected %} selected{% endif %}>{{ spec.name }}</option>
-      {% endfor %}
-    </select>
-    {% else %}
-    <label for="spec">Spec path</label>
-    <input id="spec" name="spec" type="text" value="{{ selected }}" placeholder="my-spec.yaml" aria-describedby="spec-hint">
-    <p class="subtle" id="spec-hint">No specs were found in <code title="{{ specs_root }}">{{ specs_root|shortpath }}</code>. Write a YAML spec there, or type its path relative to that directory. Set <code>EVALH_SPECS_DIR</code> to point the console at another directory.</p>
-    {% endif %}
-    <label for="budget">Budget override (USD)</label>
-    <input id="budget" name="budget_override_usd" type="number" min="0" step="0.000001" inputmode="decimal" value="{{ budget_override }}" aria-describedby="estimate-hint">
-    <p class="subtle" id="estimate-hint">
-      {% if estimate %}
-      Estimate: <strong title="{{ estimate.cost_usd|usdexact }}">{{ estimate.cost_usd|usd }}</strong> over {{ estimate.cells }} cell{{ "" if estimate.cells == 1 else "s" }} for <span class="mono">{{ spec_name }}</span> ({{ estimate.prompt_tokens }} prompt + {{ estimate.completion_tokens }} completion tokens per cell; spec budget <span title="{{ spec_budget_usd|usdexact }}">{{ spec_budget_usd|usd }}</span>). Leave the override empty to use the spec budget.
-      {% elif estimate_error %}
-      The estimate is unavailable: {{ estimate_error }}
-      {% else %}
-      Choose a spec and press &ldquo;Show estimate&rdquo; to see its projected cost before launching.
-      {% endif %}
-    </p>
-    <p class="form-actions">
-      <button type="submit">Launch run</button>
-      <button type="submit" class="button-secondary" formmethod="get" formaction="{{ url_for('launch_page') }}">Show estimate</button>
-    </p>
-  </form>
-</section>
+    <form class="launch-form" method="post" action="{{ url_for('launch_submit') }}">
+      <div class="field">
+        <label for="spec">Spec</label>
+        {% if specs %}
+        <select id="spec" name="spec" data-estimate-select aria-describedby="spec-hint">
+          {% for spec in specs %}
+          <option value="{{ spec.name }}"{% if spec.name == selected %} selected{% endif %}>{{ spec.name }}</option>
+          {% endfor %}
+        </select>
+        <p class="field-hint" id="spec-hint">Changing the spec updates the estimate when JavaScript is on. Without it, press Show estimate.</p>
+        {% else %}
+        <input id="spec" name="spec" type="text" value="{{ selected }}" placeholder="my-spec.yaml" aria-describedby="spec-hint">
+        <p class="field-hint" id="spec-hint">No specs were found in <code title="{{ specs_root }}">{{ specs_root|shortpath }}</code>. Write a YAML spec there, or type its path relative to that directory. Set <code>EVALH_SPECS_DIR</code> to point the console at another directory.</p>
+        {% endif %}
+      </div>
 
-<section class="panel" aria-labelledby="how-heading">
-  <h2 id="how-heading">What happens next</h2>
-  <ol class="launch-steps">
-    <li>The spec is validated, planned and estimated exactly like a command line run. An invalid spec, an over-budget estimate or a busy console is refused here with the reason and nothing is recorded.</li>
-    <li>The run executes in the background and writes its cells and events as they finish, so the heatmap and the live progress panel fill in without a reload.</li>
-    <li>Cancel from the run page stops between cells: finished cells are kept, the remaining cells read cancelled, and the run is recorded as cancelled with its partial results.</li>
-  </ol>
-</section>
+      <div class="field">
+        <label for="budget">Budget override (USD)</label>
+        <input id="budget" name="budget_override_usd" type="number" min="0" step="0.000001" inputmode="decimal" value="{{ budget_override }}" aria-describedby="budget-hint">
+        <p class="field-hint" id="budget-hint">Replaces the spec's <code>budget_usd</code> for this run only. Leave it empty to use the spec budget{% if spec_budget_usd is not none %} ({{ spec_budget_usd|usd }}){% endif %}. A launch over the cap is refused with 400 and records nothing.</p>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">Launch run</button>
+        <button type="submit" class="btn btn-secondary" formmethod="get" formaction="{{ url_for('launch_page') }}">Show estimate</button>
+      </div>
+    </form>
+  </section>
+
+  <aside class="launch-rail" aria-label="Estimate and behaviour">
+    {% if estimate %}
+    <section class="estimate-hero" aria-labelledby="estimate-heading">
+      <div class="panel-title-row">
+        <h2 id="estimate-heading">Estimate</h2>
+        <span class="chip">{{ "observed medians" if estimate.observed else "fallback medians" }}</span>
+      </div>
+      <p class="estimate-total" title="{{ estimate.cost_usd|usdexact }}">{{ estimate.cost_usd|usd }}</p>
+      <p class="field-hint">Estimate: <strong>{{ estimate.cells }} cell{{ "" if estimate.cells == 1 else "s" }}</strong> for <span class="mono">{{ spec_name }}</span>, at {{ (estimate.prompt_tokens / estimate.cells)|round|int }} prompt + {{ (estimate.completion_tokens / estimate.cells)|round|int }} completion tokens per cell ({{ estimate.prompt_tokens }} + {{ estimate.completion_tokens }} in total).</p>
+      {% if budget_percent is not none %}
+      <div class="estimate-meter">
+        <span class="meter {{ 'is-over' if over_budget else '' }}" aria-hidden="true"><span style="width: {{ budget_percent }}%"></span></span>
+        <div class="estimate-meter-labels"><span>{{ budget_percent }}% of the cap</span><span>cap {{ spec_budget_usd|usd }}</span></div>
+      </div>
+      {% endif %}
+      <dl class="facts">
+        <div><dt>Cells</dt><dd>{{ estimate.cells }}</dd></div>
+        <div><dt>Tokens (total)</dt><dd>{{ estimate.prompt_tokens }} + {{ estimate.completion_tokens }}</dd></div>
+        <div><dt>Spec budget</dt><dd>{{ spec_budget_usd|usd }}</dd></div>
+        <div><dt>Headroom</dt><dd>{{ headroom_usd|usd }}</dd></div>
+        <div><dt>Medians</dt><dd>{{ "measured by an earlier run" if estimate.observed else "fallback until a run records them" }}</dd></div>
+      </dl>
+      {% if over_budget %}
+      <div class="callout callout-warn" role="alert">
+        <span class="callout-icon" aria-hidden="true">!</span>
+        <div><span class="callout-title">Over the cap.</span> The estimate exceeds the spec budget; override it below or lower the matrix, or the launch is refused.</div>
+      </div>
+      {% endif %}
+    </section>
+    {% elif estimate_error %}
+    <div class="callout callout-error" role="alert">
+      <span class="callout-icon" aria-hidden="true">✕</span>
+      <div><span class="callout-title">The estimate is unavailable:</span> {{ estimate_error }}</div>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <span class="empty-icon" aria-hidden="true">∑</span>
+      <h2>Choose a spec</h2>
+      <p>Pick a spec and press Show estimate to see its projected cost, cells and token medians before launching.</p>
+    </div>
+    {% endif %}
+  </aside>
+
+  <section class="panel launch-steps-panel" aria-labelledby="how-heading">
+    <h2 id="how-heading">What happens next</h2>
+    <ol class="launch-steps">
+      <li>The spec is loaded, validated, planned and estimated exactly like a command line run. An invalid spec, an over-budget estimate or a busy console is refused here with the reason and nothing is recorded.</li>
+      <li>The run executes in the background and writes its cells and events as they finish, so the heatmap and the live progress panel fill in without a reload.</li>
+      <li>Cancel from the run page stops between cells: finished cells are kept, the remaining cells read cancelled, and the run is recorded as cancelled with its partial results.</li>
+    </ol>
+    {% if equivalent_command %}
+    <p class="field-hint">Equivalent command: <code>{{ equivalent_command }}</code> with the same <code>EVALH_*</code> environment.</p>
+    {% endif %}
+  </section>
+</div>
 {% endblock %}

@@ -189,7 +189,7 @@ async def test_round_trip_edit_validate_and_save(editor: Console) -> None:
         assert "stub-concise" in page.text
         assert "Check" in page.text and "Save" in page.text
         assert "Cells per candidate" in page.text
-        assert "Specs" in page.text
+        assert ">Comparisons</a>" in page.text
 
         spec = base_spec()
         spec["source"]["options"]["cases"].append(
@@ -220,6 +220,15 @@ async def test_round_trip_edit_validate_and_save(editor: Console) -> None:
         listing = await client.get("/specs", params={"saved": "smoke"})
         assert "Saved" in listing.text and "smoke.yaml" in listing.text
         assert sorted(item.name for item in path.parent.iterdir()) == ["smoke.yaml"]
+
+
+async def test_list_rows_open_the_structured_form(editor: Console) -> None:
+    """The list row action goes to the structured form, not the raw editor."""
+    async with _client(editor.app) as client:
+        assert (await _put(client, "smoke", _yaml())).status_code == 200
+        page = await client.get("/specs")
+        assert "/comparisons/smoke/edit" in page.text
+        assert "/specs/smoke/edit" not in page.text
 
 
 async def test_invalid_spec_names_the_field_and_is_never_written(

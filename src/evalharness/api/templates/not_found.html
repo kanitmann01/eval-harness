@@ -1,9 +1,14 @@
 {% extends "base.html" %}
 {% block title %}Not found &middot; evalharness console{% endblock %}
 {% block content %}
-<section class="panel empty-panel">
-  <h1>Not found</h1>
+<div class="empty-state" style="max-width: 44rem; padding: var(--space-7);">
+  <span class="empty-icon" aria-hidden="true">404</span>
+  <p class="eyebrow">Not found</p>
+  <h1>That resource does not exist</h1>
   <p>{{ message }}</p>
-  <p><a class="button-link" href="{{ url_for('run_list') }}">Back to all runs</a></p>
-</section>
+  <div class="empty-actions">
+    <a class="btn btn-primary" href="{{ url_for('run_list') }}">Back to all runs</a>
+    <a class="btn btn-secondary" href="{{ url_for('compare') }}">Compare runs</a>
+  </div>
+</div>
 {% endblock %}

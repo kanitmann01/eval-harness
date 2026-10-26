@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>console v2 wireframes, index</title>
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<div class="strip">
+  <span class="strip-l">screen 00 / hub</span>
+  <span class="strip-m">wireframe index</span>
+  <span class="strip-r">docs/mockups &middot; 11 screens &middot; <a href="01-runs.html">start at 01 runs</a> &middot; <a href="11-empty-error.html">last: 11 empty and error</a></span>
+</div>
+<div class="hub">
+  <div class="hub-h">
+    <div class="stack" style="gap:3px">
+      <h1 style="margin:0">console v2, lo-fi wireframes</h1>
+      <span class="eyebrow">eval-harness &middot; branch design/console-v2 &middot; contract docs/ux-flow.md section 6</span>
+    </div>
+    <div class="hub-meta">
+      11 screens, one shared stylesheet<br>
+      greyscale only, no JavaScript, no external assets<br>
+      real data from examples/specs and the run templates<br>
+      every file ends with the same screen at 375 wide
+    </div>
+  </div>
+
+  <div class="hub-sec">
+    <h2>how to read these</h2>
+    <div class="legend-grid">
+      <div class="legend-item"><span class="legend-box ph" style="width:26px;height:26px"></span><div><b>placeholder</b><p>media and unfilled regions are a box with a diagonal cross, never a stock image.</p></div></div>
+      <div class="legend-item"><span class="n" style="font-family:var(--mono);font-size:9.5px;border:1px solid var(--line);background:var(--fill);padding:0 4px">01</span><div><b>annotation number</b><p>restarts at 01 on every screen, follows reading order down the page. The same number appears inline as a small marker in the wireframe.</p></div></div>
+      <div class="legend-item"><span class="mono-sm" style="border:1px solid var(--ink);border-style:dashed;padding:0 4px">dashed</span><div><b>disabled or failing</b><p>disabled controls and failing edges share the dash. Text next to it, or an x glyph, says which.</p></div></div>
+      <div class="legend-item"><span class="mono-sm" style="font-weight:600">x</span><div><b>failing edge</b><p>the spec graph edge that failed carries a dashed stroke plus a small x. State is never colour alone.</p></div></div>
+      <div class="legend-item"><span class="mono-sm" style="border:1px solid var(--ink);padding:0 4px">375px</span><div><b>mobile frame</b><p>each file ends with a 375 wide frame of the same screen, so one file holds desktop and phone.</p></div></div>
+      <div class="legend-item"><span class="tokens"><span class="tok"><i style="background:#ffffff"></i>#ffffff</span><span class="tok"><i style="background:#f2f2f2"></i>#f2f2f2</span><span class="tok"><i style="background:#d4d4d4"></i>#d4d4d4</span><span class="tok"><i style="background:#8a8a8a"></i>#8a8a8a</span><span class="tok"><i style="background:#111111"></i>#111111</span></span><div><b>tokens</b><p>five values, no accent. Mono for labels and numbers, serif for headings, system fonts only.</p></div></div>
+    </div>
+  </div>
+
+  <div class="hub-sec">
+    <h2>flow map</h2>
+    <div class="flow">
+      <div class="flow-row">
+        <div class="fbox on"><b>top nav</b><span>Runs / Comparisons / Credentials</span></div>
+        <span class="farrow">-&gt;</span>
+        <div class="fbox"><b>+ New comparison</b><span>only primary in the nav</span></div>
+        <span class="farrow">-&gt;</span>
+        <div class="fbox"><b><a href="05-wizard-1-vary.html">05 wizard 1</a></b><span>what varies</span></div>
+        <span class="farrow">-&gt;</span>
+        <div class="fbox"><b><a href="06-wizard-2-context.html">06 step 2</a></b><span>context and credentials</span></div>
+        <span class="farrow">-&gt;</span>
+        <div class="fbox"><b><a href="07-wizard-3-candidates.html">07 step 3</a></b><span>candidate matrix</span></div>
+        <span class="farrow">-&gt;</span>
+        <div class="fbox"><b><a href="08-wizard-4-cost.html">08 step 4</a></b><span>estimate, two exits</span></div>
+      </div>
+      <div class="flow-row">
+        <span class="fnote">step 4, create and run -&gt;</span>
+        <div class="fbox"><b><a href="02-run-detail.html">02 run detail</a></b><span>verdict, graph, heatmap, cell sheet</span></div>
+        <span class="fnote">step 4, save only -&gt;</span>
+        <div class="fbox"><b><a href="09-edit-form.html">09 edit form</a></b><span>same rail, one page, inline saved</span></div>
+        <span class="fnote">edit, view YAML -&gt;</span>
+        <div class="fbox"><b>6.7 YAML editor</b><span class="dim">not drawn, unchanged behaviour</span></div>
+      </div>
+      <div class="flow-row">
+        <div class="fbox on"><b><a href="01-runs.html">01 runs</a></b><span>7 recorded, 3 need attention</span></div>
+        <span class="farrow">-&gt;</span>
+        <div class="fbox"><b><a href="02-run-detail.html">02 run detail</a></b><span>open a run</span></div>
+        <span class="farrow">-&gt;</span>
+        <div class="fbox"><b>cells</b><span>answer, checks, artifacts</span></div>
+        <span class="farrow">|</span>
+        <span class="fnote">select two runs, compare -&gt;</span>
+        <div class="fbox"><b><a href="03-compare.html">03 compare</a></b><span>decision banner, two graphs, shared nodes</span></div>
+      </div>
+      <div class="flow-row">
+        <div class="fbox on"><b><a href="04-comparisons.html">04 comparisons</a></b><span>route /specs, 7 rows</span></div>
+        <span class="farrow">-&gt;</span>
+        <div class="fbox"><b>run</b><span>to launch, then 02</span></div>
+        <span class="farrow">|</span>
+        <div class="fbox"><b><a href="09-edit-form.html">09 edit form</a></b><span>edit a spec</span></div>
+        <span class="farrow">|</span>
+        <div class="fbox"><b><a href="10-credentials.html">10 credentials</a></b><span>fixes step 3 blockers</span></div>
+        <span class="farrow">|</span>
+        <div class="fbox"><b><a href="11-empty-error.html">11 empty + 404</a></b><span>from any list or read</span></div>
+      </div>
+    </div>
+    <p class="fnote" style="margin-top:8px">6.8 launch is reached from step 4 and a comparisons row, never from the top nav. Its estimate and its two exits are drawn inside 08, its spec summary is the row it came from, so no separate launch file exists in this set.</p>
+  </div>
+
+  <div class="hub-sec">
+    <h2>screens and annotation numbering</h2>
+    <table class="hub-table">
+      <thead>
+        <tr><th>#</th><th>screen</th><th>route</th><th>annotations</th><th>regions in order</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="mono-sm">01</td>
+          <td class="mono-sm"><a href="01-runs.html">Runs</a></td>
+          <td class="route">/</td>
+          <td class="mono-sm dim">01-12 (12)</td>
+          <td class="notes-list"><span class="mono-sm dim" style="margin-right:6px">01 top strip</span><span class="mono-sm dim" style="margin-right:6px">02 top navigation</span><span class="mono-sm dim" style="margin-right:6px">03 page header</span><span class="mono-sm dim" style="margin-right:6px">04 compare selected</span><span class="mono-sm dim" style="margin-right:6px">05 toolbar</span><span class="mono-sm dim" style="margin-right:6px">06 run table</span><span class="mono-sm dim" style="margin-right:6px">07 graph thumbnail</span><span class="mono-sm dim" style="margin-right:6px">08 status</span><span class="mono-sm dim" style="margin-right:6px">09 pass rate</span><span class="mono-sm dim" style="margin-right:6px">10 cost</span><span class="mono-sm dim" style="margin-right:6px">11 running and error rows</span><span class="mono-sm dim" style="margin-right:6px">12 long list</span></td>
+        </tr>
+        <tr>
+          <td class="mono-sm">02</td>
+          <td class="mono-sm"><a href="02-run-detail.html">Run detail</a></td>
+          <td class="route">/runs/{id}</td>
+          <td class="mono-sm dim">01-12 (12)</td>
+          <td class="notes-list"><span class="mono-sm dim" style="margin-right:6px">01 crumbs and identity</span><span class="mono-sm dim" style="margin-right:6px">02 verdict bar</span><span class="mono-sm dim" style="margin-right:6px">03 status and gate chip</span><span class="mono-sm dim" style="margin-right:6px">04 pass rate</span><span class="mono-sm dim" style="margin-right:6px">05 cost</span><span class="mono-sm dim" style="margin-right:6px">06 duration and cancel</span><span class="mono-sm dim" style="margin-right:6px">07 spec graph</span><span class="mono-sm dim" style="margin-right:6px">08 graph edges and state</span><span class="mono-sm dim" style="margin-right:6px">09 heatmap</span><span class="mono-sm dim" style="margin-right:6px">10 cell sheet</span><span class="mono-sm dim" style="margin-right:6px">11 empty checks and error cells</span><span class="mono-sm dim" style="margin-right:6px">12 other states</span></td>
+        </tr>
+        <tr>
+          <td class="mono-sm">03</td>
+          <td class="mono-sm"><a href="03-compare.html">Compare</a></td>
+          <td class="route">/compare?runs=a,b</td>
+          <td class="mono-sm dim">01-12 (12)</td>
+          <td class="notes-list"><span class="mono-sm dim" style="margin-right:6px">01 header</span><span class="mono-sm dim" style="margin-right:6px">02 decision banner</span><span class="mono-sm dim" style="margin-right:6px">03 shared nodes</span><span class="mono-sm dim" style="margin-right:6px">04 paired metric table</span><span class="mono-sm dim" style="margin-right:6px">05 delta and interval</span><span class="mono-sm dim" style="margin-right:6px">06 cost per correct</span><span class="mono-sm dim" style="margin-right:6px">07 judge column</span><span class="mono-sm dim" style="margin-right:6px">08 one-sided cases</span><span class="mono-sm dim" style="margin-right:6px">09 pick a winner then open cells</span><span class="mono-sm dim" style="margin-right:6px">10 guards</span><span class="mono-sm dim" style="margin-right:6px">11 identical results</span><span class="mono-sm dim" style="margin-right:6px">12 mobile</span></td>
+        </tr>
+        <tr>
+          <td class="mono-sm">04</td>
+          <td class="mono-sm"><a href="04-comparisons.html">Comparisons</a></td>
+          <td class="route">/specs</td>
+          <td class="mono-sm dim">01-12 (12)</td>
+          <td class="notes-list"><span class="mono-sm dim" style="margin-right:6px">01 header</span><span class="mono-sm dim" style="margin-right:6px">02 label and route</span><span class="mono-sm dim" style="margin-right:6px">03 table</span><span class="mono-sm dim" style="margin-right:6px">04 what varies</span><span class="mono-sm dim" style="margin-right:6px">05 estimate</span><span class="mono-sm dim" style="margin-right:6px">06 last run</span><span class="mono-sm dim" style="margin-right:6px">07 actions</span><span class="mono-sm dim" style="margin-right:6px">08 invalid spec</span><span class="mono-sm dim" style="margin-right:6px">09 never run</span><span class="mono-sm dim" style="margin-right:6px">10 gate verdict</span><span class="mono-sm dim" style="margin-right:6px">11 duplicate</span><span class="mono-sm dim" style="margin-right:6px">12 mobile</span></td>
+        </tr>
+        <tr>
+          <td class="mono-sm">05</td>
+          <td class="mono-sm"><a href="05-wizard-1-vary.html">Wizard 1, what varies</a></td>
+          <td class="route">/comparisons/new?step=1</td>
+          <td class="mono-sm dim">01-12 (12)</td>
+          <td class="notes-list"><span class="mono-sm dim" style="margin-right:6px">01 step rail</span><span class="mono-sm dim" style="margin-right:6px">02 step title</span><span class="mono-sm dim" style="margin-right:6px">03 name and slug</span><span class="mono-sm dim" style="margin-right:6px">04 test cases</span><span class="mono-sm dim" style="margin-right:6px">05 prompt axis</span><span class="mono-sm dim" style="margin-right:6px">06 model axis</span><span class="mono-sm dim" style="margin-right:6px">07 replicas and concurrency</span><span class="mono-sm dim" style="margin-right:6px">08 no varying axis</span><span class="mono-sm dim" style="margin-right:6px">09 cell count</span><span class="mono-sm dim" style="margin-right:6px">10 estimate in rail</span><span class="mono-sm dim" style="margin-right:6px">11 footer</span><span class="mono-sm dim" style="margin-right:6px">12 mobile</span></td>
+        </tr>
+        <tr>
+          <td class="mono-sm">06</td>
+          <td class="mono-sm"><a href="06-wizard-2-context.html">Wizard 2, context</a></td>
+          <td class="route">/comparisons/new?step=2</td>
+          <td class="mono-sm dim">01-12 (12)</td>
+          <td class="notes-list"><span class="mono-sm dim" style="margin-right:6px">01 step rail</span><span class="mono-sm dim" style="margin-right:6px">02 context sets</span><span class="mono-sm dim" style="margin-right:6px">03 sources</span><span class="mono-sm dim" style="margin-right:6px">04 attach here or in step 3</span><span class="mono-sm dim" style="margin-right:6px">05 credentials block</span><span class="mono-sm dim" style="margin-right:6px">06 untested credential</span><span class="mono-sm dim" style="margin-right:6px">07 chunking</span><span class="mono-sm dim" style="margin-right:6px">08 multiplication</span><span class="mono-sm dim" style="margin-right:6px">09 nothing written</span><span class="mono-sm dim" style="margin-right:6px">10 footer</span><span class="mono-sm dim" style="margin-right:6px">11 upload errors</span><span class="mono-sm dim" style="margin-right:6px">12 mobile</span></td>
+        </tr>
+        <tr>
+          <td class="mono-sm">07</td>
+          <td class="mono-sm"><a href="07-wizard-3-candidates.html">Wizard 3, candidates</a></td>
+          <td class="route">/comparisons/new?step=3</td>
+          <td class="mono-sm dim">01-12 (12)</td>
+          <td class="notes-list"><span class="mono-sm dim" style="margin-right:6px">01 step rail</span><span class="mono-sm dim" style="margin-right:6px">02 step title</span><span class="mono-sm dim" style="margin-right:6px">03 name</span><span class="mono-sm dim" style="margin-right:6px">04 prompt selector</span><span class="mono-sm dim" style="margin-right:6px">05 context selector</span><span class="mono-sm dim" style="margin-right:6px">06 credential selector</span><span class="mono-sm dim" style="margin-right:6px">07 parameters</span><span class="mono-sm dim" style="margin-right:6px">08 add and remove</span><span class="mono-sm dim" style="margin-right:6px">09 error summary</span><span class="mono-sm dim" style="margin-right:6px">10 blocked rows</span><span class="mono-sm dim" style="margin-right:6px">11 keyboard</span><span class="mono-sm dim" style="margin-right:6px">12 mobile</span></td>
+        </tr>
+        <tr>
+          <td class="mono-sm">08</td>
+          <td class="mono-sm"><a href="08-wizard-4-cost.html">Wizard 4, cost</a></td>
+          <td class="route">/comparisons/new?step=4</td>
+          <td class="mono-sm dim">01-12 (12)</td>
+          <td class="notes-list"><span class="mono-sm dim" style="margin-right:6px">01 step rail</span><span class="mono-sm dim" style="margin-right:6px">02 step title</span><span class="mono-sm dim" style="margin-right:6px">03 total</span><span class="mono-sm dim" style="margin-right:6px">04 cells and tokens</span><span class="mono-sm dim" style="margin-right:6px">05 medians source</span><span class="mono-sm dim" style="margin-right:6px">06 cap and meter</span><span class="mono-sm dim" style="margin-right:6px">07 over cap</span><span class="mono-sm dim" style="margin-right:6px">08 create and run</span><span class="mono-sm dim" style="margin-right:6px">09 save only</span><span class="mono-sm dim" style="margin-right:6px">10 nothing written</span><span class="mono-sm dim" style="margin-right:6px">11 write conflict</span><span class="mono-sm dim" style="margin-right:6px">12 mobile</span></td>
+        </tr>
+        <tr>
+          <td class="mono-sm">09</td>
+          <td class="mono-sm"><a href="09-edit-form.html">Edit comparison</a></td>
+          <td class="route">/comparisons/{name}/edit</td>
+          <td class="mono-sm dim">01-12 (12)</td>
+          <td class="notes-list"><span class="mono-sm dim" style="margin-right:6px">01 header</span><span class="mono-sm dim" style="margin-right:6px">02 identity line</span><span class="mono-sm dim" style="margin-right:6px">03 dirty state</span><span class="mono-sm dim" style="margin-right:6px">04 save and run</span><span class="mono-sm dim" style="margin-right:6px">05 save disabled</span><span class="mono-sm dim" style="margin-right:6px">06 view YAML</span><span class="mono-sm dim" style="margin-right:6px">07 sections</span><span class="mono-sm dim" style="margin-right:6px">08 sticky rail</span><span class="mono-sm dim" style="margin-right:6px">09 validation</span><span class="mono-sm dim" style="margin-right:6px">10 saved confirmation</span><span class="mono-sm dim" style="margin-right:6px">11 stale write</span><span class="mono-sm dim" style="margin-right:6px">12 mobile</span></td>
+        </tr>
+        <tr>
+          <td class="mono-sm">10</td>
+          <td class="mono-sm"><a href="10-credentials.html">Credentials</a></td>
+          <td class="route">/credentials</td>
+          <td class="mono-sm dim">01-12 (12)</td>
+          <td class="notes-list"><span class="mono-sm dim" style="margin-right:6px">01 header</span><span class="mono-sm dim" style="margin-right:6px">02 add form</span><span class="mono-sm dim" style="margin-right:6px">03 table</span><span class="mono-sm dim" style="margin-right:6px">04 fingerprint</span><span class="mono-sm dim" style="margin-right:6px">05 state</span><span class="mono-sm dim" style="margin-right:6px">06 actions</span><span class="mono-sm dim" style="margin-right:6px">07 test result</span><span class="mono-sm dim" style="margin-right:6px">08 last error</span><span class="mono-sm dim" style="margin-right:6px">09 untested</span><span class="mono-sm dim" style="margin-right:6px">10 vault locked</span><span class="mono-sm dim" style="margin-right:6px">11 empty</span><span class="mono-sm dim" style="margin-right:6px">12 mobile</span></td>
+        </tr>
+        <tr>
+          <td class="mono-sm">11</td>
+          <td class="mono-sm"><a href="11-empty-error.html">Empty and error</a></td>
+          <td class="route">/runs, /runs/{unknown}</td>
+          <td class="mono-sm dim">01-12 (12)</td>
+          <td class="notes-list"><span class="mono-sm dim" style="margin-right:6px">01 two states</span><span class="mono-sm dim" style="margin-right:6px">02 error page</span><span class="mono-sm dim" style="margin-right:6px">03 what was asked</span><span class="mono-sm dim" style="margin-right:6px">04 way back</span><span class="mono-sm dim" style="margin-right:6px">05 no internals</span><span class="mono-sm dim" style="margin-right:6px">06 status label</span><span class="mono-sm dim" style="margin-right:6px">07 empty list</span><span class="mono-sm dim" style="margin-right:6px">08 empty vs filtered</span><span class="mono-sm dim" style="margin-right:6px">09 call to action</span><span class="mono-sm dim" style="margin-right:6px">10 cost before spend</span><span class="mono-sm dim" style="margin-right:6px">11 mobile</span><span class="mono-sm dim" style="margin-right:6px">12 shell</span></td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="fnote" style="margin-top:8px">Numbers restart per file. A region that exists on several screens, such as the page header or the spec graph, keeps its position in reading order but not the same number everywhere.</p>
+  </div>
+
+  <div class="hub-sec">
+    <h2>state checklist per screen</h2>
+    <table class="hub-table">
+      <thead>
+        <tr><th>screen</th><th>empty</th><th>loading</th><th>error</th><th>running</th><th>partial</th><th>denied</th><th>success</th><th>note</th></tr>
+      </thead>
+      <tbody>
+        <tr><td class="mono-sm">01 runs</td><td class="bx n">-</td><td class="bx n">-</td><td class="bx y">y</td><td class="bx y">y</td><td class="bx n">-</td><td class="bx n">-</td><td class="bx n">-</td><td class="tbl-note">empty list and filtered empty both drawn in 11</td></tr>
+        <tr><td class="mono-sm">02 run detail</td><td class="bx y">y</td><td class="bx n">-</td><td class="bx y">y</td><td class="bx y">y</td><td class="bx y">y</td><td class="bx y">y</td><td class="bx y">y</td><td class="tbl-note">running, cancelled, budget, artifact missing as callouts under the cell sheet</td></tr>
+        <tr><td class="mono-sm">03 compare</td><td class="bx n">-</td><td class="bx n">-</td><td class="bx y">y</td><td class="bx n">-</td><td class="bx n">-</td><td class="bx y">y</td><td class="bx y">y</td><td class="tbl-note">guards: fewer than two runs, identical results, incomparable cases</td></tr>
+        <tr><td class="mono-sm">04 comparisons</td><td class="bx n">-</td><td class="bx n">-</td><td class="bx y">y</td><td class="bx n">-</td><td class="bx n">-</td><td class="bx n">-</td><td class="bx y">y</td><td class="tbl-note">invalid spec row, never run row, gate failed row</td></tr>
+        <tr><td class="mono-sm">05 wizard 1</td><td class="bx y">y</td><td class="bx n">-</td><td class="bx y">y</td><td class="bx n">-</td><td class="bx n">-</td><td class="bx n">-</td><td class="bx n">-</td><td class="tbl-note">no cases and no varying axis are named states, at least one axis must vary</td></tr>
+        <tr><td class="mono-sm">06 wizard 2</td><td class="bx n">-</td><td class="bx n">-</td><td class="bx n">-</td><td class="bx n">-</td><td class="bx n">-</td><td class="bx y">y</td><td class="bx n">-</td><td class="tbl-note">untested credential is shown with its vault state, not hidden</td></tr>
+        <tr><td class="mono-sm">07 wizard 3</td><td class="bx n">-</td><td class="bx n">-</td><td class="bx y">y</td><td class="bx n">-</td><td class="bx n">-</td><td class="bx y">y</td><td class="bx n">-</td><td class="tbl-note">3 blocked rows, error under the credential field, same file keeps the good rows</td></tr>
+        <tr><td class="mono-sm">08 wizard 4</td><td class="bx y">y</td><td class="bx n">-</td><td class="bx y">y</td><td class="bx n">-</td><td class="bx n">-</td><td class="bx y">y</td><td class="bx n">-</td><td class="tbl-note">estimate unavailable, over cap, write conflict</td></tr>
+        <tr><td class="mono-sm">09 edit</td><td class="bx n">-</td><td class="bx n">-</td><td class="bx y">y</td><td class="bx n">-</td><td class="bx n">-</td><td class="bx y">y</td><td class="bx y">y</td><td class="tbl-note">dirty guard, spec changed on disk, inline saved confirmation</td></tr>
+        <tr><td class="mono-sm">10 credentials</td><td class="bx y">y</td><td class="bx n">-</td><td class="bx y">y</td><td class="bx n">-</td><td class="bx n">-</td><td class="bx y">y</td><td class="bx y">y</td><td class="tbl-note">masked by default, reveal per row, vault locked, failed test</td></tr>
+        <tr><td class="mono-sm">11 empty and error</td><td class="bx y">y</td><td class="bx n">-</td><td class="bx y">y</td><td class="bx n">-</td><td class="bx n">-</td><td class="bx y">y</td><td class="bx n">-</td><td class="tbl-note">404 for an unknown run and the empty runs list, side by side</td></tr>
+      </tbody>
+    </table>
+    <p class="fnote" style="margin-top:8px">y means drawn in that file. - means the state is specified in ux-flow section 9 but kept out of that file, so each screen shows one situation at a time. Loading is never drawn as a spinner anywhere, per the design system, and no skeleton is in this set.</p>
+  </div>
+
+  <div class="hub-sec" style="border-bottom:0">
+    <h2>what is not drawn, and why</h2>
+    <div class="legend-grid">
+      <div class="legend-item"><div><b>6.7 YAML editor</b><p>/specs/{name}/edit keeps its old behaviour. 09 links to it as view YAML. Redrawing it would duplicate the validator surface twice.</p></div></div>
+      <div class="legend-item"><div><b>6.8 launch</b><p>Step 4 in 08 carries the estimate, the cap and both exits. A launch page would repeat that and add a second place to change the cap.</p></div></div>
+      <div class="legend-item"><div><b>tablet</b><p>823 wide is a layout change, not a screen. The 375 frames and the desktop frames cover the two ends.</p></div></div>
+      <div class="legend-item"><div><b>loading</b><p>Skeletons need real row dimensions to be worth drawing. The design system forbids spinners, so nothing is drawn here.</p></div></div>
+    </div>
+  </div>
+
+  <p class="fnote" style="margin-top:18px">all files under docs/mockups/. contract: docs/ux-flow.md. tokens: docs/design-system.md. nothing outside this directory was touched.</p>
+</div>
+</body>
+</html>

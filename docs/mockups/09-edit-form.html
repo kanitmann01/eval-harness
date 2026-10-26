@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>09 edit comparison - console v2 wireframes</title>
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<div class="strip">
+  <span class="strip-l">screen 09 / 11</span>
+  <span class="strip-m">edit comparison</span>
+  <span class="strip-r">route <code>/comparisons/support-routing/edit</code> &middot; <a href="index.html">index</a> &middot; <a href="08-wizard-4-cost.html">prev: wizard 4 cost</a> &middot; <a href="10-credentials.html">next: credentials</a></span>
+</div>
+<div class="page">
+  <main class="wf" aria-label="wireframe of edit comparison">
+  <div class="pnav">
+    <span class="brand">evalh</span>
+    <a class="nav" href="01-runs.html">Runs</a>
+    <a class="nav on" href="04-comparisons.html">Comparisons</a>
+    <a class="nav" href="10-credentials.html">Credentials</a>
+    <span class="spacer"></span>
+    <a class="btn btn-primary btn-sm" href="05-wizard-1-vary.html">+ New comparison</a>
+  </div>
+  <div class="wf-sec">
+    <div class="crumbs">Comparisons / <a href="04-comparisons.html">support-routing.yaml</a> / edit</div>
+    <div class="row between mt10">
+      <div class="stack" style="gap:2px">
+        <h1>support-routing <span class="mk">01</span></h1>
+        <span class="identity">support-routing.yaml &middot; modified 19:31 &middot; last run <a href="02-run-detail.html">2f9ac1d7</a> gate failed</span>
+      </div>
+      <div class="row">
+        <span class="chip chip-warn">unsaved changes <span class="mk">03</span></span>
+        <span class="btn-link">view YAML <span class="mk">06</span></span>
+        <span class="btn is-disabled" aria-disabled="true">Save <span class="mk">05</span></span>
+        <span class="btn btn-primary">Save and run <span class="mk">04</span></span>
+      </div>
+    </div>
+  </div>
+  <div class="callout" style="margin:10px 13px">
+    <span class="g">!</span>
+    <div><span class="callout-title">support-routing.yaml changed on disk at 19:41</span> This page loaded the file at 19:31. Saving now would overwrite the newer version, so Save is disabled. <a href="#diff">open the diff</a> or <span class="btn-link">reload and lose 1 edit</span>.</div>
+  </div>
+  <div class="wizard">
+    <div class="rail">
+      <span class="rail-h">sections</span>
+      <ol>
+        <li><a href="#s1" style="border:0;display:flex;justify-content:space-between;width:100%"><span>name and cases</span><span>4</span></a></li>
+        <li><a href="#s2" style="border:0;display:flex;justify-content:space-between;width:100%"><span>prompts and models</span><span>3+1</span></a></li>
+        <li><a href="#s3" style="border:0;display:flex;justify-content:space-between;width:100%"><span>contexts</span><span>1</span></a></li>
+        <li><a href="#s4" style="border:0;display:flex;justify-content:space-between;width:100%"><span>candidates</span><span>3</span></a></li>
+        <li><a href="#s5" style="border:0;display:flex;justify-content:space-between;width:100%"><span>cost and gates</span><span>2</span></a></li>
+      </ol>
+      <div class="est">sticky estimate <span class="mk">08</span>
+        <b>$0.0143</b>
+        <span>12 cells, 3 candidates</span>
+        <span>cap $0.0500, 28%</span>
+        <span>medians 1,240 + 180 tokens</span>
+      </div>
+    </div>
+    <div class="wbody">
+      <div class="sec-h" id="s1"><span><b>name and cases</b></span><span>step 1</span></div>
+      <div class="field"><label>name</label><div class="row"><span class="inp mono-sm" style="width:220px">support-routing</span><span class="mono-sm dim">file support-routing.yaml</span></div></div>
+      <table>
+        <thead><tr><th>case</th><th>input</th><th>expected</th></tr></thead>
+        <tbody>
+          <tr><td class="mono-sm">case-1</td><td>Where is my order 4411?</td><td class="mono-sm">shipping</td></tr>
+          <tr><td class="mono-sm">case-2</td><td>Refund for order 4411</td><td class="mono-sm">refund</td></tr>
+          <tr><td class="mono-sm">case-3</td><td>Cancel and refund, 2 weeks late</td><td class="mono-sm">refund</td></tr>
+          <tr><td class="mono-sm">case-4</td><td>Your chatbot hangs up on me</td><td class="mono-sm">escalate</td></tr>
+        </tbody>
+      </table>
+
+      <div class="sec-h mt10" id="s2"><span><b>prompts and models</b></span><span>step 1</span></div>
+      <div class="field"><label>concise</label><div class="inp mono-sm" style="min-height:38px">Route the message. Reply with the label only.</div></div>
+      <div class="field"><label>explained</label><div class="inp mono-sm" style="min-height:38px">Route the message, then one sentence on why.</div></div>
+      <div class="field"><label>cited</label><div class="inp mono-sm" style="min-height:38px">Route the message and cite the policy chunk.</div></div>
+      <table class="matrix" style="margin-top:6px">
+        <thead><tr><th>model</th><th>temperature</th><th>max_tokens</th><th></th></tr></thead>
+        <tbody><tr><td class="inp mono-sm">gpt-5.4-mini</td><td class="inp mono-sm">0.2</td><td class="inp mono-sm">64</td><td><span class="btn-link">remove</span></td></tr></tbody>
+      </table>
+
+      <div class="sec-h mt10" id="s3"><span><b>context</b></span><span>step 2</span></div>
+      <div class="row"><span class="chip chip-strong">policy</span><span class="mono-sm dim">3 chunks, 412 characters, attached to all 3 candidates</span><a class="btn-link" href="06-wizard-2-context.html">edit sets</a></div>
+
+      <div class="sec-h mt10" id="s4"><span><b>candidates</b></span><span>step 3</span></div>
+      <table class="matrix">
+        <thead><tr><th>name</th><th>model</th><th>prompt</th><th>context</th><th>credential</th><th></th></tr></thead>
+        <tbody>
+          <tr><td class="inp mono-sm">mini-concise</td><td class="inp mono-sm">gpt-5.4-mini</td><td class="inp mono-sm">concise</td><td class="inp mono-sm">policy</td><td class="inp mono-sm">openai-prod</td><td><span class="btn-link">remove</span></td></tr>
+          <tr><td class="inp mono-sm">mini-explained</td><td class="inp mono-sm">gpt-5.4-mini</td><td class="inp mono-sm">explained</td><td class="inp mono-sm">policy</td><td class="inp mono-sm">openai-prod</td><td><span class="btn-link">remove</span></td></tr>
+          <tr><td class="inp mono-sm">mini-cited</td><td class="inp mono-sm">gpt-5.4-mini</td><td class="inp mono-sm">cited</td><td class="inp mono-sm">policy</td><td class="inp mono-sm">openai-prod</td><td><span class="btn-link">remove</span></td></tr>
+        </tbody>
+      </table>
+      <div class="hint">editing the prompt name here means editing the prompt itself, the YAML holds one prompt table</div>
+
+      <div class="sec-h mt10" id="s5"><span><b>cost and gates</b></span><span>step 4</span></div>
+      <div class="row" style="gap:18px">
+        <div class="inline-field"><label>cap</label><span class="inp mono-sm" style="width:70px">0.0500</span><span class="mono-sm dim">USD</span></div>
+        <div class="inline-field"><label>replicas</label><span class="inp mono-sm" style="width:40px">1</span></div>
+        <div class="inline-field"><label>concurrency</label><span class="inp mono-sm" style="width:40px">4</span></div>
+      </div>
+      <table style="margin-top:8px">
+        <thead><tr><th>gate</th><th>metric</th><th>min</th></tr></thead>
+        <tbody>
+          <tr><td class="mono-sm">exact_match</td><td class="mono-sm">exact_match</td><td class="inp mono-sm" style="width:52px">0.90</td></tr>
+          <tr><td class="mono-sm">citation_support</td><td class="mono-sm">citation_support</td><td class="inp mono-sm" style="width:52px">0.60</td></tr>
+        </tbody>
+      </table>
+      <div class="err"><b>gates[0].min</b> 0.9 is allowed, the last run observed 0.833 and failed this gate.</div>
+      <div class="callout callout-info mt10">
+        <span class="g">i</span>
+        <div><span class="callout-title">saved 19:31</span> Wrote support-routing.yaml: prompt cited edited, cap unchanged, 2 gates unchanged. <span class="mk">10</span></div>
+      </div>
+    </div>
+  </div>
+  </main>
+  <aside class="notes" aria-label="annotations">
+    <h2 class="notes-h">annotations 01-12</h2>
+    <ol class="nlist">
+    <li><span class="n">01</span><div><strong>header</strong><p>The file name is the page title, the route says which file. Save and Save and run sit here, the rail's estimate sits with them, so cost is visible before you press either.</p></div></li>
+    <li><span class="n">02</span><div><strong>identity line</strong><p>Modified time, last run and its gate verdict. Opening the editor to fix a failing gate starts by seeing which run failed and how.</p></div></li>
+    <li><span class="n">03</span><div><strong>dirty state</strong><p>Set on the first edit and cleared on save. Leaving with unsaved changes asks once, the guard names how many fields changed.</p></div></li>
+    <li><span class="n">04</span><div><strong>save and run</strong><p>Writes the file, then goes to the launch page with the spec pre-filled. Two steps, not one, because a run costs money.</p></div></li>
+    <li><span class="n">05</span><div><strong>save disabled</strong><p>Disabled for one named reason: the file changed on disk at 19:41. The callout above states the reason and offers diff or reload.</p></div></li>
+    <li><span class="n">06</span><div><strong>view YAML</strong><p>Quiet link to the raw editor at /specs/support-routing/edit. That page is not drawn in this set. The same validator runs on both sides, so a file saved here opens there without reformatting.</p></div></li>
+    <li><span class="n">07</span><div><strong>sections</strong><p>The four wizard steps, collapsed into one page in the same order. Section anchors in the rail jump down, no accordions that hide the estimate.</p></div></li>
+    <li><span class="n">08</span><div><strong>sticky rail</strong><p>The rail stays put while the body scrolls and shows the same numbers step 4 showed. A second estimate implementation would drift, so it is the same one.</p></div></li>
+    <li><span class="n">09</span><div><strong>validation</strong><p>Errors appear under the field on save and on blur. Each one names field, value and fix, and the first invalid field gets focus.</p></div></li>
+    <li><span class="n">10</span><div><strong>saved confirmation</strong><p>Inline under the last section, naming what changed. Not a toast, because a toast disappears before a screen reader reaches it.</p></div></li>
+    <li><span class="n">11</span><div><strong>stale write</strong><p>If the file changes again between load and save, the write is refused, the diff opens, and nothing on disk is replaced.</p></div></li>
+    <li><span class="n">12</span><div><strong>mobile</strong><p>One column. Save and Save and run move to a sticky bottom bar with the estimate in it, so the price and the button are always on screen.</p></div></li>
+    </ol>
+  </aside>
+</div>
+<section class="mob" aria-labelledby="mob-h">
+  <h2 class="mob-h" id="mob-h">375px <span>same screen at 375 wide, single column, 44px targets</span></h2>
+  <div class="phones">
+    <div class="phone">
+      <div class="pbar"><span>375 x 812</span><span>edit</span></div>
+      <div class="pnav-m"><span>Runs</span><b>Comparisons</b><span>Credentials</span></div>
+      <div class="pbody">
+        <span class="crumbs">Comparisons / support-routing.yaml / edit</span>
+        <h1 style="font-size:19px">support-routing</h1>
+        <div class="row" style="gap:4px"><span class="chip chip-warn">unsaved changes</span><span class="chip">12 cells</span></div>
+        <div class="pcard" style="border:1px solid var(--ink);border-style:dashed">
+          <div class="pline"><span><b>changed on disk 19:41</b></span><span></span></div>
+          <p class="hint">Save is off until you reload or open the diff.</p>
+        </div>
+        <div class="prow"><div class="pline"><span>name</span><span>support-routing</span></div><div class="pline"><span>4 cases</span><span>3 prompts</span></div></div>
+        <div class="prow"><div class="pline"><span>prompts</span><span>concise, explained, cited</span></div><div class="pline"><span>model</span><span>gpt-5.4-mini</span></div></div>
+        <div class="prow"><div class="pline"><span>context</span><span>policy, 412 chars</span></div><div class="pline"><span>candidates</span><span>3</span></div></div>
+        <div class="prow"><div class="pline"><span>gates</span><span>2</span></div><div class="pline"><span>exact_match min 0.90</span><span>failed last run</span></div></div>
+        <div class="pcard"><div class="pline"><span>estimate</span><span><b>$0.0143</b></span></div><div class="pline"><span>cap $0.0500</span><span>28%</span></div></div>
+        <div class="row" style="gap:5px"><span class="pbtn is-disabled" style="flex:1">Save</span><span class="pbtn pbtn-primary" style="flex:2">Save and run</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+</body>
+</html>

@@ -1,51 +1,63 @@
 {% extends "base.html" %}
+{% from "_macros.html" import status, copy_button with context %}
+{% from "_graph.html" import render_graph %}
 {% block title %}Runs &middot; evalharness console{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div>
+<div class="page-header">
+  <div class="page-header-main">
+    <p class="eyebrow">Workspace</p>
     <h1>Runs</h1>
-    <p class="lede">Every run the harness recorded, newest first. Open a run for its heatmap and per-cell evidence.</p>
+    <p class="lede">Every run the harness recorded, newest first. Open a run for its heatmap, verdict and per-cell evidence.</p>
   </div>
-  <span class="count">{{ runs|length }} run{{ "" if runs|length == 1 else "s" }}</span>
+  <div class="page-actions">
+    <span class="chip">{{ stats.total }} recorded</span>
+    {% if stats.attention %}<span class="chip chip-warn" title="A failed gate, a partial run, an error or a cancellation.">{{ stats.attention }} need attention</span>{% endif %}
+    {% if stats.running %}<span class="live-indicator"><span class="live-dot" aria-hidden="true"></span>{{ stats.running }} running</span>{% endif %}
+    <a class="btn btn-primary" href="{{ url_for('launch_page') }}">Launch run</a>
+  </div>
 </div>
 
-<form class="filters" method="get" action="{{ url_for('run_list') }}" data-filter-form>
-  <label>
-    <span>Candidate</span>
-    <select name="candidate">
+<form class="toolbar" method="get" action="{{ url_for('run_list') }}" data-filter-form aria-label="Filter runs">
+  <div class="field-inline">
+    <label for="filter-candidate">Candidate</label>
+    <select id="filter-candidate" name="candidate">
       <option value="">All candidates</option>
       {% for value in filters.candidates %}
       <option value="{{ value }}"{% if value == selected_candidate %} selected{% endif %}>{{ value }}</option>
       {% endfor %}
     </select>
-  </label>
-  <label>
-    <span>Metric</span>
-    <select name="metric">
+  </div>
+  <div class="field-inline">
+    <label for="filter-metric">Metric</label>
+    <select id="filter-metric" name="metric">
       <option value="">All metrics</option>
       {% for value in filters.metrics %}
       <option value="{{ value }}"{% if value == selected_metric %} selected{% endif %}>{{ value }}</option>
       {% endfor %}
     </select>
-  </label>
-  <button type="submit">Filter</button>
+  </div>
+  <button type="submit" class="btn btn-secondary">Apply</button>
   {% if filtered %}
-  <a class="button-link" href="{{ url_for('run_list') }}">Clear</a>
+  <a class="btn btn-ghost" href="{{ url_for('run_list') }}">Clear</a>
   {% endif %}
+  <span class="toolbar-note">
+    {% if filtered %}Filtered view · {{ runs|length }} shown{% else %}Cost recorded across this view: <span title="{{ stats.cost_usd|usdexact }}">{{ stats.cost_usd|usd }}</span>{% endif %}
+  </span>
 </form>
 
 {% if runs %}
 <div class="table-wrap" tabindex="0" role="region" aria-label="Runs table">
   <table class="runs">
-    <caption class="sr-only">Runs with status, spec, candidates, pass rate, cost and duration</caption>
+    <caption class="sr-only">Runs with status, spec, candidates, cells, pass rate, cost, duration and start time</caption>
     <thead>
       <tr>
         <th scope="col">Spec</th>
+        <th scope="col" class="col-graph"><span class="sr-only">Spec graph</span></th>
         <th scope="col">Status</th>
         <th scope="col" class="col-md">Candidates</th>
         <th scope="col" class="num col-sm">Cells ok</th>
         <th scope="col" class="num">Pass rate</th>
-        <th scope="col" class="num">Cost</th>
+        <th scope="col" class="num col-sm">Cost</th>
         <th scope="col" class="num col-lg">Duration</th>
         <th scope="col" class="num col-lg">Started</th>
       </tr>
@@ -54,21 +66,37 @@
       {% for run in runs %}
       <tr class="run-row">
         <td>
-          <a class="run-link" href="{{ url_for('run_detail', run_id=run.run_id) }}">{{ run.spec_name or "(unnamed spec)" }}</a>
-          <span class="mono subtle run-id" title="{{ run.run_id }}">{{ run.run_id[:8] }}</span>
+          <div class="table-title">
+            <a class="run-link" href="{{ url_for('run_detail', run_id=run.run_id) }}">{{ run.spec_name or "(unnamed spec)" }}</a>
+            <span class="run-id">
+              <span class="mono" title="{{ run.run_id }}">{{ run.run_id[:8] }}</span>
+              {{ copy_button(run.run_id) }}
+            </span>
+            <span class="run-candidates-mobile">{{ run.candidates|join(", ") or "no candidates" }}</span>
+          </div>
+        </td>
+        <td class="run-graph col-graph">
+          {{ render_graph(thumbnails[run.run_id], classes="spec-graph--mini", hidden=true) }}
         </td>
         <td class="run-status">
-          <span class="status status-{{ run.status }}">{{ run.status }}</span>
+          {{ status(run.status) }}
           {% if run.failed_gates %}
           <span class="gate-chip" title="Failed gate: {{ run.failed_gates|join(', ') }}">
-            <span aria-hidden="true">✗</span> gate failed<span class="sr-only">: {{ run.failed_gates|join(', ') }}</span>
+            <span aria-hidden="true">✕</span> gate failed<span class="sr-only">: {{ run.failed_gates|join(', ') }}</span>
           </span>
           {% endif %}
         </td>
-        <td class="candidate-list col-md">{{ run.candidates|join(", ") }}</td>
+        <td class="candidate-list col-md" title="{{ run.candidates|join(', ') }}">{{ run.candidates|join(", ") }}</td>
         <td class="num col-sm">{{ run.n_ok }}/{{ run.n_cells }}</td>
-        <td class="num">{{ run.pass_rate|pct }}</td>
-        <td class="num" title="{{ run.cost_usd|usdexact }}">{{ run.cost_usd|usd }}</td>
+        <td class="num">
+          <div class="rate-cell">
+            <span>{{ run.pass_rate|pct }}</span>
+            {% if run.pass_rate is not none %}
+            <span class="meter" aria-hidden="true"><span style="width: {{ (run.pass_rate * 100)|round|int }}%"></span></span>
+            {% endif %}
+          </div>
+        </td>
+        <td class="num col-sm" title="{{ run.cost_usd|usdexact }}">{{ run.cost_usd|usd }}</td>
         <td class="num col-lg">{{ run.duration_s|duration }}</td>
         <td class="num subtle col-lg">{{ run.started_at|timestamp }}</td>
       </tr>
@@ -77,13 +105,17 @@
   </table>
 </div>
 {% else %}
-<p class="empty-state">
+<div class="empty-state">
+  <span class="empty-icon" aria-hidden="true">∅</span>
   {% if filtered %}
-  No runs match these filters. <a href="{{ url_for('run_list') }}">Clear the filters</a>.
+  <h2>No runs match these filters</h2>
+  <p>Clear the candidate and metric filters to see every recorded run.</p>
+  <div class="empty-actions"><a class="btn btn-secondary" href="{{ url_for('run_list') }}">Clear the filters</a></div>
   {% else %}
-  No runs yet. Start one from a terminal with <code>evalh run spec.yaml</code>, then reload this page.
+  <h2>No runs yet</h2>
+  <p>Start one from a terminal with <code>evalh run spec.yaml</code>, or pick a saved spec on the Launch page.</p>
+  <div class="empty-actions"><a class="btn btn-primary" href="{{ url_for('launch_page') }}">Launch a run</a></div>
   {% endif %}
-</p>
+</div>
 {% endif %}
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', path='console.js') }}" defer></script>{% endblock %}

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>08 wizard step 4, cost - console v2 wireframes</title>
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<div class="strip">
+  <span class="strip-l">screen 08 / 11</span>
+  <span class="strip-m">wizard step 4, cost</span>
+  <span class="strip-r">route <code>/comparisons/new?step=4</code> &middot; <a href="index.html">index</a> &middot; <a href="07-wizard-3-candidates.html">prev: wizard 3 candidates</a> &middot; <a href="09-edit-form.html">next: edit form</a></span>
+</div>
+<div class="page">
+  <main class="wf" aria-label="wireframe of wizard step 4, cost">
+  <div class="pnav">
+    <span class="brand">evalh</span>
+    <a class="nav" href="01-runs.html">Runs</a>
+    <a class="nav on" href="04-comparisons.html">Comparisons</a>
+    <a class="nav" href="10-credentials.html">Credentials</a>
+    <span class="spacer"></span>
+    <a class="btn btn-primary btn-sm" href="05-wizard-1-vary.html">+ New comparison</a>
+  </div>
+  <div class="wf-sec">
+    <div class="crumbs"><a href="04-comparisons.html">Comparisons</a> / new / step 4 of 4</div>
+    <div class="row between mt10">
+      <div class="stack" style="gap:3px">
+        <h1>Cost and cap <span class="mk">02</span></h1>
+        <p class="lede">The estimate is the price table times the tokens this workspace has measured, not a guess from model cards.</p>
+      </div>
+      <span class="chip">draft not written yet</span>
+    </div>
+  </div>
+  <div class="wizard">
+      <div class="rail">
+        <span class="rail-h">steps <span class="mk">01</span></span>
+        <ol>
+        <li class="done"><a href="05-wizard-1-vary.html" style="border:0;display:flex;justify-content:space-between;gap:5px;width:100%"><span>1 what varies</span><span>3 prompts, 2 models</span></a></li>
+        <li class="done"><a href="06-wizard-2-context.html" style="border:0;display:flex;justify-content:space-between;gap:5px;width:100%"><span>2 context</span><span>1 set</span></a></li>
+        <li class="done"><a href="07-wizard-3-candidates.html" style="border:0;display:flex;justify-content:space-between;gap:5px;width:100%"><span>3 candidates</span><span>6</span></a></li>
+        <li class="now"><a href="08-wizard-4-cost.html" style="border:0;display:flex;justify-content:space-between;gap:5px;width:100%"><span>4 cost</span><span>-</span></a></li>
+        </ol>
+        <div class="est">estimate so far <span class="mk">10</span>
+          <b>$0.0851</b>
+          <span>24 cells, 6 candidates</span>
+          <span class="thumb" style="display:block;margin:5px 0;padding:2px"><svg class="g thumb" viewBox="0 0 148 68" width="148" height="68" role="img" aria-label="preview: 3 prompts and 2 models, 4 cases, 24 cells, exact_match gate"><rect class="node" x="2" y="34" width="20" height="16"/><rect class="node" x="30" y="8" width="26" height="16"/><rect class="node" x="30" y="50" width="26" height="16"/><rect class="node" x="64" y="8" width="24" height="14"/><rect class="node" x="64" y="28" width="24" height="14"/><rect class="node" x="64" y="52" width="24" height="14"/><rect class="node" x="96" y="16" width="22" height="14"/><rect class="node" x="96" y="38" width="22" height="14"/><rect class="node bad" x="124" y="2" width="22" height="14"/><rect class="node" x="124" y="22" width="22" height="14"/><rect class="node open" x="124" y="52" width="22" height="14"/><path class="edge" d="M22 42 H59 M56 16 H59 M56 58 H59 M59 15 V59 M59 15 H64 M59 35 H64 M59 59 H64"/><path class="edge w2" d="M88 15 H92 M88 35 H92 M88 59 H92 M92 15 V59 M92 23 H96 M92 45 H96"/><path class="edge fail" d="M118 23 H124"/><path class="edge" d="M118 45 H124 M133 36 V50 M129 47 L133 52 L137 47"/><text class="xg" x="119" y="21" text-anchor="middle">x</text></svg></span>
+          <span>medians 1,240 + 180 tokens per cell</span>
+        </div>
+      </div>
+    <div class="wbody">
+      <div class="row" style="gap:0;align-items:stretch">
+        <div class="grow" style="flex:2 1 0;border-right:1px solid var(--line);padding-right:12px">
+          <span class="eyebrow">estimated total <span class="mk">03</span></span>
+          <div style="font-family:var(--serif);font-size:34px;font-weight:600;line-height:1.1">$0.0851</div>
+          <div class="mono-sm dim">24 cells, 1,240 prompt + 180 completion tokens per cell <span class="mk">04</span></div>
+        </div>
+        <div class="grow" style="flex:1 1 0;padding-left:12px">
+          <span class="eyebrow">by model</span>
+          <table>
+            <tbody>
+              <tr><td class="mono-sm">gpt-5.4-mini</td><td class="num">12 cells</td><td class="num">$0.00804</td></tr>
+              <tr><td class="mono-sm">claude-sonnet-4-6</td><td class="num">12 cells</td><td class="num">$0.07704</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="field mt10">
+        <label>budget cap <span class="mk">06</span></label>
+        <div class="row">
+          <span class="inp mono-sm" style="width:96px">0.0500</span>
+          <span class="mono-sm dim">USD, from support-routing.yaml</span>
+        </div>
+        <div class="row mt6" style="gap:8px">
+          <span class="meter is-over" style="width:200px"><span style="width:100%"></span></span>
+          <span class="mono-sm"><b>170%</b> of cap</span>
+        </div>
+      </div>
+      <div class="callout mt10">
+        <span class="g">!</span>
+        <div class="stack" style="gap:3px">
+          <span class="callout-title">$0.0851 is 170% of the $0.0500 cap <span class="mk">07</span></span>
+          <p>The run would stop at $0.0500, around 14 of 24 cells. Raise the cap, drop a model, or save without running.</p>
+          <div class="row"><span class="btn btn-sm">raise cap to $0.09</span><span class="btn btn-sm btn-ghost">remove claude-sonnet-4-6</span></div>
+        </div>
+      </div>
+      <div class="field mt10" style="margin:0">
+        <label>medians source <span class="mk">05</span></label>
+        <p class="mono-sm dim">1,240 + 180 tokens per cell, measured over 42 cells from support-routing and support-routing-v2. Prices from the table snapshot at load: stub-1 0.15/0.60, claude-sonnet-4-6 3.00/15.00.</p>
+      </div>
+    </div>
+  </div>
+  <div class="wfoot">
+    <span class="step-note">step 4 of 4, nothing written yet <span class="mk">10</span></span>
+    <div class="row">
+      <a class="btn" href="07-wizard-3-candidates.html">Back</a>
+      <span class="btn is-disabled" aria-disabled="true">Create and run <span class="mk">08</span></span>
+      <a class="btn btn-primary" href="09-edit-form.html">Save only <span class="mk">09</span></a>
+    </div>
+  </div>
+  </main>
+  <aside class="notes" aria-label="annotations">
+    <h2 class="notes-h">annotations 01-12</h2>
+    <ol class="nlist">
+    <li><span class="n">01</span><div><strong>step rail</strong><p>Last step current, every earlier step clickable. The rail estimate and the hero show the same number, both recomputed from one function.</p></div></li>
+    <li><span class="n">02</span><div><strong>step title</strong><p>The step answers one question: what will this cost and what stops it. No settings live here, only the cap and the two exits.</p></div></li>
+    <li><span class="n">03</span><div><strong>total</strong><p>One number, large, in the same place every time. The per model split sits beside it because one model at 3.00 and one at 0.25 is the story.</p></div></li>
+    <li><span class="n">04</span><div><strong>cells and tokens</strong><p>Cells times tokens per cell is the whole estimate. Tokens per cell show prompt and completion separately, the ratio drives the price.</p></div></li>
+    <li><span class="n">05</span><div><strong>medians source</strong><p>Says where the token numbers came from, how many cells, and which prices. An estimate with an unnamed source is a guess and would be labelled as one.</p></div></li>
+    <li><span class="n">06</span><div><strong>cap and meter</strong><p>The cap is editable and comes from the spec. The meter is capped at 100 percent of the bar, the number beside it carries the truth, 170 percent.</p></div></li>
+    <li><span class="n">07</span><div><strong>over cap</strong><p>Names the total, the cap and the percentage, then the three ways out. It is a warning, not an error, because Save only is still valid.</p></div></li>
+    <li><span class="n">08</span><div><strong>create and run</strong><p>Disabled while the estimate exceeds the cap. The reason is the callout above it, not a tooltip, and the button stays visible so the exit is obvious.</p></div></li>
+    <li><span class="n">09</span><div><strong>save only</strong><p>Enabled. Writes the YAML, leaves the comparison unrun, and lands on the edit page with a confirmation naming the file.</p></div></li>
+    <li><span class="n">10</span><div><strong>nothing written</strong><p>Nothing exists on disk until one of the two buttons is pressed. Closing the tab loses the draft, as it should, the draft is not a file.</p></div></li>
+    <li><span class="n">11</span><div><strong>write conflict</strong><p>If the file appeared between step 1 and here, the write is refused and names the path. Overwrite is a second, deliberate action.</p></div></li>
+    <li><span class="n">12</span><div><strong>mobile</strong><p>The hero stacks: total, then the per model rows, then the cap and the meter. The two exits become a sticky bottom bar, Save only on the right.</p></div></li>
+    </ol>
+  </aside>
+</div>
+<section class="mob" aria-labelledby="mob-h">
+  <h2 class="mob-h" id="mob-h">375px <span>same screen at 375 wide, single column, 44px targets</span></h2>
+  <div class="phones">
+    <div class="phone">
+      <div class="pbar"><span>375 x 812</span><span>wizard 4</span></div>
+      <div class="pnav-m"><span>Runs</span><b>Comparisons</b><span>Credentials</span></div>
+      <div class="pbody">
+        <span class="crumbs">Comparisons / new / step 4 of 4</span>
+        <div class="row" style="gap:4px"><span class="chip">1</span><span class="chip">2</span><span class="chip">3</span><span class="chip chip-strong">4 cost</span></div>
+        <h1 style="font-size:19px">Cost and cap</h1>
+        <div class="pcard">
+          <div class="pline"><span>estimated total</span><span></span></div>
+          <div style="font-family:var(--serif);font-size:27px;font-weight:600;line-height:1.1">$0.0851</div>
+          <div class="pline"><span>24 cells</span><span>1,240 + 180 tokens</span></div>
+        </div>
+        <div class="pcard">
+          <div class="pline"><span>gpt-5.4-mini</span><span>12 cells $0.00804</span></div>
+          <div class="pline"><span>claude-sonnet-4-6</span><span>12 cells $0.07704</span></div>
+        </div>
+        <div class="pcard">
+          <div class="pline"><span>cap $0.0500</span><span>170%</span></div>
+          <div class="pline"><span class="meter is-over" style="width:100%"><span style="width:100%"></span></span><span></span></div>
+          <p class="hint">run would stop at 14 of 24 cells.</p>
+        </div>
+        <span class="pbtn is-disabled">Create and run</span>
+        <a class="pbtn pbtn-primary" href="09-edit-form.html">Save only</a>
+      </div>
+    </div>
+  </div>
+</section>
+</body>
+</html>

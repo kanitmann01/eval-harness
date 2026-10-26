@@ -13,6 +13,18 @@ import pytest
 
 import tests.adapters  # noqa: F401 - importing registers the test adapters
 from evalharness.api.app import create_app
+from evalharness.api.compare_views import decision_view
+from evalharness.core.compare import (
+    BETTER,
+    UNDEFINED,
+    WORSE,
+    CompareSide,
+    Comparison,
+    JudgeIdentity,
+    MetricComparison,
+    MetricSide,
+    PriceTable,
+)
 from evalharness.core.config import Settings
 from evalharness.storage.db import Database
 from evalharness.storage.repository import Repository
@@ -45,6 +57,30 @@ async def test_two_runs_compare_with_deltas_intervals_and_cost(
         assert "exact_match" in page.text
         assert "Cost per correct answer" in page.text
         assert "95% interval" in page.text
+        assert "A is better on exact_match" in page.text
+        assert "Swap A and B" in page.text
+        assert "Spec graphs" in page.text
+        assert page.text.count('class="spec-graph spec-graph--pair"') == 2
+        assert 'class="graph-pair"' in page.text
+        assert "Side A · baseline: all candidates" in page.text
+        assert "Side B · candidate: all candidates" in page.text
+        assert 'viewBox="0 0 640.0 ' in page.text
+        # Both sides keep their box labels and use the short headings.
+        assert 'class="sg-label"' in page.text
+        assert ">Prompts</text>" in page.text and ">Gates</text>" in page.text
+        assert ">Prompts and contexts</text>" not in page.text
+        assert ">Gates and verdict</text>" not in page.text
+        assert 'id="graph-a-desc"' in page.text and 'id="graph-b-desc"' in page.text
+        assert "<colgroup>" in page.text
+        assert 'class="col-judge"' in page.text
+        assert 'class="num col-lg cost-cell" data-label="Cost / correct" title=' in (
+            page.text
+        )
+        assert 'class="mono metric-name" title="exact_match"' in page.text
+        # One judge on both sides reads as two lines, not four.
+        assert page.text.count('class="judge-name"') == 1
+        assert page.text.count('class="judge-detail"') == 1
+        assert 'class="judge-detail" title=' in page.text
 
         response = await client.get(
             "/api/compare", params={"a": run_a, "b": run_b}
@@ -131,6 +167,7 @@ async def test_reverse_comparison_calls_b_better_and_lists_b_only_cases(
         ("case-2", "b")
     ]
     assert "B better" in page.text
+    assert "B is better on exact_match" in page.text
 
 
 async def test_candidate_mode_compares_two_candidates_in_one_run(
@@ -304,7 +341,11 @@ async def test_different_judges_are_flagged_and_never_called_a_win(
         assert page.status_code == 200
         assert "Different judge" in page.text
         assert "not a win" in page.text
+        assert "Not comparable" in page.text
         assert "verdict-better" not in page.text
+        assert ">A · judge-a<" in page.text
+        assert ">B · judge-b<" in page.text
+        assert page.text.count('class="judge-name"') == 2
 
         data = (
             await client.get("/api/compare", params={"a": run_a, "b": run_b})
@@ -340,6 +381,7 @@ async def test_a_side_with_no_samples_renders_undefined(console: Console) -> Non
         assert page.status_code == 200
         assert "Undefined" in page.text
         assert "undefined" in page.text
+        assert "No comparable samples" in page.text
 
         data = (
             await client.get("/api/compare", params={"a": run_a, "b": run_b})
@@ -530,3 +572,120 @@ async def test_real_judge_hashes_and_judge_cost_flow_into_the_comparison(
     assert data["a"]["cost_usd"] == pytest.approx(total_cost)
     assert data["a"]["cost_per_correct"] == pytest.approx(total_cost / 6)
     assert "scripted-judge" in data["a"]["price_table"]["prices"]
+
+def _decision_judge() -> JudgeIdentity:
+    """Return a deterministic judge identity for the decision view tests."""
+    return JudgeIdentity(
+        name=None,
+        adapter=None,
+        model=None,
+        config_hash="hash",
+        source="spec",
+    )
+
+
+def _decision_side(price_id: str = "price-a") -> CompareSide:
+    """Return one side with ten checks for the decision view tests."""
+    return CompareSide(
+        run_id="run-a",
+        spec_name="spec",
+        status="ok",
+        candidate=None,
+        cost_usd=0.01,
+        n_cells=10,
+        n_ok=10,
+        n_checks=10,
+        n_passed=8,
+        cost_per_correct=0.00125,
+        price_table=PriceTable(
+            id=price_id, prices={"stub-1": {"input": 0.15, "output": 0.6}}
+        ),
+        candidates=("stub",),
+    )
+
+
+def _decision_metric(
+    metric: str,
+    verdict: str,
+    *,
+    delta: float = 0.2,
+    comparable: bool = True,
+) -> MetricComparison:
+    """Return one metric row with ten samples on each side."""
+    side = MetricSide(
+        n=10,
+        passed=8,
+        value=0.8,
+        ci_low=0.5,
+        ci_high=0.95,
+        cost_per_correct=0.00125,
+        judge=_decision_judge(),
+    )
+    return MetricComparison(
+        metric=metric,
+        a=side,
+        b=side,
+        delta=delta,
+        interval_low=0.05,
+        interval_high=0.4,
+        verdict=verdict,
+        reason="reason",
+        comparable=comparable,
+        different_judge=False,
+    )
+
+
+def _decision_comparison(
+    metrics: list[MetricComparison],
+    *,
+    b_price: str = "price-a",
+) -> Comparison:
+    """Return a comparison with the given rows and price identities."""
+    return Comparison(
+        mode="runs",
+        a=_decision_side(),
+        b=_decision_side(b_price),
+        metrics=tuple(metrics),
+        one_sided_cases=(),
+        comparable_metrics=tuple(item.metric for item in metrics),
+        cross_judge_metrics=(),
+        one_sided_metrics=(),
+    )
+
+
+def test_decision_view_handles_mixed_metrics_and_missing_metrics() -> None:
+    """The decision sentence is honest when metrics disagree or are absent."""
+    mixed = decision_view(
+        _decision_comparison(
+            [
+                _decision_metric("exact_match", BETTER),
+                _decision_metric("contains", WORSE, delta=-0.2),
+            ]
+        )
+    )
+    assert mixed.tone == "mixed"
+    assert "better on exact_match" in mixed.sentence
+    assert "worse on contains" in mixed.sentence
+    assert mixed.support[0][0] == "A"
+
+    # A defensive shape: a comparable row with an undefined verdict falls to
+    # the mixed branch, and the empty side of the sentence says "none".
+    defensive = decision_view(
+        _decision_comparison(
+            [
+                _decision_metric("exact_match", BETTER),
+                _decision_metric("contains", UNDEFINED),
+            ]
+        )
+    )
+    assert defensive.tone == "mixed"
+    assert "worse on none" in defensive.sentence
+
+    absent = decision_view(_decision_comparison([]))
+    assert (absent.tone, absent.label) == ("undefined", "No metrics")
+
+    prices = decision_view(
+        _decision_comparison([_decision_metric("exact_match", BETTER)], b_price="price-b")
+    )
+    assert "different price tables" in prices.caveat
+    assert "Small samples" not in prices.caveat

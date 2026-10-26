@@ -6,7 +6,16 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 
 from evalharness.api.deps import get_repository, render
-from evalharness.api.views import cell_error, citations_for, heatmap
+from evalharness.api.graph_views import run_graph
+from evalharness.api.views import (
+    cell_error,
+    citations_for,
+    heatmap,
+    progress_summary,
+    run_list_stats,
+    run_thumbnails,
+    run_verdict,
+)
 from evalharness.storage.repository import Repository
 
 router = APIRouter()
@@ -28,6 +37,8 @@ def run_list(
         "runs.html",
         {
             "runs": runs,
+            "stats": run_list_stats(runs),
+            "thumbnails": run_thumbnails(runs),
             "filters": repository.list_run_filters(),
             "selected_candidate": candidate,
             "selected_metric": metric,
@@ -88,16 +99,22 @@ def _detail_page(
     finished = run.finished_at
     duration_s = (finished - run.started_at).total_seconds() if finished else None
     selected_checks = checks_by_cell.get(selected.cell_id, []) if selected else []
+    gates = repository.list_gates(run_id)
+    checks = [check for items in checks_by_cell.values() for check in items]
+    graph = run_graph(run, cells, gates)
     return render(
         request,
         "run_detail.html",
         {
             "run": run,
             "duration_s": duration_s,
+            "verdict": run_verdict(run, cells, checks, gates),
+            "progress": progress_summary(run, cells),
             "columns": columns,
             "rows": rows,
+            "graph": graph,
             "aggregates": repository.list_aggregates(run_id),
-            "gates": repository.list_gates(run_id),
+            "gates": gates,
             "events": repository.list_events(run_id),
             "selected_cell": selected,
             "selected_checks": selected_checks,

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>11 empty and error - console v2 wireframes</title>
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<div class="strip">
+  <span class="strip-l">screen 11 / 11</span>
+  <span class="strip-m">empty and error</span>
+  <span class="strip-r">route <code>/runs and /runs/{unknown}</code> &middot; <a href="index.html">index</a> &middot; <a href="10-credentials.html">prev: credentials</a></span>
+</div>
+<div class="page">
+  <main class="wf" aria-label="wireframe of empty and error">
+  <div class="pnav">
+    <span class="brand">evalh</span>
+    <a class="nav on" href="01-runs.html">Runs</a>
+    <a class="nav" href="04-comparisons.html">Comparisons</a>
+    <a class="nav" href="10-credentials.html">Credentials</a>
+    <span class="spacer"></span>
+    <a class="btn btn-primary btn-sm" href="05-wizard-1-vary.html">+ New comparison</a>
+  </div>
+  <div class="wf-sec">
+    <div class="sec-h"><span><b>two states, one page</b> <span class="mk">01</span></span><span>error page left, empty list right</span></div>
+  </div>
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+    <div style="border-right:1px solid var(--line);padding:13px">
+      <div class="sec-h"><span>error page <span class="mk">02</span></span><span class="mono-sm dim">/runs/8c4d2e10</span></div>
+      <div class="stack" style="gap:6px;margin-top:8px">
+        <span class="eyebrow">Not found <span class="mk">06</span></span>
+        <h1 style="margin:0">That resource does not exist <span class="mk">03</span></h1>
+        <p style="margin:0;max-width:44ch">No run with id <code>8c4d2e10</code> in this console. Run ids are 32 hex characters, this one resolves to nothing. It may belong to a different console or an older export.</p>
+        <p class="mono-sm dim" style="margin:0">asked for /runs/8c4d2e10, nothing else in the path was readable</p>
+        <div class="row" style="gap:6px;margin-top:4px">
+          <a class="btn btn-primary" href="01-runs.html">Back to all runs <span class="mk">04</span></a>
+          <a class="btn" href="03-compare.html">Compare runs</a>
+        </div>
+        <p class="hint" style="margin:0">If a run was deleted, its cells and artifacts are gone too. Nothing in this response names them. <span class="mk">05</span></p>
+      </div>
+    </div>
+    <div style="padding:13px">
+      <div class="sec-h"><span>empty runs list <span class="mk">07</span></span><span class="mono-sm dim">/</span></div>
+      <div class="stack" style="gap:6px;margin-top:8px">
+        <h1 style="margin:0">No runs yet</h1>
+        <p style="margin:0;max-width:44ch">A run is one execution of a comparison. Nothing has run in this console. <code>support-routing.yaml</code> is ready: 3 candidates over 4 cases, 12 cells, estimated $0.0143.</p>
+        <div class="row" style="gap:6px;margin-top:4px">
+          <a class="btn btn-primary" href="05-wizard-1-vary.html">create your first comparison <span class="mk">09</span></a>
+          <a class="btn" href="04-comparisons.html">open Comparisons</a>
+        </div>
+        <div style="border:1px solid var(--line);margin-top:6px">
+          <table>
+            <thead><tr><th>spec</th><th>status</th><th class="num">cells ok</th><th class="num">pass rate</th><th class="num">cost</th></tr></thead>
+            <tbody><tr><td colspan="5" class="tbl-note">no rows. filters are off, so this is a real empty list, not a filtered one. <span class="mk">08</span></td></tr></tbody>
+          </table>
+        </div>
+        <p class="hint" style="margin:0">A run costs about $0.0143 at 12 cells here. The comparison row shows the same estimate before you start. <span class="mk">10</span></p>
+      </div>
+    </div>
+  </div>
+  </main>
+  <aside class="notes" aria-label="annotations">
+    <h2 class="notes-h">annotations 01-12</h2>
+    <ol class="nlist">
+    <li><span class="n">01</span><div><strong>two states</strong><p>Both live in one file so the copy and the buttons can be compared. Error on the left, empty list on the right, same shell, same nav.</p></div></li>
+    <li><span class="n">02</span><div><strong>error page</strong><p>One page for unknown runs, unknown specs, path traversal and missing artifacts. That is why the copy names the request instead of hard coding run.</p></div></li>
+    <li><span class="n">03</span><div><strong>what was asked</strong><p>The id is shown back exactly as it arrived, in mono, so a user can see a truncation. The failing path is stated in the line below, not buried in a quote.</p></div></li>
+    <li><span class="n">04</span><div><strong>way back</strong><p>Primary goes to the nearest list, secondary to compare, which is where a person usually was. Both are links, so they work with middle click.</p></div></li>
+    <li><span class="n">05</span><div><strong>no internals</strong><p>No stack trace, no traceback id, no filesystem path. The response is a normal HTML page with the console shell, not a debug dump.</p></div></li>
+    <li><span class="n">06</span><div><strong>status label</strong><p>Not found is a text label, not a colour. The page says what the server answered, in words, with no icon standing in for the reason.</p></div></li>
+    <li><span class="n">07</span><div><strong>empty list</strong><p>The empty state sits where the table would be. Title, one sentence of what a run is, one primary action, one secondary link.</p></div></li>
+    <li><span class="n">08</span><div><strong>empty vs filtered</strong><p>The note under the header row separates the two. Filters on with no match stays on the list page and says no runs match these filters, with a Clear.</p></div></li>
+    <li><span class="n">09</span><div><strong>call to action</strong><p>create your first comparison goes to step 1 of the wizard, not to a run. Naming the comparison rather than the run matches the product's unit of work.</p></div></li>
+    <li><span class="n">10</span><div><strong>cost before spend</strong><p>The empty state carries the estimate, so the first click is informed. The number is the same one the wizard rail shows at step 4.</p></div></li>
+    <li><span class="n">11</span><div><strong>mobile</strong><p>The error page keeps the way back inside the first 375 by 500. The empty state keeps the call to action above the fake table header.</p></div></li>
+    <li><span class="n">12</span><div><strong>shell</strong><p>Both states keep the nav and the console strip. A user who lands here is not trapped, and the page does not pretend the console is gone.</p></div></li>
+    </ol>
+  </aside>
+</div>
+<section class="mob" aria-labelledby="mob-h">
+  <h2 class="mob-h" id="mob-h">375px <span>same screen at 375 wide, single column, 44px targets</span></h2>
+  <div class="phones">
+    <div class="phone">
+      <div class="pbar"><span>375 x 812</span><span>error</span></div>
+      <div class="pnav-m"><b>Runs</b><span>Comparisons</span><span>Credentials</span></div>
+      <div class="pbody">
+        <span class="crumbs">/runs/8c4d2e10</span>
+        <span class="eyebrow">Not found</span>
+        <h1 style="font-size:19px">That resource does not exist</h1>
+        <p style="margin:0;font-size:12px">No run with id <code>8c4d2e10</code>. Run ids are 32 hex characters, this one resolves to nothing.</p>
+        <div class="pline"><span>asked for</span><span>/runs/8c4d2e10</span></div>
+        <a class="pbtn pbtn-primary" href="01-runs.html">Back to all runs</a>
+        <a class="pbtn" href="03-compare.html">Compare runs</a>
+      </div>
+    </div>
+    <div class="phone">
+      <div class="pbar"><span>375 x 812</span><span>empty</span></div>
+      <div class="pnav-m"><b>Runs</b><span>Comparisons</span><span>Credentials</span></div>
+      <div class="pbody">
+        <h1 style="font-size:19px">No runs yet</h1>
+        <p style="margin:0;font-size:12px">A run is one execution of a comparison. Nothing has run here.</p>
+        <div class="pcard">
+          <div class="pline"><span>support-routing.yaml</span><span>never run</span></div>
+          <div class="pline"><span>3 candidates, 4 cases</span><span>$0.0143</span></div>
+        </div>
+        <a class="pbtn pbtn-primary" href="05-wizard-1-vary.html">create your first comparison</a>
+        <a class="pbtn" href="04-comparisons.html">open Comparisons</a>
+        <p class="hint">filters off, so this is a real empty list.</p>
+      </div>
+    </div>
+  </div>
+</section>
+</body>
+</html>

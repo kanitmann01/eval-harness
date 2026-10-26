@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>05 wizard step 1, what varies - console v2 wireframes</title>
+<link rel="stylesheet" href="mock.css">
+</head>
+<body>
+<div class="strip">
+  <span class="strip-l">screen 05 / 11</span>
+  <span class="strip-m">wizard step 1, what varies</span>
+  <span class="strip-r">route <code>/comparisons/new?step=1</code> &middot; <a href="index.html">index</a> &middot; <a href="04-comparisons.html">prev: comparisons</a> &middot; <a href="06-wizard-2-context.html">next: wizard 2 context</a></span>
+</div>
+<div class="page">
+  <main class="wf" aria-label="wireframe of wizard step 1, what varies">
+  <div class="pnav">
+    <span class="brand">evalh</span>
+    <a class="nav" href="01-runs.html">Runs</a>
+    <a class="nav on" href="04-comparisons.html">Comparisons</a>
+    <a class="nav" href="10-credentials.html">Credentials</a>
+    <span class="spacer"></span>
+    <a class="btn btn-primary btn-sm" href="05-wizard-1-vary.html">+ New comparison</a>
+  </div>
+  <div class="wf-sec">
+    <div class="crumbs"><a href="04-comparisons.html">Comparisons</a> / new / step 1 of 4</div>
+    <div class="row between mt10">
+      <div class="stack" style="gap:3px">
+        <h1>What varies <span class="mk">02</span></h1>
+        <p class="lede">Pick the axes. Prompts, models and cases all multiply, so the cell count is the product, not the sum.</p>
+      </div>
+      <span class="chip">draft not written yet</span>
+    </div>
+  </div>
+  <div class="wizard">
+      <div class="rail">
+        <span class="rail-h">steps <span class="mk">01</span></span>
+        <ol>
+        <li class="now"><a href="05-wizard-1-vary.html" style="border:0;display:flex;justify-content:space-between;gap:5px;width:100%"><span>1 what varies</span><span>3 prompts, 2 models</span></a></li>
+        <li class=""><a href="06-wizard-2-context.html" style="border:0;display:flex;justify-content:space-between;gap:5px;width:100%"><span>2 context</span><span>1 set</span></a></li>
+        <li class=""><a href="07-wizard-3-candidates.html" style="border:0;display:flex;justify-content:space-between;gap:5px;width:100%"><span>3 candidates</span><span>6</span></a></li>
+        <li class=""><a href="08-wizard-4-cost.html" style="border:0;display:flex;justify-content:space-between;gap:5px;width:100%"><span>4 cost</span><span>-</span></a></li>
+        </ol>
+        <div class="est">estimate so far <span class="mk">10</span>
+          <b>$0.0851</b>
+          <span>24 cells, 6 candidates</span>
+          <span class="thumb" style="display:block;margin:5px 0;padding:2px"><svg class="g thumb" viewBox="0 0 148 68" width="148" height="68" role="img" aria-label="preview: 3 prompts and 2 models, 4 cases, 24 cells, exact_match gate"><rect class="node" x="2" y="34" width="20" height="16"/><rect class="node" x="30" y="8" width="26" height="16"/><rect class="node" x="30" y="50" width="26" height="16"/><rect class="node" x="64" y="8" width="24" height="14"/><rect class="node" x="64" y="28" width="24" height="14"/><rect class="node" x="64" y="52" width="24" height="14"/><rect class="node" x="96" y="16" width="22" height="14"/><rect class="node" x="96" y="38" width="22" height="14"/><rect class="node bad" x="124" y="2" width="22" height="14"/><rect class="node" x="124" y="22" width="22" height="14"/><rect class="node open" x="124" y="52" width="22" height="14"/><path class="edge" d="M22 42 H59 M56 16 H59 M56 58 H59 M59 15 V59 M59 15 H64 M59 35 H64 M59 59 H64"/><path class="edge w2" d="M88 15 H92 M88 35 H92 M88 59 H92 M92 15 V59 M92 23 H96 M92 45 H96"/><path class="edge fail" d="M118 23 H124"/><path class="edge" d="M118 45 H124 M133 36 V50 M129 47 L133 52 L137 47"/><text class="xg" x="119" y="21" text-anchor="middle">x</text></svg></span>
+          <span>medians 1,240 + 180 tokens per cell, prices from table stub-1, claude-sonnet-4-6</span>
+        </div>
+      </div>
+    <div class="wbody">
+      <div class="field">
+        <label>comparison name <span class="mk">03</span></label>
+        <div class="inp">support-routing-strict</div>
+        <p class="hint">writes <span class="mono">support-routing-strict.yaml</span> in the workspace, the route is /comparisons/support-routing-strict/edit after step 4</p>
+      </div>
+      <div class="field">
+        <label>test cases <span class="mk">04</span></label>
+        <div class="row" style="gap:6px">
+          <span class="btn btn-sm">pick saved cases</span>
+          <span class="btn btn-sm btn-ghost">paste YAML or JSON</span>
+          <span class="btn btn-sm btn-ghost">upload file</span>
+          <span class="mono-sm dim">4 of 4 from support-routing.yaml</span>
+        </div>
+        <table class="mt6">
+          <thead><tr><th>case</th><th>input</th><th>expected</th><th>source</th></tr></thead>
+          <tbody>
+            <tr><td class="mono-sm">case-1</td><td class="mono-sm">What is 6 times 7?</td><td class="mono-sm">42</td><td class="mono-sm dim">support-routing.yaml</td></tr>
+            <tr><td class="mono-sm">case-2</td><td class="mono-sm">Refund window in days</td><td class="mono-sm">30</td><td class="mono-sm dim">support-routing.yaml</td></tr>
+            <tr><td class="mono-sm">case-3</td><td class="mono-sm">What is 7 times 6?</td><td class="mono-sm">42</td><td class="mono-sm dim">support-routing.yaml</td></tr>
+            <tr><td class="mono-sm">case-4</td><td class="mono-sm">Which team owns escalated refunds</td><td class="mono-sm">billing</td><td class="mono-sm dim">support-routing.yaml</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="field">
+        <label>prompt variants, 3 <span class="mk">05</span></label>
+        <div class="stack" style="gap:5px">
+          <div class="row top" style="gap:6px"><span class="inp" style="width:96px;flex:0 0 96px">concise</span><textarea class="inp" style="resize:none" style="height:34px;flex:1 1 auto">Answer with digits only, no other words.</textarea></div>
+          <div class="row top" style="gap:6px"><span class="inp" style="width:96px;flex:0 0 96px">explained</span><textarea class="inp" style="resize:none" style="height:34px;flex:1 1 auto">Answer in one sentence, then the number.</textarea></div>
+          <div class="row top" style="gap:6px"><span class="inp" style="width:96px;flex:0 0 96px">cited</span><textarea class="inp" style="resize:none" style="height:34px;flex:1 1 auto">Cite the policy chunk you used, then answer bare.</textarea></div>
+        </div>
+        <p class="hint">name is free text and becomes part of the candidate name, mini-concise, mini-explained, mini-cited</p>
+      </div>
+      <div class="field">
+        <label>models, 2 <span class="mk">06</span></label>
+        <table class="matrix">
+          <thead><tr><th>model</th><th>temperature</th><th>max_tokens</th><th>replicas</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="mono-sm inp" style="min-width:150px">gpt-5.4-mini</td><td class="mono-sm inp" style="width:56px">0.2</td><td class="mono-sm inp" style="width:56px">64</td><td class="mono-sm inp" style="width:46px">1</td><td><span class="btn-link">remove</span></td></tr>
+            <tr><td class="mono-sm inp" style="min-width:150px">claude-sonnet-4-6</td><td class="mono-sm inp" style="width:56px">0.2</td><td class="mono-sm inp" style="width:56px">64</td><td class="mono-sm inp" style="width:46px">1</td><td><span class="btn-link">remove</span></td></tr>
+          </tbody>
+        </table>
+        <div class="row mt6"><span class="btn btn-sm">add model</span><span class="hint">parameters are per model, not global</span></div>
+      </div>
+      <div class="field" style="margin:0">
+        <label>run settings <span class="mk">07</span></label>
+        <div class="row">
+          <span class="inline-field"><label>replicas</label><span class="inp" style="width:52px">1</span></span>
+          <span class="inline-field"><label>concurrency</label><span class="inp" style="width:52px">4</span></span>
+          <span class="mono-sm dim">seed 7, taken from support-routing.yaml</span>
+        </div>
+      </div>
+      <div class="callout callout-info mt10">
+        <span class="g">i</span>
+        <div><span class="callout-title">cell count <span class="mk">09</span></span> 3 prompts x 2 models x 4 cases x 1 replica = 24 cells. Next is enabled because two axes vary; with one model and one prompt and one case there would be nothing to compare.</div>
+      </div>
+    </div>
+  </div>
+  <div class="wfoot">
+    <span class="step-note">step 1 of 4, draft held as YAML in this form <span class="mk">11</span></span>
+    <div class="row"><a class="btn" href="04-comparisons.html">Back</a><a class="btn btn-primary" href="06-wizard-2-context.html">Next: context</a></div>
+  </div>
+  </main>
+  <aside class="notes" aria-label="annotations">
+    <h2 class="notes-h">annotations 01-12</h2>
+    <ol class="nlist">
+    <li><span class="n">01</span><div><strong>step rail</strong><p>Four steps, current one filled, completed ones still clickable. The estimate sits at the bottom of the rail and moves with every edit, so the cost is visible before step 4 asks.</p></div></li>
+    <li><span class="n">02</span><div><strong>step title</strong><p>One line states what the step decides. The wizard writes nothing until step 4, so the header says draft not written yet instead of pretending a file exists.</p></div></li>
+    <li><span class="n">03</span><div><strong>name and slug</strong><p>Free text name, with the file it will write shown underneath. The slug is what the CLI and the route use, so a rename is visible before it happens.</p></div></li>
+    <li><span class="n">04</span><div><strong>test cases</strong><p>Pick from cases already saved in a spec, paste YAML or JSON, or upload. The four support-routing cases arrive ticked because this comparison extends that spec.</p></div></li>
+    <li><span class="n">05</span><div><strong>prompt axis</strong><p>Named variants, one textarea each. The name is free text and lands in the candidate name, so the table on step 3 reads mini-concise not prompt-1.</p></div></li>
+    <li><span class="n">06</span><div><strong>model axis</strong><p>One row per model with temperature and max_tokens on the row. Parameters are per model because a temperature that suits one provider does not suit another.</p></div></li>
+    <li><span class="n">07</span><div><strong>replicas and concurrency</strong><p>Replicas multiply cells, concurrency does not. Concurrency is a runner setting, and it is capped by the number of cells.</p></div></li>
+    <li><span class="n">08</span><div><strong>no varying axis</strong><p>Next is disabled when no axis varies, with the reason next to the button. One candidate and one case is a test, not a comparison.</p></div></li>
+    <li><span class="n">09</span><div><strong>cell count</strong><p>The product of prompts, models, cases and replicas, restated in words. It updates as fields change and it is the number step 4 multiplies by cost.</p></div></li>
+    <li><span class="n">10</span><div><strong>estimate in rail</strong><p>Provisional until step 4 confirms the price table and the medians source. The rail value and the step 4 hero must agree, one number, two places.</p></div></li>
+    <li><span class="n">11</span><div><strong>footer</strong><p>Back and Next only. Next posts the draft YAML in a hidden field, so a refresh or a deep link rebuilds the same step from the spec.</p></div></li>
+    <li><span class="n">12</span><div><strong>mobile</strong><p>The rail becomes a horizontal step strip above the body, the fields stack full width, and the estimate moves under the strip.</p></div></li>
+    </ol>
+  </aside>
+</div>
+<section class="mob" aria-labelledby="mob-h">
+  <h2 class="mob-h" id="mob-h">375px <span>same screen at 375 wide, single column, 44px targets</span></h2>
+  <div class="phones">
+    <div class="phone">
+      <div class="pbar"><span>375 x 812</span><span>wizard 1</span></div>
+      <div class="pnav-m"><span>Runs</span><b>Comparisons</b><span>Credentials</span></div>
+      <div class="pbody">
+        <span class="crumbs">Comparisons / new / step 1 of 4</span>
+        <div class="row" style="gap:4px">
+          <span class="chip chip-strong">1 what varies</span><span class="chip">2 context</span><span class="chip">3 candidates</span><span class="chip">4 cost</span>
+        </div>
+        <div class="pline"><span>$0.0851 estimate</span><span>24 cells</span></div>
+        <h1 style="font-size:19px">What varies</h1>
+        <div class="field"><label>comparison name</label><span class="inp">support-routing-strict</span></div>
+        <div class="field"><label>test cases</label><span class="inp">4 of 4 from support-routing.yaml</span></div>
+        <div class="field"><label>prompts, 3</label><span class="inp">concise</span><span class="inp" style="margin-top:3px">explained</span><span class="inp" style="margin-top:3px">cited</span></div>
+        <div class="field"><label>models, 2</label><span class="inp">gpt-5.4-mini, t 0.2, 64</span><span class="inp" style="margin-top:3px">claude-sonnet-4-6, t 0.2, 64</span></div>
+        <div class="row" style="gap:5px"><span class="pbtn" style="flex:1">Back</span><a class="pbtn pbtn-primary" href="06-wizard-2-context.html" style="flex:2">Next: context</a></div>
+      </div>
+    </div>
+  </div>
+</section>
+</body>
+</html>

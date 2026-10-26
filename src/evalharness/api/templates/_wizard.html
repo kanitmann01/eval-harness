@@ -1,0 +1,384 @@
+{% from "_graph.html" import render_graph %}
+
+{# Wizard chrome and the labelled form controls every step shares. #}
+
+{% macro step_strip(page) -%}
+<nav aria-label="Comparison steps">
+  <ol class="step-list step-strip">
+    {% for step in page.steps %}
+    {% set state = "is-current" if step.index == page.step.index else ("is-done" if step.index < page.step.index else "is-todo") %}
+    <li class="step {{ state }}" data-step="{{ step.index }}"{% if step.index == page.step.index %} aria-current="step"{% endif %}>
+      {% if step.index < page.step.index %}
+      <button type="submit" form="wizard-form" class="step-link" name="action" value="goto:{{ step.index }}" title="Back to {{ step.title }}"><span class="step-number mono">{{ step.index }}</span><span>{{ step.title }}</span></button>
+      {% else %}
+      <span class="step-link"><span class="step-number mono">{{ step.index }}</span><span>{{ step.title }}</span></span>
+      {% endif %}
+    </li>
+    {% endfor %}
+  </ol>
+</nav>
+{%- endmacro %}
+
+{% macro text_input(field_id, name, value, error=None, label="", hint="", kind="text", aria_label="", required=False, extra="") -%}
+<div class="field">
+  {% if label %}<label for="{{ field_id }}">{{ label }}{% if required %} <span aria-hidden="true">*</span>{% endif %}</label>{% endif %}
+  <input id="{{ field_id }}" name="{{ name }}" type="{{ kind }}" value="{{ value }}"{% if aria_label %} aria-label="{{ aria_label }}"{% endif %}{% if extra %} {{ extra }}{% endif %}{% if required %} required{% endif %}{% if error %} aria-invalid="true" aria-describedby="{{ field_id }}-error" aria-errormessage="{{ field_id }}-error"{% endif %}>
+  {% if hint %}<p class="field-hint">{{ hint }}</p>{% endif %}
+  {% if error %}<p class="field-error-text" id="{{ field_id }}-error">{{ error.message }}</p>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro text_area(field_id, name, value, error=None, label="", hint="", rows=3, aria_label="") -%}
+<div class="field">
+  {% if label %}<label for="{{ field_id }}">{{ label }}</label>{% endif %}
+  <textarea id="{{ field_id }}" name="{{ name }}" rows="{{ rows }}"{% if aria_label %} aria-label="{{ aria_label }}"{% endif %}{% if error %} aria-invalid="true" aria-describedby="{{ field_id }}-error" aria-errormessage="{{ field_id }}-error"{% endif %}>{{ value }}</textarea>
+  {% if hint %}<p class="field-hint">{{ hint }}</p>{% endif %}
+  {% if error %}<p class="field-error-text" id="{{ field_id }}-error">{{ error.message }}</p>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro select_input(field_id, name, value, choices, error=None, label="", hint="", aria_label="", required=False) -%}
+{% set known = choices|selectattr("value", "equalto", value)|list %}
+<div class="field">
+  {% if label %}<label for="{{ field_id }}">{{ label }}{% if required %} <span aria-hidden="true">*</span>{% endif %}</label>{% endif %}
+  <select id="{{ field_id }}" name="{{ name }}"{% if aria_label %} aria-label="{{ aria_label }}"{% endif %}{% if required %} required{% endif %}{% if error %} aria-invalid="true" aria-describedby="{{ field_id }}-error" aria-errormessage="{{ field_id }}-error"{% endif %}>
+    {% if not known %}<option value="{{ value }}" selected>{{ value or "none" }} (not registered)</option>{% endif %}
+    {% for choice in choices %}
+    <option value="{{ choice.value }}"{% if choice.value == value %} selected{% endif %}>{{ choice.label }}</option>
+    {% endfor %}
+  </select>
+  {% if hint %}<p class="field-hint">{{ hint }}</p>{% endif %}
+  {% if error %}<p class="field-error-text" id="{{ field_id }}-error">{{ error.message }}</p>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro remove_button(kind, index, label) -%}
+<button type="submit" class="icon-btn btn btn-secondary" name="action" value="remove:{{ kind }}:{{ index }}" aria-label="{{ label }}" title="{{ label }}" data-wizard-remove>✕</button>
+{%- endmacro %}
+
+{% macro add_button(kind, label) -%}
+<button type="submit" class="btn btn-secondary btn-add" name="action" value="add:{{ kind }}"{% if kind == "case" %} data-wizard-add="case"{% endif %}><span class="btn-add-glyph" aria-hidden="true">+</span>{{ label }}</button>
+{%- endmacro %}
+
+{% macro form_notices(page) -%}
+    {% if page.general_errors %}
+    <div class="callout callout-error" role="alert">
+      <span class="callout-icon" aria-hidden="true">✕</span>
+      <div>
+        <span class="callout-title">The draft needs attention.</span>
+        <ul class="error-list">
+          {% for error in page.general_errors %}<li>{{ error.message }}</li>{% endfor %}
+        </ul>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if page.warnings %}
+    <div class="callout callout-warn" role="status">
+      <span class="callout-icon" aria-hidden="true">!</span>
+      <div>
+        <span class="callout-title">Warnings from validation.</span>
+        <ul class="warnings">
+          {% for warning in page.warnings %}<li>{{ warning }}</li>{% endfor %}
+        </ul>
+      </div>
+    </div>
+    {% endif %}
+{%- endmacro %}
+
+{% macro step_one_fields(page, editable_name=True) -%}
+{% set values = page.values %}
+{% set errors = page.errors %}
+{% set choices = page.choices %}
+      <div class="form-grid">
+        {% if editable_name %}
+        {{ text_input("name", "name", values.name, errors.get("name"), label="Name", hint="A slug that names the file: math-check writes specs/math-check.yaml.", required=True) }}
+        {% endif %}
+        {{ text_input("seed", "seed", values.seed, errors.get("seed"), label="Seed (optional)", kind="number", extra='step="1" inputmode="numeric"', hint="Reused when an adapter samples. Leave it empty for no seed.") }}
+      </div>
+      {{ text_area("description", "description", values.description, errors.get("description"), label="Description (optional)", rows=2, hint="One line a reader sees beside the spec.") }}
+      {{ select_input("source_adapter", "source_adapter", values.source_adapter, choices.source_adapters, errors.get("source_adapter"), label="Case source", hint="Where the cases come from. The inline source reads the rows below.") }}
+
+      <h3>Cases</h3>
+      <p class="subtle">One row per prompt. The case id is what results and reports name the case by.</p>
+      <div class="table-wrap">
+        <table class="matrix">
+          <caption class="sr-only">Cases in this comparison</caption>
+          <thead>
+            <tr>
+              <th scope="col">Case id</th>
+              <th scope="col">Prompt</th>
+              <th scope="col">Expected answer</th>
+              <th scope="col">Rubric</th>
+              <th scope="col">Tier</th>
+              <th scope="col"><span class="sr-only">Remove</span></th>
+            </tr>
+          </thead>
+          <tbody data-case-rows>
+            {% for row in values.cases %}
+            {% set row_errors = [errors.get("case_" ~ row.index ~ "_case_id"), errors.get("case_" ~ row.index ~ "_prompt"), errors.get("case_" ~ row.index ~ "_expected"), errors.get("case_" ~ row.index ~ "_rubric"), errors.get("case_" ~ row.index ~ "_tier")]|select|list %}
+            <tr data-row-index="{{ row.index }}"{% if row_errors %} class="is-invalid"{% endif %}>
+              <td>{{ text_input("case_" ~ row.index ~ "_case_id", "case_" ~ row.index ~ "_case_id", row.case_id, errors.get("case_" ~ row.index ~ "_case_id"), aria_label="Case " ~ (row.index + 1) ~ " id", required=True) }}</td>
+              <td>{{ text_area("case_" ~ row.index ~ "_prompt", "case_" ~ row.index ~ "_prompt", row.prompt, errors.get("case_" ~ row.index ~ "_prompt"), rows=2, aria_label="Case " ~ (row.index + 1) ~ " prompt") }}</td>
+              <td>{{ text_input("case_" ~ row.index ~ "_expected", "case_" ~ row.index ~ "_expected", row.expected, errors.get("case_" ~ row.index ~ "_expected"), aria_label="Case " ~ (row.index + 1) ~ " expected answer") }}</td>
+              <td>{{ text_area("case_" ~ row.index ~ "_rubric", "case_" ~ row.index ~ "_rubric", row.rubric, errors.get("case_" ~ row.index ~ "_rubric"), rows=2, aria_label="Case " ~ (row.index + 1) ~ " rubric") }}</td>
+              <td>{{ text_input("case_" ~ row.index ~ "_tier", "case_" ~ row.index ~ "_tier", row.tier, errors.get("case_" ~ row.index ~ "_tier"), kind="number", extra='min="1" step="1" inputmode="numeric"', aria_label="Case " ~ (row.index + 1) ~ " tier") }}</td>
+              <td>{% if values.cases|length > 1 %}{{ remove_button("case", row.index, "Remove case " ~ (row.index + 1)) }}{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="form-actions">{{ add_button("case", "Add another case") }}</div>
+{%- endmacro %}
+
+{% macro step_two_fields(page) -%}
+{% set values = page.values %}
+{% set errors = page.errors %}
+{% set choices = page.choices %}
+      <h3>Prompts</h3>
+      <p class="subtle">A prompt is a candidate's instructions. A candidate names one by its key on the next step.</p>
+      <div class="table-wrap">
+        <table class="matrix">
+          <caption class="sr-only">Prompts in this comparison</caption>
+          <thead><tr><th scope="col">Name</th><th scope="col">Text</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
+          <tbody>
+            {% for row in values.prompts %}
+            <tr{% if errors.get("prompt_" ~ row.index ~ "_name") %} class="is-invalid"{% endif %}>
+              <td>{{ text_input("prompt_" ~ row.index ~ "_name", "prompt_" ~ row.index ~ "_name", row.name, errors.get("prompt_" ~ row.index ~ "_name"), aria_label="Prompt " ~ (row.index + 1) ~ " name", required=True) }}</td>
+              <td>{{ text_area("prompt_" ~ row.index ~ "_text", "prompt_" ~ row.index ~ "_text", row.text, errors.get("prompt_" ~ row.index ~ "_text"), rows=2, aria_label="Prompt " ~ (row.index + 1) ~ " text") }}</td>
+              <td>{% if values.prompts|length > 1 %}{{ remove_button("prompt", row.index, "Remove prompt " ~ (row.index + 1)) }}{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="form-actions">{{ add_button("prompt", "Add another prompt") }}</div>
+
+      <h3>Contexts</h3>
+      <p class="subtle">Reference text a candidate may cite. A blank line starts a new chunk.</p>
+      <div class="table-wrap">
+        <table class="matrix">
+          <caption class="sr-only">Contexts in this comparison</caption>
+          <thead><tr><th scope="col">Name</th><th scope="col">Text</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
+          <tbody>
+            {% for row in values.contexts %}
+            <tr{% if errors.get("context_" ~ row.index ~ "_name") %} class="is-invalid"{% endif %}>
+              <td>{{ text_input("context_" ~ row.index ~ "_name", "context_" ~ row.index ~ "_name", row.name, errors.get("context_" ~ row.index ~ "_name"), aria_label="Context " ~ (row.index + 1) ~ " name", required=True) }}</td>
+              <td>{{ text_area("context_" ~ row.index ~ "_text", "context_" ~ row.index ~ "_text", row.text, errors.get("context_" ~ row.index ~ "_text"), rows=3, aria_label="Context " ~ (row.index + 1) ~ " text") }}</td>
+              <td>{% if values.contexts|length > 1 %}{{ remove_button("context", row.index, "Remove context " ~ (row.index + 1)) }}{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="form-actions">{{ add_button("context", "Add another context") }}</div>
+
+      <h3>Credential declarations</h3>
+      <p class="subtle">Names the spec references. The secret itself lives in the credential store, never in the spec.</p>
+      <div class="table-wrap">
+        <table class="matrix">
+          <caption class="sr-only">Credential declarations in this comparison</caption>
+          <thead><tr><th scope="col">Name</th><th scope="col">Provider</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
+          <tbody>
+            {% for row in values.credentials %}
+            <tr{% if errors.get("credential_" ~ row.index ~ "_name") or errors.get("credential_" ~ row.index ~ "_provider") %} class="is-invalid"{% endif %}>
+              <td>{{ text_input("credential_" ~ row.index ~ "_name", "credential_" ~ row.index ~ "_name", row.name, errors.get("credential_" ~ row.index ~ "_name"), aria_label="Credential " ~ (row.index + 1) ~ " name", required=True) }}</td>
+              <td>{{ select_input("credential_" ~ row.index ~ "_provider", "credential_" ~ row.index ~ "_provider", row.provider, choices.providers, errors.get("credential_" ~ row.index ~ "_provider"), aria_label="Credential " ~ (row.index + 1) ~ " provider") }}</td>
+              <td>{% if values.credentials|length > 1 %}{{ remove_button("credential", row.index, "Remove credential " ~ (row.index + 1)) }}{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="form-actions">{{ add_button("credential", "Add another credential") }}</div>
+{%- endmacro %}
+
+{% macro step_three_fields(page) -%}
+{% set values = page.values %}
+{% set errors = page.errors %}
+{% set choices = page.choices %}
+      <div class="form-grid">
+        {{ text_input("replicas", "replicas", values.replicas, errors.get("replicas"), label="Replicas", kind="number", extra='min="1" step="1" inputmode="numeric"', hint="How many times each case runs per candidate.") }}
+        {{ text_input("concurrency", "concurrency", values.concurrency, errors.get("concurrency"), label="Concurrency", kind="number", extra='min="1" step="1" inputmode="numeric"', hint="Parallel cells. Leave empty for the spec default of 1.") }}
+      </div>
+
+      <h3>Candidates</h3>
+      <p class="subtle">Each row is one adapter and model combination. A credential and a prompt are optional; none is a valid choice.</p>
+      <div class="table-wrap">
+        <table class="matrix">
+          <caption class="sr-only">Candidates in this comparison</caption>
+          <thead>
+            <tr>
+              <th scope="col">Name</th>
+              <th scope="col">Adapter</th>
+              <th scope="col">Model</th>
+              <th scope="col">Credential</th>
+              <th scope="col">Prompt</th>
+              <th scope="col">Context</th>
+              <th scope="col"><span class="sr-only">Remove</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in values.candidates %}
+            <tr{% if errors.get("candidate_" ~ row.index ~ "_name") or errors.get("candidate_" ~ row.index ~ "_model") %} class="is-invalid"{% endif %}>
+              <td>{{ text_input("candidate_" ~ row.index ~ "_name", "candidate_" ~ row.index ~ "_name", row.name, errors.get("candidate_" ~ row.index ~ "_name"), aria_label="Candidate " ~ (row.index + 1) ~ " name", required=True) }}</td>
+              <td>{{ select_input("candidate_" ~ row.index ~ "_adapter", "candidate_" ~ row.index ~ "_adapter", row.adapter, choices.candidate_adapters, errors.get("candidate_" ~ row.index ~ "_adapter"), aria_label="Candidate " ~ (row.index + 1) ~ " adapter") }}</td>
+              <td>{{ text_input("candidate_" ~ row.index ~ "_model", "candidate_" ~ row.index ~ "_model", row.model, errors.get("candidate_" ~ row.index ~ "_model"), aria_label="Candidate " ~ (row.index + 1) ~ " model", required=True) }}</td>
+              <td>{{ select_input("candidate_" ~ row.index ~ "_credential", "candidate_" ~ row.index ~ "_credential", row.credential, choices.credentials, errors.get("candidate_" ~ row.index ~ "_credential"), aria_label="Candidate " ~ (row.index + 1) ~ " credential") }}</td>
+              <td>{{ select_input("candidate_" ~ row.index ~ "_prompt", "candidate_" ~ row.index ~ "_prompt", row.prompt, choices.prompts, errors.get("candidate_" ~ row.index ~ "_prompt"), aria_label="Candidate " ~ (row.index + 1) ~ " prompt") }}</td>
+              <td>{{ select_input("candidate_" ~ row.index ~ "_context", "candidate_" ~ row.index ~ "_context", row.context, choices.contexts, errors.get("candidate_" ~ row.index ~ "_context"), aria_label="Candidate " ~ (row.index + 1) ~ " context") }}</td>
+              <td>{% if values.candidates|length > 1 %}{{ remove_button("candidate", row.index, "Remove candidate " ~ (row.index + 1)) }}{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="form-actions">{{ add_button("candidate", "Add another candidate") }}</div>
+{%- endmacro %}
+
+{% macro step_four_fields(page) -%}
+{% set values = page.values %}
+{% set errors = page.errors %}
+{% set choices = page.choices %}
+      {{ text_input("budget_usd", "budget_usd", values.budget, errors.get("budget_usd"), label="Budget cap (USD, optional)", kind="number", extra='min="0" step="0.01" inputmode="decimal"', hint="A hard cap on projected spend. A run stops with exit code 3 when the next cell would cross it.") }}
+
+      <h3>Metrics</h3>
+      <p class="subtle">The key is the identifier gates and reports use. Judge rows below add a judge_pass metric of their own.</p>
+      <div class="table-wrap">
+        <table class="matrix">
+          <caption class="sr-only">Metrics in this comparison</caption>
+          <thead><tr><th scope="col">Key</th><th scope="col">Adapter</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
+          <tbody>
+            {% for row in values.metrics %}
+            <tr{% if errors.get("metric_" ~ row.index ~ "_key") or errors.get("metric_" ~ row.index ~ "_adapter") %} class="is-invalid"{% endif %}>
+              <td>{{ text_input("metric_" ~ row.index ~ "_key", "metric_" ~ row.index ~ "_key", row.key, errors.get("metric_" ~ row.index ~ "_key"), aria_label="Metric " ~ (row.index + 1) ~ " key", required=True) }}</td>
+              <td>{{ select_input("metric_" ~ row.index ~ "_adapter", "metric_" ~ row.index ~ "_adapter", row.adapter, choices.metric_adapters, errors.get("metric_" ~ row.index ~ "_adapter"), aria_label="Metric " ~ (row.index + 1) ~ " adapter") }}</td>
+              <td>{% if values.metrics|length > 1 %}{{ remove_button("metric", row.index, "Remove metric " ~ (row.index + 1)) }}{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="form-actions">{{ add_button("metric", "Add another metric") }}</div>
+
+      <h3>Judges</h3>
+      <p class="subtle">Each judge adds a judge_pass metric under its metric key. The rubric lines become the scripted judge's claims; a model is optional for that judge.</p>
+      <div class="table-wrap">
+        <table class="matrix">
+          <caption class="sr-only">Judges in this comparison</caption>
+          <thead><tr><th scope="col">Metric</th><th scope="col">Model</th><th scope="col">Rubric</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
+          <tbody>
+            {% for row in values.judges %}
+            <tr{% if errors.get("judge_" ~ row.index ~ "_metric") or errors.get("judge_" ~ row.index ~ "_model") %} class="is-invalid"{% endif %}>
+              <td>{{ select_input("judge_" ~ row.index ~ "_metric", "judge_" ~ row.index ~ "_metric", row.metric, choices.metric_keys, errors.get("judge_" ~ row.index ~ "_metric"), aria_label="Judge " ~ (row.index + 1) ~ " metric", required=True) }}</td>
+              <td>{{ text_input("judge_" ~ row.index ~ "_model", "judge_" ~ row.index ~ "_model", row.model, errors.get("judge_" ~ row.index ~ "_model"), aria_label="Judge " ~ (row.index + 1) ~ " model") }}</td>
+              <td>{{ text_area("judge_" ~ row.index ~ "_rubric", "judge_" ~ row.index ~ "_rubric", row.rubric, errors.get("judge_" ~ row.index ~ "_rubric"), rows=2, aria_label="Judge " ~ (row.index + 1) ~ " rubric") }}</td>
+              <td>{% if values.judges|length > 1 %}{{ remove_button("judge", row.index, "Remove judge " ~ (row.index + 1)) }}{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="form-actions">{{ add_button("judge", "Add another judge") }}</div>
+
+      <h3>Gates</h3>
+      <p class="subtle">A gate turns the run into exit code 1 when the metric crosses the threshold. at least writes min; at most writes max.</p>
+      <div class="table-wrap">
+        <table class="matrix">
+          <caption class="sr-only">Gates in this comparison</caption>
+          <thead><tr><th scope="col">Metric</th><th scope="col">Op</th><th scope="col">Threshold</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
+          <tbody>
+            {% for row in values.gates %}
+            <tr{% if errors.get("gate_" ~ row.index ~ "_metric") or errors.get("gate_" ~ row.index ~ "_threshold") %} class="is-invalid"{% endif %}>
+              <td>{{ select_input("gate_" ~ row.index ~ "_metric", "gate_" ~ row.index ~ "_metric", row.metric, choices.gate_metrics, errors.get("gate_" ~ row.index ~ "_metric"), aria_label="Gate " ~ (row.index + 1) ~ " metric", required=True) }}</td>
+              <td>
+                <div class="field">
+                  <select id="gate_{{ row.index }}_op" name="gate_{{ row.index }}_op" aria-label="Gate {{ row.index + 1 }} op">
+                    {% for op in ("at least", "at most") %}
+                    <option value="{{ op }}"{% if op == row.op %} selected{% endif %}>{{ op }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+              </td>
+              <td>{{ text_input("gate_" ~ row.index ~ "_threshold", "gate_" ~ row.index ~ "_threshold", row.threshold, errors.get("gate_" ~ row.index ~ "_threshold"), kind="number", extra='step="0.001" inputmode="decimal"', aria_label="Gate " ~ (row.index + 1) ~ " threshold", required=True) }}</td>
+              <td>{% if values.gates|length > 1 %}{{ remove_button("gate", row.index, "Remove gate " ~ (row.index + 1)) }}{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="form-actions">{{ add_button("gate", "Add another gate") }}</div>
+
+      <h3>Prices</h3>
+      <p class="subtle">The schema needs a price for every candidate and judge model. provider_prices is optional and left untouched here; add one in the raw spec when a provider needs a separate table.</p>
+      <div class="table-wrap">
+        <table class="matrix">
+          <caption class="sr-only">Prices in this comparison</caption>
+          <thead><tr><th scope="col">Model</th><th scope="col">Input / 1M</th><th scope="col">Output / 1M</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
+          <tbody>
+            {% for row in values.prices %}
+            <tr{% if errors.get("price_" ~ row.index ~ "_model") or errors.get("price_" ~ row.index ~ "_input") or errors.get("price_" ~ row.index ~ "_output") %} class="is-invalid"{% endif %}>
+              <td>{{ text_input("price_" ~ row.index ~ "_model", "price_" ~ row.index ~ "_model", row.model, errors.get("price_" ~ row.index ~ "_model"), aria_label="Price " ~ (row.index + 1) ~ " model", required=True) }}</td>
+              <td>{{ text_input("price_" ~ row.index ~ "_input", "price_" ~ row.index ~ "_input", row.input, errors.get("price_" ~ row.index ~ "_input"), kind="number", extra='min="0" step="0.01" inputmode="decimal"', aria_label="Price " ~ (row.index + 1) ~ " input") }}</td>
+              <td>{{ text_input("price_" ~ row.index ~ "_output", "price_" ~ row.index ~ "_output", row.output, errors.get("price_" ~ row.index ~ "_output"), kind="number", extra='min="0" step="0.01" inputmode="decimal"', aria_label="Price " ~ (row.index + 1) ~ " output") }}</td>
+              <td>{% if values.prices|length > 1 %}{{ remove_button("price", row.index, "Remove price " ~ (row.index + 1)) }}{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="form-actions">{{ add_button("price", "Add another price") }}</div>
+{%- endmacro %}
+
+{% macro wizard_rail(page, sections=()) -%}
+  <aside class="wizard-rail" aria-label="Estimate and spec graph">
+    {% if sections %}
+    <nav class="rail-nav" aria-label="Sections on this page">
+      {% for anchor, label in sections %}<a href="#{{ anchor }}">{{ label }}</a>{% endfor %}
+    </nav>
+    {% endif %}
+    {% if page.estimate %}
+    <section class="estimate-hero" aria-labelledby="estimate-heading">
+      <div class="panel-title-row">
+        <h2 id="estimate-heading">Estimate</h2>
+        <span class="chip">{{ "observed medians" if page.estimate.observed else "fallback medians" }}</span>
+      </div>
+      <p class="estimate-total" data-estimate-cost="{{ '%.4f'|format(page.estimate.cost_usd) }}">{{ page.estimate.cost_usd|usd }}<small>projected cost before the run</small></p>
+      <dl class="facts" data-estimate-cells="{{ page.estimate.cells }}">
+        <div><dt>Cells</dt><dd>{{ page.estimate.cells }}</dd></div>
+        <div><dt>Tokens / cell</dt><dd>{{ page.estimate.tokens_per_cell }}</dd></div>
+        <div><dt>Budget</dt><dd>{{ page.estimate.budget_usd|usd if page.estimate.budget_usd is not none else "not set" }}</dd></div>
+        <div><dt>Headroom</dt><dd>{{ page.estimate.headroom_usd|usd if page.estimate.headroom_usd is not none else "not set" }}</dd></div>
+      </dl>
+      {% if page.estimate.budget_usd %}
+      <div class="estimate-meter">
+        <span class="meter {{ 'is-over' if page.estimate.over_budget else '' }}" aria-hidden="true"><span style="width: {{ page.estimate.budget_percent }}%"></span></span>
+        <div class="estimate-meter-labels"><span>{{ page.estimate.budget_percent }}% of the cap</span><span>cap {{ page.estimate.budget_usd|usd }}</span></div>
+      </div>
+      {% endif %}
+      {% if page.estimate.over_budget %}
+      <div class="callout callout-warn" role="alert">
+        <span class="callout-icon" aria-hidden="true">!</span>
+        <div><span class="callout-title">Over the cap.</span> The estimate exceeds the budget; the run would stop with exit code 3.</div>
+      </div>
+      {% endif %}
+    </section>
+    {% else %}
+    <div class="callout callout-warn" role="status">
+      <span class="callout-icon" aria-hidden="true">!</span>
+      <div><span class="callout-title">No estimate yet.</span> The estimate appears once the draft validates.</div>
+    </div>
+    {% endif %}
+
+    <section class="panel" aria-labelledby="graph-heading">
+      <div class="panel-head">
+        <div>
+          <h2 id="graph-heading">Spec graph</h2>
+          <p class="subtle">Cases, context, candidates, metrics and gates.</p>
+        </div>
+      </div>
+      {{ render_graph(page.graph, classes="spec-graph--rail") }}
+    </section>
+  </aside>
+{%- endmacro %}

@@ -1,33 +1,48 @@
 {% extends "base.html" %}
+{% from "_macros.html" import status with context %}
 {% block title %}Edit {{ name }}.yaml &middot; evalharness console{% endblock %}
 {% block content %}
 <nav class="crumbs" aria-label="Breadcrumb">
   <a href="{{ url_for('spec_list') }}">Specs</a>
-  <span aria-hidden="true">/</span>
+  <span class="separator" aria-hidden="true">/</span>
   <span>{{ name }}.yaml</span>
 </nav>
 
-<div class="page-head">
-  <div>
+<div class="page-header">
+  <div class="page-header-main">
+    <p class="eyebrow">Spec editor</p>
     <h1>{{ name }}.yaml</h1>
     <p class="lede">Validate and save this spec. The browser and the CLI share one validator, so an error here is the error <code>evalh validate</code> prints.</p>
   </div>
-  <span class="status {% if check.valid %}status-ok{% else %}status-error{% endif %}" data-editor-status>{{ "valid" if check.valid else "invalid" }}</span>
+  <div class="page-actions">
+    <span class="status {{ 'status-ok' if check.valid else 'status-error' }}" data-editor-status><span class="status-glyph" aria-hidden="true">{{ "✓" if check.valid else "✕" }}</span><span>{{ "valid" if check.valid else "invalid" }}</span></span>
+    <button type="button" class="btn btn-secondary" data-copy="{{ name }}.yaml" hidden>Copy name</button>
+  </div>
 </div>
 
 {% if copied %}
-<p class="callout callout-ok" role="status">Duplicate of <code>{{ copied }}.yaml</code>. Saving writes this new file; the original is untouched.</p>
+<div class="callout callout-ok" role="status">
+  <span class="callout-icon" aria-hidden="true">✓</span>
+  <div><span class="callout-title">Duplicate of <code>{{ copied }}.yaml</code>.</span> Saving writes this new file; the original is untouched.</div>
+</div>
 {% endif %}
 
 <div class="editor-layout">
   <form method="post" action="{{ url_for('spec_save', name=name) }}" class="spec-editor" data-spec-editor data-validate-url="{{ url_for('api_specs_validate') }}">
-    <label class="editor-label" for="yaml">Spec YAML <span class="subtle">The file is the only state.</span></label>
-    <textarea id="yaml" name="yaml" class="spec-source" rows="30" spellcheck="false" aria-describedby="spec-help spec-errors"{% if errors %} aria-invalid="true"{% endif %}>{{ text }}</textarea>
-    <p id="spec-help" class="subtle">Check validates the text below and shows the cells and cost before anything is saved. Save writes the file atomically and never writes a spec that fails validation.</p>
+    <div class="editor-head">
+      <div class="editor-label" id="yaml-label">
+        <span>Spec YAML</span>
+        <span class="subtle">The file is the only state.</span>
+      </div>
+      <span class="field-hint"><kbd>Ctrl</kbd> + <kbd>S</kbd> saves when valid</span>
+    </div>
+    <textarea id="yaml" name="yaml" class="spec-source" rows="30" spellcheck="false" aria-labelledby="yaml-label" aria-describedby="spec-help spec-errors"{% if errors %} aria-invalid="true"{% endif %}>{{ text }}</textarea>
+    <p id="spec-help" class="editor-hint">Check validates the text and refreshes the estimate without writing anything. Save writes the file atomically and never writes a spec that fails validation.</p>
     <div class="editor-actions">
-      <button type="submit" name="action" value="check" class="button-secondary">Check</button>
-      <button type="submit" name="action" value="save" class="button-primary" data-save-button{% if errors %} disabled{% endif %}>Save</button>
-      <span class="subtle">Works without JavaScript; the estimate updates as you type when it is on.</span>
+      <button type="submit" name="action" value="check" class="btn btn-secondary">Check</button>
+      <button type="submit" name="action" value="save" class="btn btn-primary" data-save-button{% if errors %} disabled{% endif %}>Save</button>
+      <span class="editor-note" data-dirty hidden>Unsaved changes</span>
+      <span class="editor-note">Works without JavaScript; the estimate refreshes as you type when it is on.</span>
     </div>
 
     <section id="spec-errors" class="error-panel" aria-live="polite" data-error-panel>
@@ -48,50 +63,76 @@
     </section>
   </form>
 
-  <aside class="summary-panel" aria-live="polite">
-    <h2>Before you save</h2>
-    <dl class="facts">
-      <div><dt>Cells</dt><dd data-cells>{{ estimate.cells if estimate else "-" }}</dd></div>
-      <div><dt>Cases</dt><dd data-cases>{{ check.cases or "-" }}</dd></div>
-      <div><dt>Cost estimate</dt><dd data-cost>{% if estimate %}${{ "%.6f"|format(estimate.cost_usd) }}{% else %}-{% endif %}</dd></div>
-    </dl>
+  <aside class="editor-rail" aria-label="Estimate and validation summary">
+    <section class="estimate-card" aria-labelledby="estimate-heading">
+      <div class="panel-title-row">
+        <h2 id="estimate-heading">Estimate</h2>
+        <span class="chip">{{ "observed medians" if estimate and estimate.observed else ("fallback medians" if estimate else "unavailable") }}</span>
+      </div>
+      <p class="estimate-total" data-cost>${% if estimate %}{{ "%.6f"|format(estimate.cost_usd) }}{% else %}-{% endif %}<small>projected cost before the run</small></p>
+      <dl class="facts">
+        <div><dt>Cells</dt><dd data-cells>{{ estimate.cells if estimate else "-" }}</dd></div>
+        <div><dt>Cases</dt><dd data-cases>{{ check.cases or "-" }}</dd></div>
+        <div><dt>Tokens / cell</dt><dd>{% if estimate %}{{ estimate.median_prompt_tokens }} + {{ estimate.median_completion_tokens }}{% else %}-{% endif %}</dd></div>
+      </dl>
 
-    <h3>Cells per candidate</h3>
-    <ul class="per-candidate" data-per-candidate>
-      {% for candidate, count in (estimate.cells_per_candidate if estimate else {}).items() %}
-      <li><span>{{ candidate }}</span><span class="num">{{ count }}</span></li>
-      {% endfor %}
-    </ul>
+      <h3>Cells per candidate</h3>
+      <ul class="per-candidate" data-per-candidate>
+        {% for candidate, count in (estimate.cells_per_candidate if estimate else {}).items() %}
+        <li><span>{{ candidate }}</span><span class="num">{{ count }}</span></li>
+        {% endfor %}
+      </ul>
 
-    <h3>Warnings</h3>
-    <ul class="warnings" data-warnings{% if not warnings %} hidden{% endif %}>
-      {% for warning in warnings %}<li>{{ warning }}</li>{% endfor %}
-    </ul>
-
-    <p class="subtle">
-      {% if estimate %}
-      Priced from {{ estimate.median_prompt_tokens }} prompt and
-      {{ estimate.median_completion_tokens }} completion tokens per cell
-      {% if estimate.observed %}(medians measured by an earlier run of this spec){% else %}(the fallback until a run of this spec supplies observed medians){% endif %}.
-      The launch estimate also compares this number with <code>budget_usd</code>.
+      {% if warnings %}
+      <h3>Warnings</h3>
+      <ul class="warnings" data-warnings>
+        {% for warning in warnings %}<li>{{ warning }}</li>{% endfor %}
+      </ul>
       {% else %}
-      Fix the errors to see the cell count and cost estimate.
+      <ul class="warnings" data-warnings hidden></ul>
       {% endif %}
-    </p>
+
+      <p class="field-hint">
+        {% if estimate %}
+        Priced from {{ estimate.median_prompt_tokens }} prompt and
+        {{ estimate.median_completion_tokens }} completion tokens per cell
+        {% if estimate.observed %}(medians measured by an earlier run of this spec){% else %}(the fallback until a run of this spec supplies observed medians){% endif %}.
+        The launch estimate also compares this number with <code>budget_usd</code>.
+        {% else %}
+        Fix the errors to see the cell count and cost estimate.
+        {% endif %}
+      </p>
+    </section>
+
+    <section class="estimate-card" aria-labelledby="summary-heading">
+      <h2 id="summary-heading">Before you save</h2>
+      <p class="field-hint">A save is refused while any field is invalid. Nothing is written to the database.</p>
+      <dl class="facts">
+        <div><dt>Validation</dt><dd>{{ "valid" if check.valid else "invalid" }}</dd></div>
+        <div><dt>Parsed name</dt><dd>{{ check.resolved.spec.name if check.resolved else "-" }}</dd></div>
+        <div><dt>Candidates</dt><dd>{{ check.resolved.spec.candidates|length if check.resolved else "-" }}</dd></div>
+        <div><dt>Replicas</dt><dd>{{ check.resolved.spec.replicas if check.resolved else "-" }}</dd></div>
+      </dl>
+    </section>
   </aside>
 </div>
 
-<section class="panel">
-  <h2>Credentials</h2>
-  <p class="subtle">The editor offers only a credential that is enabled and has passed a test. A candidate or judge that names a disabled or never-tested credential fails validation with the field it is used on, so a spec cannot smuggle one in.</p>
+<section class="panel" aria-labelledby="credentials-heading">
+  <div class="panel-head">
+    <div>
+      <h2 id="credentials-heading">Credentials</h2>
+      <p class="subtle">The editor offers only a credential that is enabled and has passed a test. A candidate or judge that names a disabled or never-tested credential fails validation with the field it is used on, so a spec cannot smuggle one in.</p>
+    </div>
+    <a class="btn btn-ghost btn-sm" href="{{ url_for('credential_list') }}">Manage credentials</a>
+  </div>
   {% if credentials %}
   <ul class="credential-choices">
     {% for credential in credentials %}
     <li>
       <code>{{ credential.name }}</code>
       <span class="subtle">{{ credential.provider }}</span>
-      <span class="status {% if credential.usable %}status-ok{% else %}status-error{% endif %}">{{ credential.state }}</span>
-      {% if not credential.usable %}<span class="subtle">not selectable until you test or enable it</span>{% endif %}
+      {{ status("verified" if credential.usable else "unverified", credential.state) }}
+      {% if not credential.usable %}<span class="field-hint">not selectable until you test or enable it</span>{% endif %}
     </li>
     {% endfor %}
   </ul>

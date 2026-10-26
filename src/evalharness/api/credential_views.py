@@ -65,6 +65,15 @@ class CredentialChoice:
 
 
 @dataclass(frozen=True, slots=True)
+class CredentialStats:
+    """The at-a-glance vault state: how many keys exist and how many need work."""
+
+    total: int
+    usable: int
+    needs_attention: int
+
+
+@dataclass(frozen=True, slots=True)
 class ProviderOption:
     """One provider choice, derived from the verifier's auth table."""
 
@@ -102,6 +111,17 @@ def provider_options() -> list[ProviderOption]:
         ProviderOption(name=name, auth=auth)
         for name, auth in provider_choices()
     ]
+
+
+def credential_stats(rows: list[CredentialRow]) -> CredentialStats:
+    """Count the credentials the page shows and the ones that need a test."""
+    return CredentialStats(
+        total=len(rows),
+        usable=sum(1 for row in rows if row.usable),
+        needs_attention=sum(
+            1 for row in rows if not row.usable or row.last_error is not None
+        ),
+    )
 
 
 def credential_rows(

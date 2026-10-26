@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% from "_wizard.html" import step_strip, step_one_fields, step_two_fields, step_three_fields, step_four_fields, form_notices, wizard_rail %}
+{% block title %}{{ page.step.title }} &middot; new comparison &middot; evalharness console{% endblock %}
+{% block content %}
+{% set values = page.values %}
+<div class="page-header">
+  <div class="page-header-main">
+    <p class="eyebrow">Comparisons / New</p>
+    <h1>{{ page.step.title }}</h1>
+    <p class="lede">Four steps compose one spec. Your values travel in the hidden draft, and nothing is written to disk until the last step.</p>
+  </div>
+  <div class="page-actions">
+    <span class="chip">{{ values.cases|length }} case{{ "" if values.cases|length == 1 else "s" }}</span>
+    <a class="btn btn-ghost" href="{{ url_for('spec_list') }}">Cancel</a>
+  </div>
+</div>
+
+{{ step_strip(page) }}
+
+<div class="wizard-layout">
+  <section class="panel wizard-body" aria-labelledby="step-heading">
+    <div class="panel-head">
+      <div>
+        <h2 id="step-heading">Step {{ page.step.index }} of 4: {{ page.step.title }}</h2>
+        <p class="subtle">{{ page.step.description }}</p>
+      </div>
+    </div>
+
+    {{ form_notices(page) }}
+
+    <form id="wizard-form" class="wizard-form" method="post" action="{{ page.step.path }}">
+      <input type="hidden" name="form_step" value="{{ page.step.index }}">
+      <input type="hidden" name="draft" value="{{ page.draft }}">
+
+      {% if page.step.index == 1 %}
+      {{ step_one_fields(page) }}
+      {% elif page.step.index == 2 %}
+      {{ step_two_fields(page) }}
+      {% elif page.step.index == 3 %}
+      {{ step_three_fields(page) }}
+      {% else %}
+      {{ step_four_fields(page) }}
+      {% endif %}
+
+      <div class="form-actions wizard-actions">
+        <button type="submit" class="btn btn-primary" name="action" value="continue">{{ "Create comparison" if page.step.index == 4 else "Continue" }}</button>
+        {% if page.step.index > 1 %}
+        <button type="submit" class="btn btn-secondary" formaction="{{ page.previous_path }}" name="action" value="back">Back</button>
+        {% endif %}
+        <span class="field-hint">Continue validates the whole draft. Nothing is written until the last step.</span>
+      </div>
+    </form>
+  </section>
+
+  {{ wizard_rail(page) }}
+</div>
+{% endblock %}

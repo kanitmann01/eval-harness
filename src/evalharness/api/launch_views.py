@@ -55,15 +55,29 @@ def launch_page_context(
             estimate = prepared.estimate
             spec_budget = prepared.resolved.spec.budget_usd
             spec_name = path.name
+    headroom = (
+        spec_budget - estimate.cost_usd
+        if estimate is not None and spec_budget is not None
+        else None
+    )
+    budget_percent = (
+        min(100, round(estimate.cost_usd / spec_budget * 100))
+        if estimate is not None and spec_budget
+        else None
+    )
     return {
         "specs": specs,
         "specs_root": str(specs_directory(settings)),
-        "selected": selected,
+        "selected": spec_name or selected,
         "spec_name": spec_name,
         "budget_override": budget_override,
         "estimate": estimate,
         "estimate_error": estimate_error,
         "spec_budget_usd": spec_budget,
+        "headroom_usd": headroom,
+        "over_budget": bool(headroom is not None and headroom < 0),
+        "budget_percent": budget_percent,
+        "equivalent_command": f"evalh run {spec_name}" if spec_name else "",
         "error": error,
         "running_run_id": running_run_id,
     }
