@@ -24,8 +24,8 @@ The four steps an operator walks are the four blocks the spec already has:
 
 ## 2. Decisions taken
 
-- **Signature element: the spec graph.** One wiring diagram, rendered three ways (thumbnail,
-  run, diff). It is the thing the console is remembered for.
+- **Signature element: the spec graph.** One wiring diagram, rendered four ways (thumbnail,
+  run, compare pair, compact rail). It is the thing the console is remembered for.
 - **First run is a wizard, later edits are one page.** The wizard creates; the edit page is a
   structured form with "View YAML" as the escape hatch to the existing editor.
 - **Flow before screens.** This document and the wireframes are reviewed before any screen
@@ -57,10 +57,12 @@ detail and the compare view, and that lights up as cells resolve.**
 - Owned: it is the spec itself. Cases, prompts and contexts feed candidates, candidates feed
   metrics, metrics feed gates, gates produce the verdict. Only this product can draw it,
   because only this product has that intermediate object.
-- Sustained: thumbnail on every run row, full on run detail, doubled on compare, preview strip
-  inside the wizard and the edit form.
+- Sustained: 96 x 32 thumbnail on every run row, full width on run detail, one 640-unit graph
+  per side on compare with short column headings, compact 320-unit graph in the wizard rail.
 
-The node columns are fixed, so the same shape reads at 96px wide and at 900px wide.
+The node columns are fixed, so the same shape reads at 96px wide, at 320 units and at 960
+units. The compact variant drops node labels, not nodes: at 320 units a 9px label is unreadable,
+so the rail shows the structure and the page shows the names.
 
 ## 4. Information architecture
 
@@ -249,7 +251,10 @@ Columns, left to right: `cases` / `prompts and contexts` / `candidates` / `metri
   error is `--warn` with a dashed stroke. Colour is never alone: every state also changes
   the stroke pattern or adds a glyph, matching the heatmap legend.
 - Accessible name: one `role="img"` with a generated description ("4 candidates over 12 cases
-  produce 48 cells; 3 gates, 1 failed").
+  produce 48 cells; 3 gates, 1 failed"). The full graph uses `<title>` and `<desc>` ids; the
+  thumbnail is `aria-hidden="true"` because the row cells carry the same facts.
+- Variants are transforms of one model: thumbnail scales the boxes to 96 x 32, the rail relayouts
+  them to 320 units without labels, and both keep node order and tones.
 - Reduced motion: the lit-paths sweep is replaced by static states.
 - No JavaScript: the SVG is server-rendered, so it is the fallback.
 
@@ -274,7 +279,7 @@ Every screen must show, at minimum:
 | 1440 x 900 | desktop | full matrix, rail on the right, graph at full width |
 | 1280 x 800 | laptop | same, tighter gutters, table hides duration column |
 | 823 x 789 | tablet portrait | rail moves under the content, table loses two columns |
-| 375 x 812 | phone | single column, stacked rows, graph as stage list, 44px targets |
+| 375 x 812 | phone | single column, stacked rows, rail graph at 320 units, 44px targets |
 
 Breakpoints: 768px and 1024px. No horizontal scroll at any width; wide tables scroll inside
 their own `role="region"` container only.

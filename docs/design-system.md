@@ -124,15 +124,19 @@ generated from the spec and the run record, never hand placed.
 
 | Where | Size | Variant | Notes |
 | --- | --- | --- | --- |
-| Runs list, every row | 96 x 32px | thumbnail | `aria-hidden`, no labels, shape only |
-| Run detail | up to 880 x 293px | full | `role="img"`, title and description, figcaption |
-| Compare | two at about 640 x 213px | doubled | same viewBox and node order, shared nodes at identical positions |
-| Wizard step 4, edit page | 96 x 32px | preview | beside the cell count, not interactive |
+| Runs list, every row | 96 x 32px | thumbnail | `aria-hidden`, no labels, 1px edges, shape only, dropped below 768px |
+| Run detail, between the stats row and the heatmap | 960 units wide | full | `role="img"`, title and description, one figcaption line with the counts |
+| Compare, one per side above the metrics | 640 units per side | full boxes, short headings | same columns and node order, every node label kept, captioned Side A and Side B |
+| Wizard rail, all four steps | 320 units wide | compact | column labels only, 18px nodes, every node kept |
 
 The same object at every size. Node columns are fixed and nodes are ordered by
 name, never by count or by state, so two runs of the same spec are
-pixel-comparable and the 96px thumbnail has the silhouette of the 880px graph.
-The thumbnail is not a different diagram.
+pixel-comparable and the 96px thumbnail has the silhouette of the 960px graph.
+The thumbnail is not a different diagram. A compare panel is the full graph at
+640 units with the abbreviated column headings: the long headings collide at that
+width, the node labels do not. The compact rail variant is the same graph at 320
+units: it keeps every node and drops the node labels, because at that width a
+9px label is grey mush.
 
 No competing element. A screen shows one spec graph, and compare shows two. A
 second diagram, chart, illustration, decorative SVG background or icon set is a
@@ -184,13 +188,15 @@ Components only ever reference tokens, never a literal colour.
 | `--ink` | `#151b19` | `#e8eeea` | primary text |
 | `--ink-2` | `#39433f` | `#c3cdc7` | form labels, dense values |
 | `--muted` | `#5f6a65` | `#98a49e` | secondary text, captions |
-| `--faint` | `#8a948f` | `#74817a` | ids, timestamps, placeholders |
+| `--faint` | `#66706a` | `#84918a` | ids, timestamps, placeholders |
 | `--line` | `#e1e6e3` | `#24302a` | hairline borders |
 | `--line-strong` | `#ccd4cf` | `#34433b` | input borders, emphasis rules |
 
 All combinations of `--ink`, `--ink-2` and `--muted` on `--canvas` and
-`--surface` clear WCAG AA (4.5:1) in both schemes. `--faint` is used only for
-non-essential metadata; anything an operator must read uses `--muted` or above.
+`--surface` clear WCAG AA (4.5:1) in both schemes. `--faint` is metadata only:
+it is lifted to 5.13:1 on the light surface and 5.53:1 on the dark surface, so
+it clears AA as well. Anything an operator must read still uses `--muted` or
+above.
 
 ### Semantic tones
 
@@ -951,12 +957,11 @@ heatmap's double ring) are not focus rings and never replace one.
 Rules for a table longer than the viewport:
 
 ```css
-.table-wrap thead th {
+thead th {
   position: sticky;
-  top: 56px;               /* under the 56px top bar */
+  top: 0;                  /* inside .table-wrap, the scroll container */
   z-index: 1;
   background: var(--surface-2);
-  box-shadow: inset 0 -1px 0 var(--line);
 }
 ```
 
@@ -964,14 +969,11 @@ The header cell needs an opaque background, or rows show through it. The z-index
 stack is: top bar 40, sticky head 1, and inside the heatmap the head row 2 with
 the sticky row head at 1 and the head's own row head at 3.
 
-The mismatch today: `.table-wrap` is `overflow-x: auto`, which makes it the
-scroll container, so `top: 0` pins the header to the wrapper's top edge rather
-than to the viewport, and the runs header scrolls away with the page. Two
-workable fixes, phase 4: let the wrapper scroll vertically with a
-`max-height` (then `top: 0` is correct), or keep the wrapper at
-`overflow: visible` above 900px where the table needs no horizontal scroll and
-pin to the top bar. Do not claim a sticky header in a review until one of them
-ships.
+The wrapper is the scroll container on both axes: `.table-wrap` is
+`overflow: auto` with `max-height: 70vh`, so the header pins to the top of the
+table's own viewport while the body scrolls underneath it, and a table wider than
+a phone still scrolls horizontally. A long table therefore scrolls inside its
+region, not with the page; keep that in mind when a page promises both.
 
 ## States
 
@@ -1067,36 +1069,40 @@ Measured from the token values in this document, WCAG 2.1, both schemes:
 | `--neutral-ink` on `--neutral-bg` | 7.0 | 8.0 | cancelled, disabled |
 | `--bad-ink` on `--surface` | 10.3 | 11.4 | field errors, danger button |
 | `--warn-ink` on `--surface` | 8.5 | 12.7 | warning text outside a callout |
-| `--faint` on `--surface` | 3.1 | 4.46 | metadata only, fails AA |
+| `--faint` on `--surface` | 5.13 | 5.53 | metadata only, passes AA |
 
 Pairs not in this table are not used for text. The lowest text pair in use is
-`--muted` on `--surface-2` at 5.0 (light). `--faint` measures 3.1:1 on the light
-surface and 4.46:1 in dark, so it fails AA for text: it may carry an id, a
-timestamp or a copy glyph (non-text, above the 3:1 floor), never a label, a
-control or a sentence. Border and glyph-only pairs are
-decorative because the glyph and the word carry the meaning.
+`--muted` on `--surface-2` at 5.0 (light). `--faint` was lifted from `#8a948f`
+(3.13:1) to `#66706a` (5.13:1, 4.59:1 on `--surface-2`) in light and from
+`#74817a` (4.46:1) to `#84918a` (5.53:1, 5.12:1 on `--surface-2`) in dark, so it
+passes AA wherever it carries text. It is still only for ids, timestamps and
+placeholders, never a label, a control or a sentence: the rule is about
+hierarchy, not about the ratio. Border and glyph-only pairs are decorative
+because the glyph and the word carry the meaning.
 
 ### Tap targets
 
 The rule is 44 x 44px at 375px. Vertical neighbours are separated by at least
 8px so a mis-tap is recoverable.
 
-| Class | Height today | Where |
+| Class | Desktop height | Coarse pointer and at most 768px |
 | --- | --- | --- |
-| `.btn` | 32px | forms, toolbars |
-| `.btn-sm` | 26px | table rows, top bar |
-| `.icon-btn` | 28px | row actions |
-| `.copy-button` | 20px | ids, hashes |
-| site nav link | 30px | top bar |
-| heat cell link | 39.2px | heatmap |
+| `.btn` | 32px | 44 x 44 |
+| `.btn-sm` | 26px | 44 x 44 |
+| `.icon-btn` | 28px | 44 x 44 |
+| `.copy-button` | 20px | 44 x 44 |
+| site nav link | 30px | 44 x 44 |
+| step link | 30px | 44 x 44 |
+| heat cell link | 39.2px | 44 x 44 |
 
-None meets 44px. Proposed, phase 1 for the shared primitives and phase 4 for the
-screens: at 700px and below, buttons and icon buttons get `min-height: 44px` (and
-44px width for icon-only), nav links 44px, heat cells 44px in a 3.35rem column,
-and row actions stack under the row title instead of sitting beside three
-neighbours. Grow the visible box; do not add an absolutely positioned 44px
-overlay, because overlapping hit areas steal taps from the next control in a
-dense table.
+The dense sizes stay on a fine pointer: DENSITY is 8 and a desktop button does
+not need 44px. Two media blocks raise `.btn`, `.button-link`, `.btn-sm`,
+`.icon-btn`, `.copy-button`, `.site-nav a`, `.step-link` and `.heat-cell a` to
+`min-width: 44px; min-height: 44px`: `(pointer: coarse)` covers a touch laptop
+at any width, `(max-width: 768px)` covers a narrow window driven by a mouse. Grow
+the visible box; do not add an absolutely positioned 44px overlay, because
+overlapping hit areas steal taps from the next control in a dense table. The
+3.1rem heat column leaves room for the 44px link without reflowing the matrix.
 
 ### Focus
 
@@ -1119,7 +1125,8 @@ change to this document in the same pull request.
       no row of three identical cards, no emoji, no cliche, no `100vh`, no
       spinner, no centred hero, no mixed-stroke icon.
 - [ ] The spec graph appears once, is the only diagram on the screen, and reads
-      at 96px and at full width. Compare shows two and nothing else competes.
+      at 96px, at 320 units in the wizard rail and at full width. Compare shows
+      two and nothing else competes.
 - [ ] Every state that can occur exists: empty, loading, error, running, partial,
       cancelled, denied, success, and the filtered-empty for lists.
 - [ ] Every animation and transition is listed under Motion, is bound to a state
@@ -1129,7 +1136,7 @@ change to this document in the same pull request.
 - [ ] Every text pair on the screen is in the contrast table and clears 4.5:1;
       `--faint` is not used for a label, a control or a sentence.
 - [ ] At 375px every target is at least 44 x 44 and nothing scrolls horizontally
-      except a table region; the stage list replaces the graph.
+      except a table region; the wizard rail uses the compact graph.
 - [ ] Numbers are tabular and right aligned; ids, hashes and counts are mono; a
       null renders undefined, and every rate shows its n and interval.
 - [ ] The flow completes with JavaScript off: the graph is server-rendered, the

@@ -1,4 +1,4 @@
-/* evalharness console — design tokens and components.
+/* evalharness console: design tokens and components.
    Server-rendered, one stylesheet, no build step, no external assets.
    Structure: tokens, base, shell, components, page patterns, responsive, print. */
 
@@ -17,7 +17,8 @@
   --ink: #151b19;
   --ink-2: #39433f;
   --muted: #5f6a65;
-  --faint: #8a948f;
+  /* Metadata only. Lifted to 5.13:1 on --surface so it passes AA. */
+  --faint: #66706a;
 
   /* hairlines */
   --line: #e1e6e3;
@@ -28,7 +29,6 @@
   --accent-hover: #174a3b;
   --accent-soft: #e6f1ec;
   --accent-ink: #ffffff;
-  --on-accent-muted: #d7e9e1;
 
   /* semantic tones (background, ink, line) */
   --ok-bg: #e3f4e9;
@@ -98,7 +98,8 @@
     --ink: #e8eeea;
     --ink-2: #c3cdc7;
     --muted: #98a49e;
-    --faint: #74817a;
+    /* Metadata only. Lifted to 5.53:1 on --surface so it passes AA. */
+    --faint: #84918a;
 
     --line: #24302a;
     --line-strong: #34433b;
@@ -107,7 +108,6 @@
     --accent-hover: #a4e4c8;
     --accent-soft: #17362b;
     --accent-ink: #0b1b15;
-    --on-accent-muted: #29483b;
 
     --ok-bg: #133324;
     --ok-ink: #a9e8c2;
@@ -340,6 +340,7 @@ code, .mono, samp {
 }
 .site-footer p { margin: 0; }
 .footer-sep { color: var(--line-strong); }
+.run-candidates-mobile { display: none; }
 
 /* -------------------------------------------------------------- page header */
 .crumbs {
@@ -410,8 +411,7 @@ code, .mono, samp {
 .btn,
 .button-link,
 .button-primary,
-.button-secondary,
-button.btn {
+.button-secondary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -471,6 +471,9 @@ button.btn {
 .btn-danger:hover { background: var(--bad-bg); }
 
 .btn-sm { height: 26px; padding: 0 9px; font-size: var(--text-xs); }
+/* Add row reads as an affordance, not as the section heading. */
+.btn-add { border-style: dashed; }
+.btn-add-glyph { color: var(--accent); font-size: 14px; font-weight: 700; line-height: 1; }
 .icon-btn {
   width: 28px;
   height: 28px;
@@ -663,9 +666,12 @@ button:disabled {
 }
 
 /* ------------------------------------------------------------------ tables */
+/* The wrapper scrolls on both axes so the sticky header below has a scroll
+   container to pin inside. Phones keep horizontal scrolling. */
 .table-wrap {
   max-width: 100%;
-  overflow-x: auto;
+  max-height: 70vh;
+  overflow: auto;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
@@ -1123,6 +1129,14 @@ kbd {
 }
 .heat-summary .subtle { display: block; font-size: var(--text-2xs); }
 .heat-summary .meter { width: 5rem; margin: 5px 0 0 auto; }
+/* The row head carries the rate on phones, where the summary column is gone. */
+.heat-rate {
+  display: none;
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
 
 /* ----------------------------------------------------------------- verdict */
 .run-verdict {
@@ -1520,7 +1534,15 @@ kbd {
 .metric-value { font-size: var(--text-md); font-weight: 620; font-variant-numeric: tabular-nums; }
 .metric-sub { color: var(--muted); font-size: var(--text-2xs); font-variant-numeric: tabular-nums; }
 .metric-delta { font-size: var(--text-md); font-weight: 650; font-variant-numeric: tabular-nums; }
-.judge-name { display: block; font-size: var(--text-xs); font-family: var(--font-mono); }
+.judge-name {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .judge-detail {
   display: block;
   overflow: hidden;
@@ -1531,15 +1553,37 @@ kbd {
   white-space: nowrap;
 }
 .verdict-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
-.verdict-reason { color: var(--muted); font-size: var(--text-xs); line-height: 1.45; max-width: 32ch; }
+.verdict-reason {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .compare-metrics { table-layout: fixed; }
-.compare-metrics th:nth-child(1) { width: 12%; }
-.compare-metrics th:nth-child(2) { width: 14%; }
-.compare-metrics th:nth-child(3) { width: 14%; }
-.compare-metrics th:nth-child(4) { width: 13%; }
-.compare-metrics th:nth-child(5) { width: 22%; }
-.compare-metrics th:nth-child(6) { width: 12%; }
-.compare-metrics th:nth-child(7) { width: 13%; }
+.compare-metrics .metric-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.compare-metrics col.col-metric { width: 13%; }
+.compare-metrics col.col-a { width: 15%; }
+.compare-metrics col.col-b { width: 15%; }
+.compare-metrics col.col-delta { width: 13%; }
+.compare-metrics col.col-verdict { width: 20%; }
+.compare-metrics col.col-cost { width: 11%; }
+.compare-metrics col.col-judge { width: 13%; }
+.compare-metrics .cost-cell { overflow: hidden; }
+.compare-metrics .cost-cell .metric-value,
+.compare-metrics .cost-cell .metric-sub {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .different-judge-row { background: var(--warn-bg); }
 .different-judge-row:hover { background: var(--warn-bg); }
 .side-badge {
@@ -1817,12 +1861,18 @@ kbd {
 .step-number { color: var(--muted); font-size: var(--text-xs); }
 .wizard-rail { position: sticky; top: 72px; display: grid; gap: var(--space-4); }
 .wizard-rail .estimate-hero { position: static; }
+.edit-form .wizard-body { display: grid; gap: var(--space-4); }
+.rail-nav { display: grid; gap: var(--space-1); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); }
+.rail-nav a { color: var(--muted); font-size: var(--text-sm); text-decoration: none; }
+.rail-nav a:hover { color: var(--ink); }
 .matrix td { vertical-align: top; }
 .matrix .field { min-width: 7rem; }
 .matrix .field-hint { display: none; }
 .matrix td:last-child { width: 1%; white-space: nowrap; }
 .spec-graph { display: block; width: 100%; height: auto; overflow: visible; }
 .spec-graph .sg-col-label { fill: var(--muted); font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.04em; text-transform: uppercase; }
+/* At 320 units the longest heading runs into its neighbour at the full size. */
+.spec-graph--rail .sg-col-label { font-size: 9px; letter-spacing: 0.02em; }
 .spec-graph .sg-edge { fill: none; stroke: var(--line-strong); stroke-width: 1.5px; }
 .spec-graph .sg-state-pass { stroke: var(--ok-ink); }
 .spec-graph .sg-state-fail { stroke: var(--bad-ink); }
@@ -1834,10 +1884,30 @@ kbd {
 .spec-graph .sg-tone-info rect { fill: var(--info-bg); stroke: var(--info-line); }
 .spec-graph .sg-label { fill: var(--ink); font-size: 11px; font-weight: 600; }
 .spec-graph .sg-detail { fill: var(--muted); font-size: 9.5px; }
-.spec-graph--thumb { max-height: 220px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--inset); padding: var(--space-2); }
+.spec-graph-figure { margin: 0; }
+.spec-graph-caption { margin-top: var(--space-2); color: var(--muted); font-size: var(--text-xs); }
+.graph-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
+.spec-graph--pair,
+.spec-graph--rail {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--inset);
+  padding: var(--space-2);
+}
+.spec-graph--rail { padding: var(--space-1); }
+.spec-graph--mini {
+  display: block;
+  width: 96px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--inset);
+}
+.run-graph { width: 1%; white-space: nowrap; }
 @media (max-width: 900px) {
   .wizard-layout { grid-template-columns: 1fr; }
   .wizard-rail { position: static; }
+  .graph-pair { grid-template-columns: 1fr; }
 }
 @media (max-width: 700px) {
   .step-list { grid-template-columns: 1fr 1fr; }
@@ -1873,6 +1943,12 @@ kbd {
 
 @media (max-width: 900px) {
   .col-lg { display: none; }
+  /* The seven metric columns cannot hold their share of a tablet width, so the
+     table sizes to its content and the wrapper scrolls if it still overflows. */
+  .compare-metrics { table-layout: auto; min-width: 38rem; }
+  .compare-metrics colgroup { display: none; }
+  .compare-metrics .verdict-cell { align-items: stretch; }
+  .compare-metrics .verdict-reason { white-space: normal; }
   .editor-layout, .launch-layout { grid-template-columns: 1fr; }
   .editor-rail { position: static; }
   .cell-sheet { grid-template-columns: 1fr; }
@@ -1902,6 +1978,10 @@ kbd {
   .heatmap { min-width: 0; }
   .heatmap .row-head { width: 10rem; max-width: 10rem; }
   .heat-gap, .heat-summary { display: none; }
+  .heat-rate { display: block; }
+  .run-candidates-mobile { display: block; color: var(--muted); font-size: var(--text-xs); margin-top: 2px; }
+  .footer-sep { display: none; }
+  .site-footer p { display: grid; gap: 2px; }
   .credential-form { grid-template-columns: 1fr; }
   .form-grid { grid-template-columns: 1fr; }
   .decision { flex-direction: column; }
@@ -1966,6 +2046,38 @@ kbd {
   .heatmap .row-head { width: 8rem; max-width: 8rem; }
   .runs, .aggregates { min-width: 0; }
   .compare-metrics th[scope="row"] { overflow-wrap: normal; word-break: normal; }
+}
+
+/* ---------------------------------------------------------- target sizing */
+/* Every control is at least 44 by 44 on touch hardware. A fine pointer keeps
+   the desktop density documented in docs/design-system.md. */
+@media (pointer: coarse) {
+  .btn,
+  .button-link,
+  .btn-sm,
+  .icon-btn,
+  .copy-button,
+  .site-nav a,
+  .step-link,
+  .heat-cell a {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 768px) {
+  .btn,
+  .button-link,
+  .btn-sm,
+  .icon-btn,
+  .copy-button,
+  .site-nav a,
+  .step-link,
+  .heat-cell a {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .col-graph, .run-graph { display: none; }
 }
 
 /* ----------------------------------------------------------- reduced motion */

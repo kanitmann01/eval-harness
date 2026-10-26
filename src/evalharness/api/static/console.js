@@ -172,7 +172,7 @@
       case "cell_completed":
         return "cell " + cell + " completed" + passed;
       case "cell_failed":
-        return "cell " + cell + " errored · " + (payload.error_type || "error");
+        return "cell " + cell + " errored";
       case "cell_cancelled":
         return "cell " + cell + " cancelled";
       case "budget_exceeded":
@@ -180,18 +180,24 @@
       case "run_cancelled":
         return "run cancelled";
       case "run_finished":
-        return "run finished · " + (payload.status || "done");
+        return (
+          "run finished · " +
+          (payload.n_ok || 0) +
+          " of " +
+          (payload.n_cells || total) +
+          " cells passed"
+        );
       default:
         return data.kind || "event";
     }
   };
 
+  // One chip per row. The text already says "cancelled" or names the error,
+  // so only these three kinds carry a state chip beside it.
   const chipFor = (kind, payload) => {
     if (kind === "cell_completed") return ["status-ok", "ok"];
     if (kind === "cell_failed") return ["status-error", "error"];
-    if (kind === "cell_cancelled") return ["status-cancelled", "cancelled"];
-    if (kind === "run_finished") return ["status-" + (payload.status || "ok"), payload.status || "done"];
-    if (kind === "budget_exceeded") return ["status-budget_exceeded", "budget"];
+    if (kind === "run_finished") return ["status-" + (payload.status || "ok"), payload.status || "ok"];
     return null;
   };
 
