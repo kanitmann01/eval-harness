@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% from "_wizard.html" import step_one_fields, step_two_fields, step_three_fields, step_four_fields, form_notices, wizard_rail %}
+{% block title %}{{ stem }}.yaml &middot; edit comparison &middot; evalharness console{% endblock %}
+{% block content %}
+{% set values = page.values %}
+{% set sections = [
+  ("section-identity", "Identity and cases"),
+  ("section-context", "Contexts and credentials"),
+  ("section-candidates", "Candidates"),
+  ("section-rules", "Cost and rules"),
+] %}
+<form id="edit-form" class="edit-form" method="post" action="{{ url_for('comparison_edit_submit', name=stem) }}">
+  <input type="hidden" name="digest" value="{{ digest }}">
+  <div class="page-header">
+    <div class="page-header-main">
+      <p class="eyebrow">Comparisons / Edit</p>
+      <h1>{{ stem }}</h1>
+      <p class="identity"><span class="mono">{{ stem }}.yaml</span><span>modified {{ file.modified|timestamp }}</span><span>spec name <span class="mono">{{ values.name }}</span></span></p>
+      <p class="lede">Every section of the spec on one page. Save validates the whole spec and writes the file; Save and run opens the launch page next.</p>
+    </div>
+    <div class="page-actions">
+      <a class="btn btn-ghost" href="{{ url_for('spec_edit', name=stem) }}">View YAML</a>
+      <a class="btn btn-secondary" href="{{ url_for('spec_list') }}">Cancel</a>
+      <button type="submit" class="btn btn-primary" name="action" value="save"{% if conflict %} disabled{% endif %}>Save</button>
+      <button type="submit" class="btn btn-secondary" name="action" value="save-run"{% if conflict %} disabled{% endif %}>Save and run</button>
+    </div>
+  </div>
+
+  {% if conflict %}
+  <div class="callout callout-error" role="alert">
+    <span class="callout-icon" aria-hidden="true">✕</span>
+    <div>
+      <span class="callout-title">This file changed on disk since you opened it.</span>
+      Nothing was saved. <a href="{{ url_for('comparison_edit', name=stem) }}">Reload the form</a> to start from the newer file, or <a href="{{ url_for('spec_edit', name=stem) }}">open the YAML editor</a>. Your typed values are still on this page.
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="wizard-layout">
+    <div class="wizard-body">
+      {{ form_notices(page) }}
+
+      <section class="panel edit-section" id="section-identity" aria-labelledby="section-identity-heading">
+        <div class="panel-head">
+          <div>
+            <h2 id="section-identity-heading">Identity and cases</h2>
+            <p class="subtle">{{ page.steps[0].description }}</p>
+          </div>
+        </div>
+        <div class="field">
+          <label for="spec-name">Name</label>
+          <input id="spec-name" type="text" value="{{ values.name }}" readonly{% if page.errors.get("name") %} aria-invalid="true" aria-describedby="spec-name-note spec-name-error" aria-errormessage="spec-name-error"{% else %} aria-describedby="spec-name-note"{% endif %}>
+          <p class="field-hint" id="spec-name-note">The name is stored in the file. Renaming happens in the YAML editor, so this form cannot rename, orphan or duplicate a spec.</p>
+          {% if page.errors.get("name") %}<p class="field-error-text" id="spec-name-error">{{ page.errors.get("name").message }}</p>{% endif %}
+        </div>
+        {{ step_one_fields(page, editable_name=False) }}
+      </section>
+
+      <section class="panel edit-section" id="section-context" aria-labelledby="section-context-heading">
+        <div class="panel-head">
+          <div>
+            <h2 id="section-context-heading">Contexts and credentials</h2>
+            <p class="subtle">Prompts, reference contexts and the credential declarations the spec names.</p>
+          </div>
+        </div>
+        {{ step_two_fields(page) }}
+      </section>
+
+      <section class="panel edit-section" id="section-candidates" aria-labelledby="section-candidates-heading">
+        <div class="panel-head">
+          <div>
+            <h2 id="section-candidates-heading">Candidates</h2>
+            <p class="subtle">{{ page.steps[2].description }}</p>
+          </div>
+        </div>
+        {{ step_three_fields(page) }}
+      </section>
+
+      <section class="panel edit-section" id="section-rules" aria-labelledby="section-rules-heading">
+        <div class="panel-head">
+          <div>
+            <h2 id="section-rules-heading">Cost and rules</h2>
+            <p class="subtle">{{ page.steps[3].description }}</p>
+          </div>
+        </div>
+        {{ step_four_fields(page) }}
+      </section>
+    </div>
+
+    {{ wizard_rail(page, sections) }}
+  </div>
+</form>
+{% endblock %}

@@ -42,7 +42,7 @@
       <tr class="spec-row">
         <td>
           <div class="table-title">
-            <a class="run-link" href="{{ url_for('spec_edit', name=row.name) }}">{{ row.name }}.yaml</a>
+            <a class="run-link" href="{{ url_for('comparison_edit', name=row.name) }}">{{ row.name }}.yaml</a>
           </div>
         </td>
         <td class="col-lg">{{ row.spec_name or "-" }}</td>
@@ -60,7 +60,7 @@
         </td>
         <td class="actions col-sm">
           <div class="actions-cell">
-            <a class="btn btn-secondary btn-sm" href="{{ url_for('spec_edit', name=row.name) }}">Edit</a>
+            <a class="btn btn-secondary btn-sm" href="{{ url_for('comparison_edit', name=row.name) }}">Edit</a>
             <form method="post" action="{{ url_for('spec_duplicate', name=row.name) }}" class="inline-form">
               <button type="submit" class="btn btn-secondary btn-sm">Duplicate</button>
             </form>

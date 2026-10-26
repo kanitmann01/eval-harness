@@ -19,7 +19,7 @@ import yaml
 
 from evalharness.adapters.manifest import MANIFEST
 from evalharness.api.credential_views import CredentialChoice, provider_options
-from evalharness.api.graph_views import SpecGraph, spec_graph
+from evalharness.api.graph_views import SpecGraph, rail_graph
 from evalharness.api.spec_store import SLUG_PATTERN
 from evalharness.api.spec_views import SpecCheck, field_value
 from evalharness.errors import SpecError
@@ -655,6 +655,25 @@ def route_errors(
     return tuple(errors)
 
 
+def collect_edit_errors(
+    check: SpecCheck,
+    document: Mapping[str, Any],
+    credentials: Sequence[CredentialChoice],
+    fields: Mapping[str, str],
+) -> tuple[dict[str, WizardError], tuple[WizardError, ...]]:
+    """Merge the single page's own errors with the validator's, field by field."""
+    errors, general = collect_errors(check, document, 1, credentials, fields)
+    merged = dict(errors)
+    general_errors = list(general)
+    for step in (2, 3):
+        for error in route_errors(document, step, credentials, fields):
+            if error.field:
+                merged.setdefault(error.field, error)
+            elif error not in general_errors:
+                general_errors.append(error)
+    return merged, tuple(general_errors)
+
+
 def build_page(
     step: int,
     document: Mapping[str, Any],
@@ -682,7 +701,7 @@ def build_page(
         general_errors=tuple(general_errors),
         warnings=check.warnings if check.valid else (),
         estimate=estimate_rail(check, document),
-        graph=spec_graph(document),
+        graph=rail_graph(document),
     )
 
 
