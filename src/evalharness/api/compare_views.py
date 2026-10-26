@@ -46,6 +46,19 @@ class Selection:
     mode: str
 
 
+@dataclass(frozen=True, slots=True)
+class DecisionView:
+    """The one-sentence answer the compare page leads with."""
+
+    tone: str
+    glyph: str
+    label: str
+    headline: str
+    sentence: str
+    support: tuple[tuple[str, str], ...]
+    caveat: str
+
+
 def select(
     a: str = "",
     b: str = "",
@@ -288,6 +301,7 @@ def comparison_page(
         "comparison": None,
         "empty_message": _empty_message(bool(runs)),
         "json_url": _json_url(a, b, run, candidate_a, candidate_b),
+        "swap_url": _swap_url(a, b, run, candidate_a, candidate_b),
     }
     if comparison is not None:
         context["comparison"] = comparison_view(comparison)
@@ -349,6 +363,7 @@ def comparison_view(comparison: Comparison) -> dict[str, Any]:
         "one_sided_cases": [
             _one_sided_view(item) for item in comparison.one_sided_cases
         ],
+        "decision": decision_view(comparison),
         "comparable_metrics": list(comparison.comparable_metrics),
         "cross_judge_metrics": list(comparison.cross_judge_metrics),
         "one_sided_metrics": list(comparison.one_sided_metrics),
@@ -382,9 +397,11 @@ def _metric_view(item: MetricComparison) -> dict[str, Any]:
         "metric": item.metric,
         "a_n": item.a.n,
         "a_value_text": _pct(item.a.value),
+        "a_interval_text": _ci(item.a.ci_low, item.a.ci_high),
         "a_cost_text": _usd(item.a.cost_per_correct),
         "b_n": item.b.n,
         "b_value_text": _pct(item.b.value),
+        "b_interval_text": _ci(item.b.ci_low, item.b.ci_high),
         "b_cost_text": _usd(item.b.cost_per_correct),
         "delta_text": _pp(item.delta),
         "delta_interval_text": _pp_interval(
@@ -420,6 +437,197 @@ def _one_sided_view(item: OneSidedCase) -> dict[str, Any]:
             for cell in item.cells
         ],
     }
+
+
+def decision_view(comparison: Comparison) -> DecisionView:
+    """Return the decision sentence the compare page leads with.
+
+    The sentence is built from the same MetricComparison objects the table
+    renders, so the headline, the verdict chips and the numbers cannot
+    disagree. A cross-judge comparison never produces a win.
+    """
+    metrics = comparison.metrics
+    comparable = [item for item in metrics if item.comparable]
+    if comparison.cross_judge_metrics:
+        names = ", ".join(comparison.cross_judge_metrics)
+        return _decision(
+            "cross-judge",
+            "!",
+            "Not comparable",
+            f"Different judge on {names}",
+            "The two sides were not scored by the same judge configuration, "
+            "so the delta is context only and no win is claimed.",
+            (),
+            _compare_caveat(comparison, None),
+        )
+    if not metrics:
+        return _decision(
+            "undefined",
+            "–",
+            "No metrics",
+            "No metric was declared",
+            "Neither side declares a metric, so there is no delta to judge.",
+            (),
+            "",
+        )
+    if not comparable:
+        return _decision(
+            "undefined",
+            "–",
+            "Undefined",
+            "No comparable samples",
+            "No metric has samples on both sides under the same judge, so the "
+            "rows below read undefined, never zero.",
+            (),
+            _compare_caveat(comparison, None),
+        )
+
+    primary = next(
+        (item for item in comparable if item.verdict != UNDEFINED),
+        comparable[0],
+    )
+    support = _decision_support(primary)
+    caveat = _compare_caveat(comparison, primary)
+    verdicts = {item.verdict for item in comparable}
+    if verdicts == {BETTER}:
+        return _decision(
+            "better",
+            "▲",
+            "B is better",
+            f"B is better on {primary.metric}",
+            f"B is {_pp(primary.delta)} on {primary.metric} (95% interval "
+            f"{_pp_interval(primary.interval_low, primary.interval_high)}); "
+            "the interval excludes zero.",
+            support,
+            caveat,
+        )
+    if verdicts == {WORSE}:
+        return _decision(
+            "worse",
+            "▼",
+            "A is better",
+            f"A is better on {primary.metric}",
+            f"B is {_pp(primary.delta)} on {primary.metric} (95% interval "
+            f"{_pp_interval(primary.interval_low, primary.interval_high)}); "
+            "the interval excludes zero, in the other direction.",
+            support,
+            caveat,
+        )
+    if verdicts == {INCONCLUSIVE}:
+        return _decision(
+            "inconclusive",
+            "?",
+            "Inconclusive",
+            f"No established difference on {primary.metric}",
+            f"B is {_pp(primary.delta)} from A on {primary.metric}, but the "
+            f"95% interval {_pp_interval(primary.interval_low, primary.interval_high)} "
+            "crosses zero, so the result is inconclusive.",
+            support,
+            caveat,
+        )
+    better = [item.metric for item in comparable if item.verdict == BETTER]
+    worse = [item.metric for item in comparable if item.verdict == WORSE]
+    return _decision(
+        "mixed",
+        "±",
+        "Mixed result",
+        "The metrics disagree",
+        f"B is better on {_join(better)} and worse on {_join(worse)}; read "
+        "each metric row rather than one headline.",
+        support,
+        caveat,
+    )
+
+
+def _decision(
+    tone: str,
+    glyph: str,
+    label: str,
+    headline: str,
+    sentence: str,
+    support: tuple[tuple[str, str], ...],
+    caveat: str,
+) -> DecisionView:
+    """Build one decision view; the fields mirror the page layout."""
+    return DecisionView(
+        tone=tone,
+        glyph=glyph,
+        label=label,
+        headline=headline,
+        sentence=sentence,
+        support=support,
+        caveat=caveat,
+    )
+
+
+def _decision_support(item: MetricComparison) -> tuple[tuple[str, str], ...]:
+    """Return the small print under the decision: values, n and cost."""
+    return (
+        ("A", f"{_pct(item.a.value)} (n={item.a.n})"),
+        ("B", f"{_pct(item.b.value)} (n={item.b.n})"),
+        (
+            "Cost per correct",
+            f"A {_usd(item.a.cost_per_correct)} · B {_usd(item.b.cost_per_correct)}",
+        ),
+    )
+
+
+def _compare_caveat(
+    comparison: Comparison,
+    primary: MetricComparison | None,
+) -> str:
+    """Return the caveats that stop a reader over-reading the headline."""
+    parts: list[str] = []
+    if comparison.a.price_table.id != comparison.b.price_table.id:
+        parts.append(
+            "The sides used different price tables, so the cost figures are "
+            "not directly comparable."
+        )
+    if comparison.one_sided_cases:
+        count = len(comparison.one_sided_cases)
+        parts.append(
+            f"{count} case{'s' if count != 1 else ''} recorded on only one "
+            "side; listed below and never counted as a tie."
+        )
+    if primary is not None:
+        smallest = min(primary.a.n, primary.b.n)
+        if smallest < 5:
+            parts.append(
+                f"Small samples: the smaller side has n={smallest}, which the "
+                "interval reflects."
+            )
+    return " ".join(parts)
+
+
+def _join(names: list[str]) -> str:
+    """Join metric names for a sentence, saying something for an empty list."""
+    return ", ".join(names) if names else "none"
+
+
+def _ci(low: float | None, high: float | None) -> str:
+    """Format a side's Wilson interval, or say it is undefined."""
+    if low is None or high is None:
+        return "undefined"
+    return f"{low * 100:.1f}% to {high * 100:.1f}%"
+
+
+def _swap_url(
+    a: str,
+    b: str,
+    run: str,
+    candidate_a: str,
+    candidate_b: str,
+) -> str:
+    """Return the same comparison with its two sides exchanged."""
+    if candidate_a and candidate_b:
+        params = {
+            "run": run or a,
+            "candidate_a": candidate_b,
+            "candidate_b": candidate_a,
+        }
+    else:
+        params = {"a": b or run, "b": a or run}
+    return "/compare?" + urlencode(params)
 
 
 def _usd(value: float | None) -> str:

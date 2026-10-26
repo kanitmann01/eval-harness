@@ -142,6 +142,7 @@ async def test_add_and_list_round_trip(console: Console) -> None:
         assert page.status_code == 200
         assert "openai" in page.text
         assert "unverified" in page.text
+        assert "1 need attention" in page.text
         assert payload["fingerprint"] in page.text
         assert "sk-canary-add" not in page.text
 
@@ -714,4 +715,3 @@ async def test_the_canary_never_surfaces_anywhere(
     assert CANARY not in caplog.text
     assert console.repository.get_credential("api-canary") is None
     assert console.repository.get_credential("form-canary") is None
-

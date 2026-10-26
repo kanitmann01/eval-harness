@@ -1,36 +1,123 @@
 {% extends "base.html" %}
+{% from "_macros.html" import status, copy_button with context %}
 {% block title %}{{ run.spec_snapshot.name or "Run detail" }} &middot; evalharness console{% endblock %}
 {% block content %}
 <nav class="crumbs" aria-label="Breadcrumb">
   <a href="{{ url_for('run_list') }}">Runs</a>
-  <span aria-hidden="true">/</span>
+  <span class="separator" aria-hidden="true">/</span>
   <span class="mono" title="{{ run.run_id }}">{{ run.run_id[:8] }}</span>
 </nav>
 
-<div class="page-head">
-  <div>
+<div class="page-header">
+  <div class="page-header-main">
+    <p class="eyebrow">Run detail</p>
     <h1>{{ run.spec_snapshot.name or "(unnamed spec)" }}</h1>
     <p class="lede">
-      Run <span class="mono" title="{{ run.run_id }}">{{ run.run_id[:8] }}</span>, started {{ run.started_at|timestamp }}{% if run.finished_at %}, finished {{ run.finished_at|timestamp }}{% endif %}.
+      Started {{ run.started_at|timestamp }}{% if run.finished_at %}, finished {{ run.finished_at|timestamp }}{% endif %}.
+      Rows are candidates, columns are cases; every recorded cell opens its evidence.
+    </p>
+    <p class="identity">
+      <span class="mono">{{ run.run_id }}</span>
+      {{ copy_button(run.run_id) }}
+      <span aria-hidden="true">·</span>
+      <span>seed {{ run.seed }}</span>
+      <span aria-hidden="true">·</span>
+      <span class="mono">{{ run.harness_sha }}</span>
     </p>
   </div>
-  <span class="status status-{{ run.status }}">{{ run.status }}</span>
+  <div class="page-actions">
+    {% if run.status == "running" %}
+    <a class="btn btn-secondary" href="#progress-heading">Live progress</a>
+    {% endif %}
+    <button type="button" class="btn btn-secondary" data-copy="{{ run.run_id }}" hidden>Copy run ID</button>
+    <a class="btn btn-ghost" href="{{ url_for('run_list') }}">All runs</a>
+  </div>
 </div>
 
-<section class="stat-grid" aria-label="Run summary">
-  <div class="stat"><span class="stat-label">Cells</span><span class="stat-value">{{ run.n_ok }}/{{ run.n_cells }} ok</span></div>
-  <div class="stat"><span class="stat-label">Cost</span><span class="stat-value" title="{{ run.cost_usd|usdexact }}">{{ run.cost_usd|usd }}</span></div>
-  <div class="stat"><span class="stat-label">Budget</span><span class="stat-value" title="{{ run.budget_usd|usdexact }}">{{ run.budget_usd|usd }}</span></div>
-  <div class="stat"><span class="stat-label">Duration</span><span class="stat-value">{{ duration_s|duration }}</span></div>
-  <div class="stat"><span class="stat-label">Seed</span><span class="stat-value mono">{{ run.seed }}</span></div>
-  <div class="stat"><span class="stat-label">Harness</span><span class="stat-value mono">{{ run.harness_sha }}</span></div>
+<section class="run-verdict" aria-labelledby="verdict-heading">
+  <h2 id="verdict-heading" class="sr-only">Run verdict</h2>
+  <div class="verdict-main">
+    <span class="verdict-badge {{ 'is-ok' if verdict.tone == 'ok' else ('is-warn' if verdict.tone in ('warn', 'neutral') else ('is-bad' if verdict.tone == 'bad' else 'is-info')) }}" aria-hidden="true">{{ verdict.glyph }}</span>
+    <div class="verdict-body">
+      <div class="verdict-kicker">
+        {{ status(run.status) }}
+        <span class="chip">{{ verdict.label }}</span>
+        {% if run.status == "running" %}<span class="live-indicator"><span class="live-dot" aria-hidden="true"></span>Live</span>{% endif %}
+      </div>
+      <p class="verdict-headline">{{ verdict.headline }}</p>
+      <p class="verdict-sub">
+        {% if verdict.checks_total %}
+        {{ verdict.checks_passed }} of {{ verdict.checks_total }} checks passed
+        {% else %}
+        no checks recorded
+        {% endif %}
+        · {{ verdict.cells_recorded }} of {{ verdict.cells_total }} cells recorded
+        {% if verdict.cells_errored %} · {{ verdict.cells_errored }} errored{% endif %}
+      </p>
+    </div>
+  </div>
+  <div class="verdict-grid">
+    <div class="verdict-stat">
+      <span class="stat-label">Pass rate</span>
+      <span class="stat-value">{{ verdict.pass_rate|pct }}</span>
+      <span class="stat-detail">95% interval {{ verdict.interval_low|interval(verdict.interval_high) }}</span>
+      <span class="stat-detail">{{ verdict.checks_passed }} of {{ verdict.checks_total }} checks</span>
+    </div>
+    <div class="verdict-stat">
+      <span class="stat-label">Cost</span>
+      <span class="stat-value" title="{{ run.cost_usd|usdexact }}">{{ run.cost_usd|usd }}</span>
+      {% if run.budget_usd is not none %}
+      <span class="stat-detail">of {{ run.budget_usd|usd }} budget{% if verdict.budget_over %} · over cap{% endif %}</span>
+      {% if verdict.budget_ratio is not none %}
+      <span class="meter {{ 'is-over' if verdict.budget_over else '' }}" aria-hidden="true"><span style="width: {{ [ (verdict.budget_ratio * 100)|round|int, 100 ]|min }}%"></span></span>
+      {% endif %}
+      {% else %}
+      <span class="stat-detail">no budget cap</span>
+      {% endif %}
+    </div>
+    <div class="verdict-stat">
+      <span class="stat-label">Cells</span>
+      <span class="stat-value">{{ run.n_ok }}/{{ run.n_cells }}</span>
+      <span class="stat-detail">ok · {{ verdict.cells_errored }} errored · {{ verdict.cells_recorded }} recorded</span>
+    </div>
+    <div class="verdict-stat">
+      <span class="stat-label">Gates</span>
+      <span class="stat-value">{{ verdict.gates_passed }}/{{ verdict.gates_total }}</span>
+      <span class="stat-detail">
+        {% if verdict.gates_total %}
+          {% if verdict.failed_gates %}failed: {{ verdict.failed_gates|join(", ") }}{% else %}all gates passed{% endif %}
+        {% else %}no gates declared{% endif %}
+      </span>
+    </div>
+    <div class="verdict-stat">
+      <span class="stat-label">Duration</span>
+      <span class="stat-value">{{ duration_s|duration }}</span>
+      <span class="stat-detail">{{ run.started_at|timestamp }}</span>
+    </div>
+  </div>
+  {% if verdict.warning or run.error %}
+  <div class="verdict-warning">
+    {% if verdict.warning %}
+    <div class="callout callout-warn" role="alert">
+      <span class="callout-icon" aria-hidden="true">!</span>
+      <div><span class="callout-title">Guardrail</span> {{ verdict.warning }}</div>
+    </div>
+    {% endif %}
+    {% if run.error %}
+    <div class="callout callout-error" role="alert">
+      <span class="callout-icon" aria-hidden="true">✕</span>
+      <div><span class="callout-title">Run error</span> {{ run.error }}</div>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
 </section>
 
 <section class="panel" aria-labelledby="heatmap-heading">
   <div class="panel-head">
     <div>
       <h2 id="heatmap-heading">Candidate by case</h2>
-      <p class="subtle">Rows are candidates, columns are cases. Every planned cell is one link.</p>
+      <p class="subtle">{{ rows|length }} candidate{{ "" if rows|length == 1 else "s" }} · {{ columns|length }} case{{ "" if columns|length == 1 else "s" }}. Every planned cell is one link; the right column repeats the recorded check count.</p>
     </div>
     <ul class="legend" aria-label="Heatmap legend">
       <li><span class="swatch pass" aria-hidden="true">✓</span> pass</li>
@@ -50,12 +137,14 @@
           {% for column in columns %}
           <th scope="col" class="case-head" title="{{ column.case_id }} (replica {{ column.replica }})">{{ column.label }}</th>
           {% endfor %}
+          <th scope="col" class="heat-gap" aria-hidden="true"></th>
+          <th scope="col" class="heat-summary">Checks</th>
         </tr>
       </thead>
       <tbody>
         {% for row in rows %}
         <tr>
-          <th scope="row" class="row-head">{{ row.candidate }}</th>
+          <th scope="row" class="row-head" title="{{ row.candidate }}">{{ row.candidate }}</th>
           {% for cell in row.cells %}
           {% if cell %}
           <td class="heat-cell {{ cell.tone }}{% if cell.selected %} selected{% endif %}">
@@ -63,17 +152,29 @@
               <span aria-hidden="true">{{ cell.glyph }}</span>
             </a>
           </td>
+          {% elif run.status == "running" %}
+          <td class="heat-cell pending" title="not recorded yet"><span class="skeleton" aria-hidden="true"></span><span class="sr-only">not recorded yet</span></td>
           {% else %}
-          <td class="heat-cell empty" title="not recorded">·</td>
+          <td class="heat-cell empty" title="not recorded" aria-hidden="true">·</td>
           {% endif %}
           {% endfor %}
+          <td class="heat-gap" aria-hidden="true"></td>
+          <td class="heat-summary">
+            <span class="rate">{{ row.check_rate|pct }}</span>
+            <span class="subtle">{{ row.checks_passed }}/{{ row.checks_total }} checks · {{ row.cells_recorded }}/{{ row.cells_planned }} cells</span>
+            <span class="meter" aria-hidden="true"><span style="width: {{ (row.check_rate * 100)|round|int if row.check_rate is not none else 0 }}%"></span></span>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
   {% else %}
-  <p class="empty-state">This run has no cells yet. Start a run and reload.</p>
+  <div class="empty-state">
+    <span class="empty-icon" aria-hidden="true">∅</span>
+    <h2>No cells recorded</h2>
+    <p>This run has no cells yet. A running run fills the matrix as each cell finishes; reload to read the current state.</p>
+  </div>
   {% endif %}
 </section>
 
@@ -81,21 +182,21 @@
   <div class="panel-head">
     <div>
       <h2 id="aggregates-heading">Aggregates</h2>
-      <p class="subtle">One overall row per candidate and metric, then one row per case tier.</p>
+      <p class="subtle">One overall row per candidate and metric, then one row per case tier. The interval is the 95 percent Wilson bound over the recorded checks.</p>
     </div>
+    {% if aggregates %}<span class="chip">{{ aggregates|length }} rows</span>{% endif %}
   </div>
   {% if aggregates %}
   <div class="table-wrap" tabindex="0" role="region" aria-label="Aggregates table">
     <table class="aggregates">
-      <caption class="sr-only">Aggregates with 95 percent Wilson intervals and pass claims</caption>
+      <caption class="sr-only">Aggregates with the 95 percent Wilson interval and pass claims</caption>
       <thead>
         <tr>
           <th scope="col">Candidate</th>
           <th scope="col">Metric</th>
-          <th scope="col" class="num col-md">Tier</th>
-          <th scope="col" class="num col-md">n</th>
-          <th scope="col" class="num">Value</th>
-          <th scope="col" class="num col-sm">95% interval</th>
+          <th scope="col" class="col-sm">Scope</th>
+          <th scope="col" class="num col-sm">n</th>
+          <th scope="col" class="num">Value · 95% interval</th>
           <th scope="col" class="num col-lg">pass@k</th>
           <th scope="col" class="num col-lg">pass^k</th>
         </tr>
@@ -103,12 +204,14 @@
       <tbody>
         {% for aggregate in aggregates %}
         <tr>
-          <td>{{ aggregate.candidate }}</td>
+          <th scope="row">{{ aggregate.candidate }}</th>
           <td class="mono">{{ aggregate.metric }}</td>
-          <td class="num col-md">{{ "all" if aggregate.tier is none else aggregate.tier }}</td>
-          <td class="num col-md">{{ aggregate.n }}</td>
-          <td class="num">{{ aggregate.value|pct }}</td>
-          <td class="num col-sm">{{ aggregate.ci_low|interval(aggregate.ci_high) }}</td>
+          <td class="col-sm"><span class="chip">{{ "overall" if aggregate.tier is none else "tier " ~ aggregate.tier }}</span></td>
+          <td class="num col-sm">{{ aggregate.n }}</td>
+          <td class="num">
+            <span class="metric-value">{{ aggregate.value|pct }}</span>
+            <span class="metric-sub">{{ aggregate.ci_low|interval(aggregate.ci_high) }}</span>
+          </td>
           <td class="num col-lg">{{ aggregate.pass_at_k|pct }}</td>
           <td class="num col-lg">{{ aggregate.pass_k|pct }}</td>
         </tr>
@@ -122,13 +225,27 @@
 </section>
 
 <section class="panel" aria-labelledby="gates-heading">
-  <h2 id="gates-heading">Gates</h2>
+  <div class="panel-head">
+    <div>
+      <h2 id="gates-heading">Gates</h2>
+      <p class="subtle">A gate is a declared floor on an aggregate. A run can finish <code>ok</code> and still fail its gate, so the outcome is stated separately from the status.</p>
+    </div>
+    {% if verdict.failed_gates %}<span class="gate-chip"><span aria-hidden="true">✕</span> {{ verdict.failed_gates|length }} failed</span>{% endif %}
+  </div>
   {% if gates %}
   <ul class="gate-list">
     {% for gate in gates %}
     <li class="gate {{ 'gate-pass' if gate.passed else 'gate-fail' }}">
       <span class="gate-glyph" aria-hidden="true">{{ "✓" if gate.passed else "✗" }}</span>
-      <span><strong>{{ gate.metric }}</strong> {{ "passed" if gate.passed else "failed" }}: value {{ gate.detail.value|pct }}, n={{ gate.detail.n }}{% if gate.detail.min is not none %}, min {{ gate.detail.min }}{% endif %}{% if gate.detail.max is not none %}, max {{ gate.detail.max }}{% endif %}{% if gate.detail.reason %}, {{ gate.detail.reason }}{% endif %}</span>
+      <div class="gate-text">
+        <strong>{{ gate.metric }}</strong> {{ "passed" if gate.passed else "failed" }}
+        <span class="gate-meta">
+          observed {{ gate.observed|pct if gate.observed is not none else "undefined" }}
+          {% if gate.threshold is not none %}· {{ gate.comparison or "minimum" }} {{ gate.threshold|pct }}{% endif %}
+          · n={{ gate.n }}
+          {% if gate.detail.reason %}· {{ gate.detail.reason }}{% endif %}
+        </span>
+      </div>
     </li>
     {% endfor %}
   </ul>
@@ -141,75 +258,133 @@
   <div class="panel-head">
     <div>
       <h2 id="cell-heading">Cell detail</h2>
-      <p class="subtle">Select a cell above, or change <code>?cell=&lt;id&gt;</code> in the URL.</p>
+      <p class="subtle">An evidence sheet for one cell: the answer, its citations, every check with the raw evidence, and the usage behind the cost.</p>
     </div>
-    {% if selected_cell %}<span class="mono subtle">{{ selected_cell.cell_id }}</span>{% endif %}
+    {% if selected_cell %}
+    <div class="panel-actions">
+      <span class="mono subtle" title="{{ selected_cell.cell_id }}">{{ selected_cell.cell_id[:12] }}</span>
+      {{ copy_button(selected_cell.cell_id, "Copy cell id") }}
+    </div>
+    {% endif %}
   </div>
   {% if selected_cell %}
-  <div class="cell-meta">
-    <span>{{ selected_cell.candidate }}</span>
-    <span>{{ selected_cell.case_id }}</span>
-    <span>replica {{ selected_cell.replica }}</span>
-    <span class="status status-{{ selected_cell.status }}">{{ selected_cell.status }}</span>
+  <div class="cell-identity">
+    <strong>{{ selected_cell.candidate }}</strong>
+    <span class="faint" aria-hidden="true">/</span>
+    <span class="mono">{{ selected_cell.case_id }}</span>
+    <span class="chip">replica {{ selected_cell.replica }}</span>
+    {{ status(selected_cell.status) }}
   </div>
-  <dl class="facts">
-    <div><dt>Prompt tokens</dt><dd>{{ selected_cell.prompt_tokens }}</dd></div>
-    <div><dt>Completion tokens</dt><dd>{{ selected_cell.completion_tokens }}</dd></div>
-    <div><dt>Tool calls</dt><dd>{{ selected_cell.tool_calls }}</dd></div>
-    <div><dt>Cost</dt><dd title="{{ selected_cell.cost_usd|usdexact }}">{{ selected_cell.cost_usd|usd }}</dd></div>
-    <div><dt>Latency</dt><dd>{{ selected_cell.wall_ms }} ms</dd></div>
-    <div><dt>Usage source</dt><dd>{{ selected_cell.usage_source }}</dd></div>
-  </dl>
+  <div class="cell-sheet">
+    <div class="cell-main">
+      {% if selected_error %}
+      <div class="callout callout-error" role="alert">
+        <span class="callout-icon" aria-hidden="true">✕</span>
+        <div><span class="callout-title">The candidate failed</span> {{ selected_error }}</div>
+      </div>
+      {% endif %}
 
-  <h3>Answer</h3>
-  {% if selected_error %}<p class="callout callout-error" role="alert">{{ selected_error }}</p>{% endif %}
-  <pre class="answer">{{ selected_cell.answer or "(no answer recorded)" }}</pre>
+      <section class="evidence-block" aria-labelledby="answer-heading">
+        <h3 id="answer-heading">Answer</h3>
+        <pre class="answer">{{ selected_cell.answer or "(no answer recorded)" }}</pre>
+      </section>
 
-  <h3>Citations</h3>
-  {% if selected_citations %}
-  <ol class="citations">{% for citation in selected_citations %}<li class="mono">{{ citation }}</li>{% endfor %}</ol>
-  {% else %}
-  <p class="subtle">No citations were returned for this cell.</p>
-  {% endif %}
+      <section class="evidence-block" aria-labelledby="citations-heading">
+        <h3 id="citations-heading">Citations</h3>
+        {% if selected_citations %}
+        <ol class="citations">{% for citation in selected_citations %}<li>{{ citation }}</li>{% endfor %}</ol>
+        {% else %}
+        <p class="subtle">No citations were returned for this cell.</p>
+        {% endif %}
+      </section>
 
-  <h3>Checks</h3>
-  {% if selected_checks %}
-  <div class="checks">
-    {% for check in selected_checks %}
-    <article class="check {{ 'check-pass' if check.passed else 'check-fail' }}">
-      <header>
-        <span class="gate-glyph" aria-hidden="true">{{ "✓" if check.passed else "✗" }}</span>
-        <strong>{{ check.metric }}</strong>
-        <span class="status {{ 'status-ok' if check.passed else 'status-error' }}">{{ "pass" if check.passed else "fail" }}</span>
-      </header>
-      {% if check.reason %}<p>{{ check.reason }}</p>{% endif %}
-      {% if check.score is not none %}<p class="subtle">score {{ check.score }}</p>{% endif %}
-      <h4>Evidence</h4>
-      <pre class="evidence">{{ check.evidence|tojson(indent=2) }}</pre>
-      {% if check.judge_config_hash %}<p class="subtle mono">judge {{ check.judge_config_hash }}</p>{% endif %}
-    </article>
-    {% endfor %}
+      <section class="evidence-block" aria-labelledby="checks-heading">
+        <h3 id="checks-heading">Checks</h3>
+        {% if selected_checks %}
+        <div class="checks">
+          {% for check in selected_checks %}
+          <article class="check {{ 'check-pass' if check.passed else 'check-fail' }}">
+            <header>
+              <span class="gate-glyph" aria-hidden="true">{{ "✓" if check.passed else "✗" }}</span>
+              <strong>{{ check.metric }}</strong>
+              {{ status("ok" if check.passed else "error", "pass" if check.passed else "fail") }}
+              {% if check.score is not none %}<span class="score">score {{ check.score }}</span>{% endif %}
+            </header>
+            {% if check.reason %}<p>{{ check.reason }}</p>{% endif %}
+            <details class="evidence-details">
+              <summary>Evidence JSON</summary>
+              <pre class="evidence">{{ check.evidence|tojson(indent=2) }}</pre>
+            </details>
+            {% if check.judge_config_hash %}
+            <p class="judge-hash mono" title="{{ check.judge_config_hash }}">judge {{ check.judge_config_hash[:12] }}…</p>
+            {% endif %}
+          </article>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="empty-state">No checks were recorded for this cell. An errored candidate has an answer error but no metric verdict.</p>
+        {% endif %}
+      </section>
+    </div>
+
+    <aside class="cell-rail" aria-label="Cell telemetry and artifacts">
+      <section class="evidence-block" aria-labelledby="telemetry-heading">
+        <h3 id="telemetry-heading">Telemetry</h3>
+        <dl class="facts">
+          <div><dt>Prompt tokens</dt><dd>{{ selected_cell.prompt_tokens }}</dd></div>
+          <div><dt>Completion tokens</dt><dd>{{ selected_cell.completion_tokens }}</dd></div>
+          <div><dt>Tool calls</dt><dd>{{ selected_cell.tool_calls }}</dd></div>
+          <div><dt>Latency</dt><dd>{{ selected_cell.wall_ms }} ms</dd></div>
+          <div><dt>Usage source</dt><dd>{{ selected_cell.usage_source }}</dd></div>
+        </dl>
+      </section>
+
+      <section class="evidence-block" aria-labelledby="cost-heading">
+        <h3 id="cost-heading">Cost</h3>
+        <dl class="facts">
+          <div><dt>Total</dt><dd title="{{ selected_cell.cost_usd|usdexact }}">{{ selected_cell.cost_usd|usd }}</dd></div>
+          <div><dt>Answer</dt><dd title="{{ selected_cell.answer_cost_usd|usdexact }}">{{ selected_cell.answer_cost_usd|usd }}</dd></div>
+          <div><dt>Judge</dt><dd title="{{ selected_cell.judge_cost_usd|usdexact }}">{{ selected_cell.judge_cost_usd|usd }}</dd></div>
+          <div><dt>Tools</dt><dd title="{{ selected_cell.tool_cost_usd|usdexact }}">{{ selected_cell.tool_cost_usd|usd }}</dd></div>
+        </dl>
+      </section>
+
+      <section class="evidence-block" aria-labelledby="artifacts-heading">
+        <h3 id="artifacts-heading">Artifacts</h3>
+        <div class="artifact-links">
+          <a class="btn btn-secondary btn-sm" href="/runs/{{ run.run_id }}/cells/{{ selected_cell.cell_id }}/artifact">Raw artifact (cell.json)</a>
+          <a class="btn btn-secondary btn-sm" href="/runs/{{ run.run_id }}/cells/{{ selected_cell.cell_id }}/artifact?file=answer.txt">Answer file</a>
+        </div>
+        <p class="field-hint">Resolved from the stored path, never from the request. Traversal and unknown names are refused.</p>
+      </section>
+    </aside>
   </div>
   {% else %}
-  <p class="empty-state">No checks were recorded for this cell.</p>
-  {% endif %}
-
-  <p class="artifact-links">
-    <a class="button-link" href="/runs/{{ run.run_id }}/cells/{{ selected_cell.cell_id }}/artifact">Raw artifact (cell.json)</a>
-    <a class="button-link" href="/runs/{{ run.run_id }}/cells/{{ selected_cell.cell_id }}/artifact?file=answer.txt">Answer file</a>
-  </p>
-  {% else %}
-  <p class="empty-state">Select a cell in the heatmap to read its answer, citations, tokens, cost, latency and every check with evidence.</p>
+  <div class="empty-state">
+    <span class="empty-icon" aria-hidden="true">◎</span>
+    <h2>Select a cell</h2>
+    <p>Pick a cell in the heatmap to read its answer, citations, tokens, cost, latency and every check with evidence. The URL shape is <code>?cell=&lt;cell id&gt;</code>, so a cell is linkable.</p>
+  </div>
   {% endif %}
 </section>
 
-<section class="panel" aria-labelledby="progress-heading" data-sse-url="/runs/{{ run.run_id }}/events">
+<section class="panel live-panel" aria-labelledby="progress-heading" data-sse-url="/runs/{{ run.run_id }}/events" data-total-cells="{{ progress.total }}" data-done-cells="{{ progress.done }}" data-run-status="{{ run.status }}">
   <div class="panel-head">
     <div>
       <h2 id="progress-heading">Live progress</h2>
       <p class="subtle">Events are read from the stored event table, so a run started in a terminal appears here without an in-process page.</p>
     </div>
-    <span class="subtle" id="stream-state">{{ "streaming" if run.status == "running" else "replay" }}</span>
+    <span class="stream-state" id="stream-state">
+      {% if progress.state == "running" %}<span class="live-dot" aria-hidden="true"></span>{% endif %}
+      <span id="stream-label">{{ progress.label }}</span>
+    </span>
+  </div>
+  <div class="progress-head">
+    <span class="progress-count" id="progress-count" aria-live="polite">{{ progress.done }} <small>of {{ progress.total }} cells</small></span>
+    <span class="subtle" id="progress-note">{{ progress.note }}</span>
+  </div>
+  <div class="progress-track {{ 'is-running' if progress.state == 'running' else ('is-partial' if progress.state == 'partial' else '') }}" id="progress-track" role="progressbar" aria-labelledby="progress-count" aria-valuemin="0" aria-valuemax="{{ progress.total if progress.total else 1 }}" aria-valuenow="{{ progress.done }}">
+    <span class="progress-fill" id="progress-fill" style="width: {{ progress.percent }}%"></span>
   </div>
   <ol class="event-log" id="event-log" aria-live="polite">
     <li class="subtle" id="event-placeholder">Waiting for the event stream…</li>
@@ -227,4 +402,3 @@
   {% endif %}
 </section>
 {% endblock %}
-{% block scripts %}<script src="{{ url_for('static', path='console.js') }}" defer></script>{% endblock %}

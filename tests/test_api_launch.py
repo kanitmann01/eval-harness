@@ -150,7 +150,8 @@ async def test_launch_page_lists_specs_and_shows_the_estimate(
         assert page.status_code == 200
         text = page.text
         assert "Launch a run" in text
-        assert ">Launch</a>" in text
+        assert ">New comparison</a>" in text
+        assert "http://console.test/comparisons/new" in text
         assert "console.yaml" in text and "slow.yaml" in text
         assert "Budget override (USD)" in text
         assert "Show estimate" in text
@@ -163,7 +164,9 @@ async def test_launch_page_lists_specs_and_shows_the_estimate(
         assert "prompt" in estimated.text
         assert "completion tokens per cell" in estimated.text
         assert "$" in estimated.text
-        assert 'value="console.yaml"' in estimated.text
+        assert 'value="console.yaml" selected' in estimated.text
+        assert "Headroom" in estimated.text
+        assert "evalh run console.yaml" in estimated.text
 
         unknown = await client.get("/launch", params={"spec": "missing.yaml"})
         assert unknown.status_code == 200

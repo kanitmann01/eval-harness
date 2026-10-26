@@ -1,7 +1,7 @@
 /* Spec editor progressive enhancement: debounced validation against the same
-   JSON route the CLI's validator backs. Without this file the Check and Save
-   buttons still post the form, so the editor stays fully usable. */
-
+   JSON route the CLI's validator backs, a dirty marker and Ctrl/Cmd+S.
+   Without this file the Check and Save buttons still post the form, so the
+   editor stays fully usable. */
 (function () {
   "use strict";
 
@@ -11,6 +11,8 @@
   const textarea = form.querySelector("#yaml");
   const panel = form.querySelector("[data-error-panel]");
   const save = form.querySelector("[data-save-button]");
+  const checkButton = form.querySelector('button[value="check"]');
+  const dirty = document.querySelector("[data-dirty]");
   const url = form.getAttribute("data-validate-url");
 
   const cells = document.querySelector("[data-cells]");
@@ -25,6 +27,15 @@
 
   function setText(node, text) {
     if (node) node.textContent = text;
+  }
+
+  function setStatus(valid) {
+    if (!status) return;
+    status.className = "status " + (valid ? "status-ok" : "status-error");
+    const glyph = status.querySelector(".status-glyph");
+    const labels = status.querySelectorAll("span:not(.status-glyph)");
+    if (glyph) glyph.textContent = valid ? "✓" : "✕";
+    if (labels.length) labels[0].textContent = valid ? "valid" : "invalid";
   }
 
   function renderErrors(errors) {
@@ -98,14 +109,12 @@
     renderEstimate(payload);
     if (save) save.disabled = !valid;
     if (textarea) textarea.setAttribute("aria-invalid", valid ? "false" : "true");
-    if (status) {
-      status.textContent = valid ? "valid" : "invalid";
-      status.className = "status " + (valid ? "status-ok" : "status-error");
-    }
+    setStatus(valid);
   }
 
   function check() {
     const current = ++sequence;
+    form.setAttribute("aria-busy", "true");
     fetch(url, {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
@@ -119,11 +128,26 @@
       })
       .catch(function () {
         /* The form still posts normally when the check cannot run. */
+      })
+      .finally(function () {
+        if (current === sequence) form.removeAttribute("aria-busy");
       });
   }
 
   textarea.addEventListener("input", function () {
+    if (dirty) dirty.hidden = false;
     window.clearTimeout(timer);
     timer = window.setTimeout(check, 400);
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (!(event.ctrlKey || event.metaKey)) return;
+    if (event.key.toLowerCase() !== "s") return;
+    event.preventDefault();
+    if (save && !save.disabled) {
+      save.click();
+    } else if (checkButton) {
+      checkButton.click();
+    }
   });
 })();

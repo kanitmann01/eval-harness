@@ -20,6 +20,7 @@ from fastapi.responses import (
 
 from evalharness.api.credential_views import (
     credential_rows,
+    credential_stats,
     error_data,
     provider_options,
     read_input,
@@ -386,11 +387,13 @@ def _render_page(
     status_code: int = 200,
 ) -> Response:
     """Render the credentials page from one vault and the stored metadata."""
+    rows = credential_rows(repository, vault)
     return render(
         request,
         "credentials.html",
         {
-            "rows": credential_rows(repository, vault),
+            "rows": rows,
+            "stats": credential_stats(rows),
             "providers": provider_options(),
             "verify_url": settings.verify_url or "",
             "added": added,

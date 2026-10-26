@@ -1,22 +1,30 @@
 {% extends "base.html" %}
+{% from "_macros.html" import status with context %}
 {% block title %}Specs &middot; evalharness console{% endblock %}
 {% block content %}
-<div class="page-head">
-  <div>
+<div class="page-header">
+  <div class="page-header-main">
+    <p class="eyebrow">Workspace</p>
     <h1>Specs</h1>
     <p class="lede">Every YAML spec in <code title="{{ specs_dir }}">{{ specs_dir|shortpath }}</code>. Open one to edit, validate and save it. The file is the only source of truth: a run reads it, and the editor stores nothing the file does not.</p>
   </div>
-  <span class="count">{{ specs|length }} spec{{ "" if specs|length == 1 else "s" }}</span>
+  <div class="page-actions">
+    <span class="chip">{{ specs|length }} spec{{ "" if specs|length == 1 else "s" }}</span>
+    <a class="btn btn-secondary" href="{{ url_for('launch_page') }}">Launch a spec</a>
+  </div>
 </div>
 
 {% if saved %}
-<p class="callout callout-ok" role="status">Saved <code>{{ saved }}.yaml</code>. A run started from this file uses exactly this text.</p>
+<div class="callout callout-ok" role="status">
+  <span class="callout-icon" aria-hidden="true">✓</span>
+  <div><span class="callout-title">Saved {{ saved }}.yaml.</span> A run started from this file uses exactly this text.</div>
+</div>
 {% endif %}
 
 {% if specs %}
 <div class="table-wrap" tabindex="0" role="region" aria-label="Spec files table">
   <table class="specs">
-    <caption class="sr-only">Spec files with their parsed name, candidates, cell count, size, modified time and validation state</caption>
+    <caption class="sr-only">Spec files with their parsed name, candidates, cell count, size, modified time, validation state and actions</caption>
     <thead>
       <tr>
         <th scope="col">Spec file</th>
@@ -33,7 +41,9 @@
       {% for row in specs %}
       <tr class="spec-row">
         <td>
-          <a class="run-link" href="{{ url_for('spec_edit', name=row.name) }}">{{ row.name }}.yaml</a>
+          <div class="table-title">
+            <a class="run-link" href="{{ url_for('spec_edit', name=row.name) }}">{{ row.name }}.yaml</a>
+          </div>
         </td>
         <td class="col-lg">{{ row.spec_name or "-" }}</td>
         <td class="num col-md">{{ row.candidates }}</td>
@@ -42,17 +52,19 @@
         <td class="num subtle col-lg">{{ row.modified|timestamp }}</td>
         <td>
           {% if row.check.valid %}
-          <span class="status status-ok">valid</span>
+          <span class="status status-ok"><span class="status-glyph" aria-hidden="true">✓</span><span>valid</span></span>
           {% else %}
-          <span class="status status-error" title="{{ row.check.errors[0].field }}: {{ row.check.errors[0].reason }}">invalid</span>
-          <span class="subtle validation-reason">{{ row.check.errors[0].field }}: {{ row.check.errors[0].reason }}</span>
+          <span class="status status-error" title="{{ row.check.errors[0].field }}: {{ row.check.errors[0].reason }}"><span class="status-glyph" aria-hidden="true">✕</span><span>invalid</span></span>
+          <span class="validation-reason">{{ row.check.errors[0].field }}: {{ row.check.errors[0].reason }}</span>
           {% endif %}
         </td>
         <td class="actions col-sm">
-          <a class="button-link" href="{{ url_for('spec_edit', name=row.name) }}">Edit</a>
-          <form method="post" action="{{ url_for('spec_duplicate', name=row.name) }}" class="inline-form">
-            <button type="submit" class="button-secondary">Duplicate</button>
-          </form>
+          <div class="actions-cell">
+            <a class="btn btn-secondary btn-sm" href="{{ url_for('spec_edit', name=row.name) }}">Edit</a>
+            <form method="post" action="{{ url_for('spec_duplicate', name=row.name) }}" class="inline-form">
+              <button type="submit" class="btn btn-secondary btn-sm">Duplicate</button>
+            </form>
+          </div>
         </td>
       </tr>
       {% endfor %}
@@ -60,10 +72,10 @@
   </table>
 </div>
 {% else %}
-<p class="empty-state">
-  No spec files yet. Put a YAML spec in <code title="{{ specs_dir }}">{{ specs_dir|shortpath }}</code> and reload this page,
-  or write one through <code>PUT /api/specs/&lt;name&gt;</code>. Nothing is stored in the
-  database: the directory is the state.
-</p>
+<div class="empty-state">
+  <span class="empty-icon" aria-hidden="true">∅</span>
+  <h2>No spec files yet</h2>
+  <p>Put a YAML spec in <code title="{{ specs_dir }}">{{ specs_dir|shortpath }}</code> and reload this page, or write one through <code>PUT /api/specs/&lt;name&gt;</code>. Nothing is stored in the database: the directory is the state.</p>
+</div>
 {% endif %}
 {% endblock %}

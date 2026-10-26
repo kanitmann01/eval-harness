@@ -1,0 +1,27 @@
+{# Shared display macros. Import with context when a page needs them. #}
+{% macro glyph(value) -%}
+{{- {"ok": "✓", "completed": "✓", "verified": "✓", "pass": "✓", "partial": "!", "running": "◐", "error": "✕", "failed": "✕", "budget_exceeded": "✕", "cancelled": "–", "disabled": "–", "unverified": "?", "pending": "·", "unknown": "?", "info": "i", "warn": "!", "better": "▲", "worse": "▼", "inconclusive": "?", "undefined": "–"}.get(value, "·") -}}
+{%- endmacro %}
+
+{% macro status(value, label=None) -%}
+<span class="status status-{{ value }}"><span class="status-glyph" aria-hidden="true">{{ glyph(value) }}</span><span>{{ label if label is not none else value|replace("_", " ") }}</span></span>
+{%- endmacro %}
+
+{% macro copy_button(value, label="Copy run id") -%}
+<button type="button" class="copy-button" data-copy="{{ value }}" aria-label="{{ label }}" title="{{ label }}" hidden><span aria-hidden="true">⧉</span></button>
+{%- endmacro %}
+
+{% macro callout(tone, title, icon=None) -%}
+<div class="callout callout-{{ tone }}"{% if tone == "error" %} role="alert"{% else %} role="status"{% endif %}>
+  <span class="callout-icon" aria-hidden="true">{{ icon or glyph(tone) }}</span>
+  <div><span class="callout-title">{{ title }}</span> {{ caller() }}</div>
+</div>
+{%- endmacro %}
+
+{% macro empty_state(title, icon="∅") -%}
+<div class="empty-state">
+  <span class="empty-icon" aria-hidden="true">{{ icon }}</span>
+  <h2>{{ title }}</h2>
+  {{ caller() }}
+</div>
+{%- endmacro %}

@@ -189,7 +189,7 @@ async def test_round_trip_edit_validate_and_save(editor: Console) -> None:
         assert "stub-concise" in page.text
         assert "Check" in page.text and "Save" in page.text
         assert "Cells per candidate" in page.text
-        assert "Specs" in page.text
+        assert ">Comparisons</a>" in page.text
 
         spec = base_spec()
         spec["source"]["options"]["cases"].append(

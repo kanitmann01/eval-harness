@@ -1,10 +1,15 @@
 {% extends "base.html" %}
 {% block title %}Cancel refused &middot; evalharness console{% endblock %}
 {% block content %}
-<section class="panel empty-panel">
+<div class="empty-state" style="max-width: 46rem; padding: var(--space-7);">
+  <span class="empty-icon" aria-hidden="true">⊘</span>
+  <p class="eyebrow">Cancel refused</p>
   <h1>This run cannot be cancelled here</h1>
-  <p>Run <span class="mono">{{ run_id }}</span> is not being driven by this console, so there is no cancel token to set{% if active_run_id %}; run <span class="mono">{{ active_run_id }}</span> is the one in flight{% else %}; no run is in flight{% endif %}.</p>
-  <p>Only a run launched from this console can be cancelled from it. Stop a run started in a terminal with Ctrl-C in that terminal.</p>
-  <p><a class="button-link" href="{{ url_for('run_detail', run_id=run_id) }}">Back to the run</a> <a class="button-link" href="{{ url_for('launch_page') }}">Launch a run</a></p>
-</section>
+  <p>Run <span class="mono">{{ run_id }}</span> is not being driven by this console, so there is no cancel token to set{% if active_run_id %}; run <a class="mono" href="{{ url_for('run_detail', run_id=active_run_id) }}">{{ active_run_id }}</a> is the one in flight{% else %}; no run is in flight{% endif %}.</p>
+  <p>Only a run launched from this console can be cancelled from it. Stop a run started in a terminal with <kbd>Ctrl</kbd> + <kbd>C</kbd> in that terminal.</p>
+  <div class="empty-actions">
+    <a class="btn btn-primary" href="{{ url_for('run_detail', run_id=run_id) }}">Back to the run</a>
+    <a class="btn btn-secondary" href="{{ url_for('launch_page') }}">Launch a run</a>
+  </div>
+</div>
 {% endblock %}
