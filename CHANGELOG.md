@@ -5,6 +5,67 @@ All notable changes to this project are recorded here. The format follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html), and every release is
 compared against the spec of record in issue #1.
 
+## [0.3.0] - 2026-11-01
+
+The Trust release: the console explains whether a result is believable, not just
+what the score was.
+
+### Added
+
+- Decision view at `/runs/{id}/decision` and `/api/runs/{id}/decision`: ranked
+  candidates with checks, pass rate and its 95 percent Wilson interval, cost per
+  correct answer, p50/p95 latency, cells, dominance and a Pareto scatter over
+  every candidate that has a defined rate and cost. Three or more candidates are
+  compared without inventing a winner.
+- What-would-change-my-mind line under the compare verdict: the samples per side
+  needed for the observed delta to exclude zero at 80 percent power and a
+  two-sided alpha of 0.05.
+- `evalh sample-size --baseline RATE --effect DELTA` with `--power`, `--alpha`
+  and `--json`. Invalid arguments exit 2 and name the field, the value and the
+  fix.
+- Structured spec diff between two runs: cases and their prompts, candidate
+  adapter and model swaps, judge declarations, price rates, run fields and gates.
+  Judge configuration changes are reported as drift and block a like-for-like
+  claim.
+- Run receipt at `/runs/{id}/receipt` and `/api/runs/{id}/receipt`: spec id and
+  hash, harness revision, operator, seed, UTC timestamps, candidates, judge pins
+  with configuration hashes, price snapshot fingerprint, gates and the diff to
+  the previous run.
+- Judge calibration at `/runs/{id}/calibration`: human pass or fail per stored
+  check, agreement rate with a 95 percent Wilson interval, labelled and
+  unlabelled counts, one row per judge configuration with its last-validated
+  stamp, and the disagreement list linked to each cell. Labels live in the new
+  `human_labels` table; the stored check is never edited.
+- `EVALH_OPERATOR` is recorded on every run and shown on the receipt; the demo
+  sets it to `demo`.
+
+### Changed
+
+- The run page links `Decision`, `Receipt`, `Calibration`, `Compare` and
+  `All runs`. The compare page links both receipts and shows their spec diff
+  above the metric table.
+- `create_app` always resolves a database, including when a repository is passed,
+  and keeps the health endpoints working with a repository double.
+- Database schema version 7 adds the nullable `runs.operator` column; opening a
+  version 6 database migrates it without losing a run.
+- The demo talk track covers Decision, Receipt, Calibration and Diff, so the four
+  seeded specs demonstrate the Trust surfaces without a new script.
+
+### Fixed
+
+- The receipt label is `Harness revision`, matching the value it shows: the
+  `EVALH_HARNESS_SHA` when the build sets one, otherwise the package version.
+- A spec diff field the baseline never declared reads `absent`, not `not
+  recorded`; the two mean different things.
+
+### Docs
+
+- README console section now documents the four Trust routes, the sample-size
+  command, operator recording and the exact offline demo; `docs/console.md` adds
+  the Trust pages to the map. [docs/decision.md](docs/decision.md),
+  [docs/statistics.md](docs/statistics.md), [docs/provenance.md](docs/provenance.md)
+  and [docs/calibration.md](docs/calibration.md) are the deep references.
+
 ## [0.2.0] - 2026-11-01
 
 The console becomes the front door: a spec you can build, edit and compare from
