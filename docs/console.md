@@ -12,9 +12,9 @@ the CLI's orchestration, so a console run and a command line run of one spec
 produce the same record. The [spec editor](#spec-editor) writes spec files and
 the [credentials page](#credentials) writes the encrypted vault.
 
-This page map describes console v2 (0.2.0): the comparisons list, the wizard,
+This page map describes console v2 (0.2.0): the specs list, the wizard,
 the structured edit form, the compare chooser and the shared error pages.
-Every timestamp on these pages is UTC, rendered as `YYYY-MM-DD HH:MM:SS`, and
+Every timestamp on these pages is UTC, rendered as `YYYY-MM-DD HH:MM:SS UTC`, and
 money is formatted for reading; see
 [design-system.md](design-system.md#timestamps-and-money).
 

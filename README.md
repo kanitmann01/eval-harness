@@ -376,8 +376,8 @@ instead of failing.
 
 ### Timestamps and money
 
-Every timestamp in the console is UTC and renders as `YYYY-MM-DD HH:MM:SS` with
-no local-time conversion, so the same run read on two machines agrees. Costs are
+Every timestamp in the console is UTC and renders as `YYYY-MM-DD HH:MM:SS UTC`
+with no local-time conversion, so the same run read on two machines agrees. Costs are
 formatted for reading: `$0.00` for zero, two decimals from one cent up, and three
 significant digits below that, so a real cost never collapses to `$0.00`. The exact
 value is in the `title` tooltip of the number; percentages always sit beside their
