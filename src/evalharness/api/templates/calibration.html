@@ -1,0 +1,219 @@
+{% extends "base.html" %}
+{% block title %}Calibration &middot; evalharness console{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Breadcrumb">
+  <a href="{{ url_for('run_list') }}">Runs</a>
+  <span class="separator" aria-hidden="true">/</span>
+  <a href="{{ url_for('run_detail', run_id=run.run_id) }}" class="mono" title="{{ run.run_id }}">{{ run.run_id[:8] }}</a>
+  <span class="separator" aria-hidden="true">/</span>
+  <span>Calibration</span>
+</nav>
+
+<div class="page-header">
+  <div class="page-header-main">
+    <p class="eyebrow">Judge calibration</p>
+    <h1>Calibration</h1>
+    <p class="lede">Compare the stored metric verdicts with human review. A label is one person's pass or fail on one stored check; the page never edits the check itself.</p>
+    <p class="identity">
+      <span class="mono">{{ run.run_id }}</span>
+      <span aria-hidden="true">·</span>
+      <span>{{ run.spec_snapshot.name or "(unnamed spec)" }}</span>
+    </p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-secondary" href="{{ url_for('run_detail', run_id=run.run_id) }}">Run detail</a>
+    <a class="btn btn-ghost" href="{{ url_for('run_list') }}">All runs</a>
+  </div>
+</div>
+
+{% if error %}
+<div class="callout callout-error" role="alert" data-calibration-error>
+  <span class="callout-icon" aria-hidden="true">✕</span>
+  <div><code class="field-name">{{ error.field }}</code>: {{ error.reason }} <span class="fix">Fix: {{ error.fix }}</span></div>
+</div>
+{% endif %}
+
+<section class="panel" aria-labelledby="calibration-summary-heading">
+  <div class="panel-head">
+    <div>
+      <h2 id="calibration-summary-heading">Agreement</h2>
+      <p class="subtle">Agreement counts labelled checks where the stored verdict equals the human verdict. The interval is the Wilson 95% bound over the labelled checks.</p>
+    </div>
+    <div class="panel-tools">
+      <span class="chip">{{ report.labelled }} labelled</span>
+      <span class="chip">{{ report.unlabelled }} unlabelled</span>
+    </div>
+  </div>
+  <dl class="facts">
+    <div><dt>Agreement rate</dt><dd>{{ report.agreement_rate|pct }}</dd></div>
+    <div><dt>95% interval</dt><dd>{{ report.interval_low|interval(report.interval_high) }}</dd></div>
+    <div><dt>Agreements</dt><dd>{{ report.agreements }} of {{ report.labelled }}</dd></div>
+    <div><dt>Last human label</dt><dd>{{ report.last_validated_at|timestamp }}</dd></div>
+  </dl>
+  {% if report.labelled == 0 %}
+  <div class="empty-state">
+    <span class="empty-icon" aria-hidden="true">☐</span>
+    <h2>No human verdicts recorded yet.</h2>
+    <p>Save a verdict in the review table below. Until then the rate and interval stay empty rather than showing a misleading zero.</p>
+  </div>
+  {% endif %}
+</section>
+
+<section class="panel" aria-labelledby="judges-heading">
+  <div class="panel-head">
+    <div>
+      <h2 id="judges-heading">By judge configuration</h2>
+      <p class="subtle">Checks are grouped by the judge configuration hash stored on each check, so a changed model or option set is a separate row.</p>
+    </div>
+    {% if report.judges %}<span class="chip">{{ report.judges|length }} configuration{{ "" if report.judges|length == 1 else "s" }}</span>{% endif %}
+  </div>
+  {% if report.judges %}
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Calibration by judge configuration">
+    <table>
+      <caption class="sr-only">Agreement by judge configuration</caption>
+      <thead>
+        <tr>
+          <th scope="col">Judge</th>
+          <th scope="col">Model</th>
+          <th scope="col" class="mono">Configuration hash</th>
+          <th scope="col" class="num">Labelled</th>
+          <th scope="col" class="num">Agreements</th>
+          <th scope="col" class="num">Agreement rate</th>
+          <th scope="col">Last validated</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for judge in report.judges %}
+        <tr>
+          <th scope="row">{{ judge.name or "Deterministic metric" }}</th>
+          <td>{{ judge.model or "-" }}</td>
+          <td class="mono" title="{{ judge.config_hash or '' }}">{{ judge.config_hash[:12] ~ "…" if judge.config_hash else "-" }}</td>
+          <td class="num">{{ judge.labelled }}</td>
+          <td class="num">{{ judge.agreements }}</td>
+          <td class="num">{{ judge.agreement_rate|pct }}</td>
+          <td class="num subtle">{{ judge.last_validated_at|timestamp }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty-state">No checks were stored for this run.</p>
+  {% endif %}
+</section>
+
+<section class="panel" aria-labelledby="review-heading">
+  <div class="panel-head">
+    <div>
+      <h2 id="review-heading">Review checks</h2>
+      <p class="subtle">One row per stored check. Save a verdict to create or update a label; clear it to return the check to unlabelled. The stored check is never changed.</p>
+    </div>
+    <span class="chip">{{ report.checks|length }} check{{ "" if report.checks|length == 1 else "s" }}</span>
+  </div>
+  {% if report.checks %}
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Human review table">
+    <table>
+      <caption class="sr-only">Stored checks with the judge verdict, the human verdict and the save and clear controls</caption>
+      <thead>
+        <tr>
+          <th scope="col">Case</th>
+          <th scope="col">Candidate</th>
+          <th scope="col">Metric</th>
+          <th scope="col">Stored check</th>
+          <th scope="col">Human verdict</th>
+          <th scope="col">Review</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for check in report.checks %}
+        <tr>
+          <td class="mono">{{ check.case_id }}</td>
+          <td>{{ check.candidate }}</td>
+          <td class="mono">{{ check.metric }}</td>
+          <td>
+            <span class="chip">{{ "pass" if check.passed else "fail" }}</span>
+            {% if check.reason %}<span class="subtle">{{ check.reason }}</span>{% endif %}
+          </td>
+          <td>
+            {% if check.label %}
+            <span class="chip">{{ "pass" if check.human_passed else "fail" }}</span>
+            <span class="subtle">{{ check.operator }}</span>
+            {% if check.human_note %}<p class="subtle">{{ check.human_note }}</p>{% endif %}
+            {% else %}
+            <span class="faint">No human verdict yet</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="actions-cell">
+              <form method="post" action="{{ url_for('calibration_label_save', run_id=run.run_id) }}" class="inline-form">
+                <input type="hidden" name="cell_id" value="{{ check.cell_id }}">
+                <input type="hidden" name="metric" value="{{ check.metric }}">
+                <label class="sr-only" for="verdict-{{ loop.index }}">Human verdict</label>
+                <select id="verdict-{{ loop.index }}" name="verdict">
+                  <option value="pass"{% if check.human_passed %} selected{% endif %}>pass</option>
+                  <option value="fail"{% if check.human_passed is sameas false %} selected{% endif %}>fail</option>
+                </select>
+                <label class="sr-only" for="note-{{ loop.index }}">Note</label>
+                <input id="note-{{ loop.index }}" type="text" name="note" value="{{ check.human_note or '' }}" placeholder="Why?" autocomplete="off">
+                <button type="submit" class="btn btn-secondary btn-sm">Save human verdict</button>
+              </form>
+              <form method="post" action="{{ url_for('calibration_label_clear', run_id=run.run_id) }}" class="inline-form">
+                <input type="hidden" name="cell_id" value="{{ check.cell_id }}">
+                <input type="hidden" name="metric" value="{{ check.metric }}">
+                <button type="submit" class="btn btn-ghost btn-sm">Clear human verdict</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty-state">No checks were stored for this run, so there is nothing to review.</p>
+  {% endif %}
+</section>
+
+<section class="panel" aria-labelledby="disagreements-heading">
+  <div class="panel-head">
+    <div>
+      <h2 id="disagreements-heading">Disagreements</h2>
+      <p class="subtle">Every labelled check where the human verdict differs from the stored verdict. Open the cell to read the answer and the raw evidence before changing a label.</p>
+    </div>
+    <span class="chip">{{ report.disagreements|length }} disagreement{{ "" if report.disagreements|length == 1 else "s" }}</span>
+  </div>
+  {% if report.disagreements %}
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Disagreements table">
+    <table>
+      <caption class="sr-only">Checks where the human verdict differs from the stored verdict</caption>
+      <thead>
+        <tr>
+          <th scope="col">Case</th>
+          <th scope="col">Candidate</th>
+          <th scope="col">Metric</th>
+          <th scope="col">Stored check</th>
+          <th scope="col">Human verdict</th>
+          <th scope="col">Human note</th>
+          <th scope="col">Evidence</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for check in report.disagreements %}
+        <tr>
+          <td class="mono">{{ check.case_id }}</td>
+          <td>{{ check.candidate }}</td>
+          <td class="mono">{{ check.metric }}</td>
+          <td><span class="chip">{{ "pass" if check.passed else "fail" }}</span></td>
+          <td><span class="chip">{{ "pass" if check.human_passed else "fail" }}</span></td>
+          <td>{{ check.human_note or "-" }}</td>
+          <td><a class="btn btn-secondary btn-sm" href="{{ check.cell_url }}">Open cell</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="empty-state">No disagreements.</p>
+  {% endif %}
+</section>
+{% endblock %}
