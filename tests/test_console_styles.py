@@ -18,6 +18,7 @@ TOUCH_TARGET_SELECTORS = (
     ".btn-sm,",
     ".icon-btn,",
     ".copy-button,",
+    ".help-tip,",
     ".site-nav a,",
     ".step-link,",
     ".heat-cell a {",
@@ -168,11 +169,31 @@ def test_compare_cost_cell_truncates_inside_its_column() -> None:
         assert "white-space: nowrap;" in rule
 
 
+def test_print_omits_actions_help_and_placeholders() -> None:
+    # Printed run detail is the report: interactive affordances and legend
+    # keys add ink without adding evidence.
+    block = _block(_css(), "@media print")
+    for selector in (
+        ".page-actions,",
+        ".copy-button,",
+        ".help,",
+        ".legend,",
+        ".panel-actions,",
+        ".event-history,",
+        ".skeleton-rows,",
+    ):
+        assert selector in block, f"{selector} missing from print rules"
+    assert ".heat-cell.empty," in block
+    assert ".heat-cell.pending { visibility: hidden; }" in block
+
+
 def test_graph_variants_keep_their_own_box() -> None:
     css = _css()
+    # The 96 by 32 thumbnail was illegible at table density; deliberately
+    # enlarged to 144 by 48 with stronger wires in the same viewBox.
     mini = _block(css, ".spec-graph--mini {")
-    assert "width: 96px;" in mini
-    assert "height: 32px;" in mini
+    assert "width: 144px;" in mini
+    assert "height: 48px;" in mini
     assert ".spec-graph--pair" in css
     assert "grid-template-columns: repeat(2, minmax(0, 1fr));" in _block(
         css, ".graph-pair {"

@@ -11,7 +11,7 @@
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
   {% set path = request.url.path %}
-  {% set section = "runs" if path == "/" or path.startswith("/runs/") else ("compare" if path.startswith("/compare") else ("comparisons" if path.startswith("/specs") or path.startswith("/comparisons") else ("launch" if path.startswith("/launch") else ("credentials" if path.startswith("/credentials") else "")))) %}
+  {% set section = "runs" if path == "/" or path.startswith("/runs/") else ("specs" if path.startswith("/specs") or path.startswith("/comparisons") else ("compare" if path.startswith("/compare") else ("launch" if path.startswith("/launch") else ("credentials" if path.startswith("/credentials") else "")))) %}
   <header class="topbar">
     <div class="topbar-inner">
       <a class="brand" href="{{ url_for('run_list') }}" aria-label="evalharness console home">
@@ -20,7 +20,9 @@
       </a>
       <nav class="site-nav" aria-label="Primary">
         <a href="{{ url_for('run_list') }}"{% if section == "runs" %} aria-current="page"{% endif %}>Runs</a>
-        <a href="{{ url_for('spec_list') }}"{% if section == "comparisons" %} aria-current="page"{% endif %}>Comparisons</a>
+        <a href="{{ url_for('spec_list') }}"{% if section == "specs" %} aria-current="page"{% endif %}>Specs</a>
+        <a href="{{ url_for('compare') }}"{% if section == "compare" %} aria-current="page"{% endif %}>Compare</a>
+        <a href="{{ url_for('launch_page') }}"{% if section == "launch" %} aria-current="page"{% endif %}>Launch</a>
         <a href="{{ url_for('credential_list') }}"{% if section == "credentials" %} aria-current="page"{% endif %}>Credentials</a>
       </nav>
       <div class="topbar-actions">
@@ -42,6 +44,8 @@
     <p>evalharness console</p>
     <span class="footer-sep" aria-hidden="true">/</span>
     <p>single user · local only · server-rendered, no client build step, no CDN</p>
+    <span class="footer-sep" aria-hidden="true">/</span>
+    <p>All times UTC</p>
     <span class="footer-sep" aria-hidden="true">/</span>
     <p>No secrets in logs, events, artifacts or HTML.</p>
   </footer>

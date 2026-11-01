@@ -31,6 +31,17 @@
 </div>
 {% endif %}
 
+{% if spec_options and not selected %}
+<div class="callout callout-warn" role="status">
+  <span class="callout-icon" aria-hidden="true">!</span>
+  <div>
+    <span class="callout-title">No spec validates.</span>
+    None of the {{ spec_options|length }} spec files in this directory passes validation, so none is preselected.
+    Open one from the <a href="{{ url_for('spec_list') }}">specs list</a> to read its error, fix it, then reload this page.
+  </div>
+</div>
+{% endif %}
+
 <div class="launch-layout">
   <section class="panel launch-form-panel" aria-labelledby="launch-heading">
     <div class="panel-head">
@@ -44,11 +55,11 @@
         <label for="spec">Spec</label>
         {% if specs %}
         <select id="spec" name="spec" data-estimate-select aria-describedby="spec-hint">
-          {% for spec in specs %}
-          <option value="{{ spec.name }}"{% if spec.name == selected %} selected{% endif %}>{{ spec.name }}</option>
+          {% for spec in spec_options %}
+          <option value="{{ spec.name }}"{% if spec.name == selected %} selected{% endif %}{% if not spec.valid %} title="{{ spec.reason }}"{% endif %}>{{ spec.name }}{% if not spec.valid %} (invalid){% endif %}</option>
           {% endfor %}
         </select>
-        <p class="field-hint" id="spec-hint">Changing the spec updates the estimate when JavaScript is on. Without it, press Show estimate.</p>
+        <p class="field-hint" id="spec-hint">The picker preselects a spec that validates: smoke.yaml when the directory has one, otherwise the first valid file. A file marked (invalid) stays selectable so its error can be read, but launch refuses it until the file is fixed. Changing the spec updates the estimate when JavaScript is on; without it, press Show estimate.</p>
         {% else %}
         <input id="spec" name="spec" type="text" value="{{ selected }}" placeholder="my-spec.yaml" aria-describedby="spec-hint">
         <p class="field-hint" id="spec-hint">No specs were found in <code title="{{ specs_root }}">{{ specs_root|shortpath }}</code>. Write a YAML spec there, or type its path relative to that directory. Set <code>EVALH_SPECS_DIR</code> to point the console at another directory.</p>
@@ -73,10 +84,10 @@
     <section class="estimate-hero" aria-labelledby="estimate-heading">
       <div class="panel-title-row">
         <h2 id="estimate-heading">Estimate</h2>
-        <span class="chip">{{ "observed medians" if estimate.observed else "fallback medians" }}</span>
+        <span class="chip">{{ "observed medians" if estimate.observed else "estimated medians" }}</span>
       </div>
       <p class="estimate-total" title="{{ estimate.cost_usd|usdexact }}">{{ estimate.cost_usd|usd }}</p>
-      <p class="field-hint">Estimate: <strong>{{ estimate.cells }} cell{{ "" if estimate.cells == 1 else "s" }}</strong> for <span class="mono">{{ spec_name }}</span>, at {{ (estimate.prompt_tokens / estimate.cells)|round|int }} prompt + {{ (estimate.completion_tokens / estimate.cells)|round|int }} completion tokens per cell ({{ estimate.prompt_tokens }} + {{ estimate.completion_tokens }} in total).</p>
+      <p class="field-hint">Estimate: <strong>{{ estimate.cells }} cell{{ "" if estimate.cells == 1 else "s" }}</strong> for <span class="mono">{{ spec_name }}</span>, at {{ prompt_tokens_per_cell }} median prompt tokens + {{ completion_tokens_per_cell }} median completion tokens per cell ({{ estimate.prompt_tokens }} + {{ estimate.completion_tokens }} tokens in total). This is an estimate only: the run bills the tokens it actually uses.</p>
       {% if budget_percent is not none %}
       <div class="estimate-meter">
         <span class="meter {{ 'is-over' if over_budget else '' }}" aria-hidden="true"><span style="width: {{ budget_percent }}%"></span></span>
@@ -88,7 +99,7 @@
         <div><dt>Tokens (total)</dt><dd>{{ estimate.prompt_tokens }} + {{ estimate.completion_tokens }}</dd></div>
         <div><dt>Spec budget</dt><dd>{{ spec_budget_usd|usd }}</dd></div>
         <div><dt>Headroom</dt><dd>{{ headroom_usd|usd }}</dd></div>
-        <div><dt>Medians</dt><dd>{{ "measured by an earlier run" if estimate.observed else "fallback until a run records them" }}</dd></div>
+        <div><dt>Medians</dt><dd>{{ "measured by an earlier run" if estimate.observed else "estimated from defaults until a run records them" }}</dd></div>
       </dl>
       {% if over_budget %}
       <div class="callout callout-warn" role="alert">

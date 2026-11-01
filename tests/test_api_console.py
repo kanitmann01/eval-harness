@@ -1,4 +1,4 @@
-"""HTTP API seam tests for the read-only console.
+"""HTTP API seam tests for the console.
 
 Every test seeds a real run through `evalharness.cli.main` and reads it
 through `httpx.AsyncClient` against the ASGI application, never a server.
@@ -153,6 +153,11 @@ async def test_run_list_shows_status_spec_cost_pass_rate_and_duration(
         assert text.count('class="spec-graph spec-graph--mini"') == 3
         assert text.count('aria-hidden="true"') >= 3
         assert "2 need attention" in text
+        assert "Check pass rate" in text
+        assert 'class="help-tip"' in text
+        assert 'role="tooltip"' in text
+        gamma = _table_row(text, "gamma-spec")
+        assert "1 not ok" in gamma
 
         rows = (await client.get("/api/runs")).json()
         assert len(rows) == 3
@@ -166,6 +171,18 @@ async def test_run_list_shows_status_spec_cost_pass_rate_and_duration(
         assert by_name["beta-spec"]["pass_rate"] == 0.0
         assert by_name["gamma-spec"]["pass_rate"] is None
         assert by_name["gamma-spec"]["status"] == "partial"
+
+
+async def test_run_list_ships_a_skeleton_loading_state(console: Console) -> None:
+    async with _client(console.app) as client:
+        text = (await client.get("/")).text
+        assert "data-loading-form" in text
+        assert 'data-loading-target="#runs-table"' in text
+        assert 'id="runs-table"' in text
+        assert 'aria-busy="false"' in text
+        assert "data-loading-status" in text
+        assert "data-skeleton-rows" in text
+        assert text.count('class="skeleton-row"') == 3
 
 
 async def test_candidate_and_metric_filters_narrow_the_list(console: Console) -> None:
@@ -214,9 +231,15 @@ async def test_heatmap_has_one_link_per_planned_cell(console: Console) -> None:
         assert "gate-pass" in text
         assert "exact_match" in text
         assert "All 4 checks passed across 4 cells." in text
-        assert f'data-copy="{run_id}"' in text
+        assert "Check pass rate" in text
+        assert "0 errored of 4 recorded cells" in text
+        assert 'class="help-tip"' in text
+        assert 'role="tooltip"' in text
+        assert text.count(f'data-copy="{run_id}"') == 1
+        assert ">Copy run ID</span>" in text
         assert 'aria-valuemax="4"' in text and 'aria-valuenow="4"' in text
         assert "2/2 checks" in text
+        assert f"/compare?a={run_id}" in text
 
         detail = (await client.get(f"/api/runs/{run_id}")).json()
         assert detail["spec_name"] == "alpha-spec"
@@ -657,6 +680,10 @@ async def test_pages_declare_an_inline_favicon_and_an_accurate_badge(
         assert "data:image/svg+xml" in text
         assert "%231f5e4b" in text
         assert "single user" in text
+        assert "All times UTC" in text
+        assert ">Specs</a>" in text
+        assert ">Compare</a>" in text
+        assert ">Launch</a>" in text
         assert "read-only results" not in text
 
 
@@ -668,8 +695,8 @@ async def test_run_list_formats_tiny_costs_without_a_fake_zero(
         alpha = _table_row(text, "alpha-spec")
         beta = _table_row(text, "beta-spec")
         gamma = _table_row(text, "gamma-spec")
-        assert "$0.000026" in alpha
-        assert "$0.0000066" in beta
+        assert "$0.0000264" in alpha
+        assert "$0.00000660" in beta
         assert "$0.00" in gamma
         assert "$0.000000" not in text
 

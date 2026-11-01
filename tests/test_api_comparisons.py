@@ -201,16 +201,17 @@ async def test_get_steps_and_navigation(wizard: Console) -> None:
         assert page.status_code == 200
         _shell(page.text, 1)
         assert ">Runs</a>" in page.text
-        assert ">Comparisons</a>" in page.text
+        assert ">Specs</a>" in page.text
         assert ">Credentials</a>" in page.text
         assert ">New comparison</a>" in page.text
         assert "http://console.test/comparisons/new" in page.text
-        assert ">Compare</a>" not in page.text
-        assert ">Launch</a>" not in page.text
+        assert ">Compare</a>" in page.text
+        assert ">Launch</a>" in page.text
         assert 'class="btn btn-secondary btn-add"' in page.text
         assert '<span class="btn-add-glyph" aria-hidden="true">+</span>' in page.text
         assert 'name="action" value="add:case"' in page.text
-        assert "Add another case" in page.text
+        assert "Add case" in page.text
+        assert "Add another" not in page.text
 
         for step in (2, 3, 4):
             fresh = await client.get(f"/comparisons/new/{step}")
@@ -224,6 +225,69 @@ async def test_get_steps_and_navigation(wizard: Console) -> None:
             "/comparisons/new/5", data={"form_step": "5", "draft": ""}
         )
         assert missing_post.status_code == 404
+
+
+async def test_the_first_step_opens_with_an_empty_seed(wizard: Console) -> None:
+    """A fresh draft does not pin a seed the user never chose."""
+    async with _client(wizard.app) as client:
+        page = await client.get("/comparisons/new/1")
+        assert page.status_code == 200
+        draft = yaml.safe_load(_draft(page.text))
+        assert "seed" not in draft
+        assert re.search(r'<input[^>]*name="seed"[^>]*value=""', page.text)
+        assert "Leave it empty for no seed." in page.text
+        assert "1 case" in page.text
+        assert "1 cases" not in page.text
+
+
+async def test_the_step_strip_explains_every_step(wizard: Console) -> None:
+    """Each step in the strip carries a visible one-line explanation."""
+    descriptions = (
+        "Name the comparison, pick the case source and write one row per case.",
+        "Prompts, reference texts and credential declarations the candidates use.",
+        "Each candidate is an adapter, a model and the context it runs with.",
+        "The budget cap, the metrics, the judges, the gates and the prices.",
+    )
+    async with _client(wizard.app) as client:
+        page = await client.get("/comparisons/new/1")
+        assert page.status_code == 200
+        assert page.text.count('class="field-hint step-help"') == 4
+        for description in descriptions:
+            assert description in page.text
+
+
+async def test_the_estimate_rail_calls_its_numbers_estimates(wizard: Console) -> None:
+    """The rail says the medians and the cost are estimates, not a quote."""
+    async with _client(wizard.app) as client:
+        page = await client.get("/comparisons/new/1")
+        assert page.status_code == 200
+        text = page.text
+        assert "estimated medians" in text
+        assert "fallback medians" not in text
+        assert "Median tokens / cell" in text
+        assert "Step 1 starts from one case and one candidate" in text
+        assert "this estimate is for one cell" in text
+        assert "not a quote" in text
+        assert "%.6f" not in text
+        assert "%.4f" not in text
+        match = re.search(r'data-estimate-cost="([^"]*)"', text)
+        assert match is not None
+        assert match.group(1).startswith("$")
+        assert match.group(1)[1:].replace(".", "", 1).isdigit()
+
+
+async def test_the_buttons_name_the_next_and_previous_steps(wizard: Console) -> None:
+    """Continue and Back carry the destination step title, and adders are short."""
+    async with _client(wizard.app) as client:
+        page = await client.post("/comparisons/new/1", data=_step_one())
+        assert page.status_code == 200
+        _shell(page.text, 2)
+        assert "Continue to Choose candidates" in page.text
+        assert "Back to What to vary" in page.text
+        assert "Add prompt</button>" in page.text
+        assert "Add context</button>" in page.text
+        assert "Add credential</button>" in page.text
+        assert "Add another" not in page.text
 
 
 async def test_the_happy_path_writes_one_spec(wizard: Console) -> None:

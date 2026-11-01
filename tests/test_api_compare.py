@@ -64,6 +64,14 @@ async def test_two_runs_compare_with_deltas_intervals_and_cost(
         assert 'class="graph-pair"' in page.text
         assert "Side A · baseline: all candidates" in page.text
         assert "Side B · candidate: all candidates" in page.text
+        data = (
+            await client.get("/api/compare", params={"a": run_a, "b": run_b})
+        ).json()
+        assert f'title="{data["a"]["price_table"]["id"]}"' in page.text
+        assert f'title="{data["b"]["price_table"]["id"]}"' in page.text
+        assert "price table fingerprint" in page.text
+        assert "A cell is one case" in page.text
+        assert "a cell can fail a check and still run ok" in page.text
         assert 'viewBox="0 0 640.0 ' in page.text
         # Both sides keep their box labels and use the short headings.
         assert 'class="sg-label"' in page.text
@@ -467,7 +475,7 @@ async def test_compare_empty_state_explains_what_is_needed(
         page = await client.get("/compare")
     assert page.status_code == 200
     assert "Nothing to compare yet" in page.text
-    assert "Pick two runs" in page.text
+    assert "Pick two of the 3 runs in the menus above" in page.text
     assert "Select run A" in page.text
     assert "Select run B" in page.text
     for name in ("alpha-spec", "beta-spec", "gamma-spec"):

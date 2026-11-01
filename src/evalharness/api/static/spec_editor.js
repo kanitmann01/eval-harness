@@ -75,10 +75,8 @@
     const counts = payload.cells_per_candidate || {};
     setText(cells, estimate ? String(payload.cells) : "-");
     setText(cases, payload.cases ? String(payload.cases) : "-");
-    setText(
-      cost,
-      estimate ? "$" + Number(estimate.cost_usd).toFixed(6) : "-"
-    );
+    setText(cost, estimate ? estimate.cost_text : "-");
+    if (cost) cost.title = estimate ? estimate.cost_exact : "";
     if (perCandidate) {
       perCandidate.replaceChildren();
       for (const name of Object.keys(counts)) {

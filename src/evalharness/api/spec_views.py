@@ -16,6 +16,7 @@ from typing import Any
 
 from evalharness.api.credential_views import CredentialChoice, credential_choices
 from evalharness.api.spec_store import SpecFile, SpecStore
+from evalharness.api.templating import format_usd, format_usd_exact
 from evalharness.core.context import RunContext
 from evalharness.core.cost import (
     DEFAULT_MEDIAN_COMPLETION_TOKENS,
@@ -192,6 +193,8 @@ def estimate_data(estimate: SpecEstimate) -> dict[str, Any]:
     """Return the JSON shape of one cell and cost estimate."""
     return {
         "cost_usd": estimate.cost_usd,
+        "cost_text": format_usd(estimate.cost_usd),
+        "cost_exact": format_usd_exact(estimate.cost_usd),
         "prompt_tokens": estimate.prompt_tokens,
         "completion_tokens": estimate.completion_tokens,
         "median_prompt_tokens": estimate.median_prompt_tokens,

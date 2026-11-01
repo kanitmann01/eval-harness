@@ -7,7 +7,7 @@
   <div class="page-header-main">
     <p class="eyebrow">Comparisons / New</p>
     <h1>{{ page.step.title }}</h1>
-    <p class="lede">Four steps compose one spec. Your values travel in the hidden draft, and nothing is written to disk until the last step.</p>
+    <p class="lede">Four steps compose one new spec file. To change a saved spec, use its structured edit form for the common fields, or the raw YAML for every field. Your values travel in the hidden draft, and nothing is written to disk until the last step.</p>
   </div>
   <div class="page-actions">
     <span class="chip">{{ values.cases|length }} case{{ "" if values.cases|length == 1 else "s" }}</span>
@@ -16,6 +16,8 @@
 </div>
 
 {{ step_strip(page) }}
+
+<p class="subtle wizard-surfaces">New comparison: this wizard writes a new spec file. Structured edit: open a saved spec from Specs to change its common fields. Raw YAML: open the same spec's YAML to reach every field. Compare reads two run ids, or two candidate names from one run, never this draft.</p>
 
 <div class="wizard-layout">
   <section class="panel wizard-body" aria-labelledby="step-heading">
@@ -43,15 +45,20 @@
       {% endif %}
 
       <div class="form-actions wizard-actions">
-        <button type="submit" class="btn btn-primary" name="action" value="continue">{{ "Create comparison" if page.step.index == 4 else "Continue" }}</button>
-        {% if page.step.index > 1 %}
-        <button type="submit" class="btn btn-secondary" formaction="{{ page.previous_path }}" name="action" value="back">Back</button>
+        {% if page.step.index == page.steps|length %}
+        <button type="submit" class="btn btn-primary" name="action" value="continue">Create comparison</button>
+        {% else %}
+        {% set next_step = page.steps[page.step.index] %}
+        <button type="submit" class="btn btn-primary" name="action" value="continue">Continue to {{ next_step.title }}</button>
         {% endif %}
-        <span class="field-hint">Continue validates the whole draft. Nothing is written until the last step.</span>
+        {% if page.step.index > 1 %}
+        <button type="submit" class="btn btn-secondary" formaction="{{ page.previous_path }}" name="action" value="back">Back to {{ page.steps[page.step.index - 2].title }}</button>
+        {% endif %}
+        <span class="field-hint">Continue validates the whole draft and moves on. Nothing is written to disk until the last step.</span>
       </div>
     </form>
   </section>
 
-  {{ wizard_rail(page) }}
+  {{ wizard_rail(page, wizard=True) }}
 </div>
 {% endblock %}

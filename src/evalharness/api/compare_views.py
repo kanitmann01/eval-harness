@@ -9,6 +9,7 @@ disagree about a value.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlencode
@@ -305,7 +306,7 @@ def comparison_page(
         "comparison": None,
         "graph_a": None,
         "graph_b": None,
-        "empty_message": _empty_message(bool(runs)),
+        "empty_message": _empty_message(runs),
         "json_url": _json_url(a, b, run, candidate_a, candidate_b),
         "swap_url": _swap_url(a, b, run, candidate_a, candidate_b),
     }
@@ -351,12 +352,14 @@ def _run_label(summary: RunSummary) -> str:
     return f"{name} · {summary.status} · {summary.run_id[:12]}"
 
 
-def _empty_message(has_runs: bool) -> str:
-    """Explain what the page needs, depending on whether any run exists."""
-    if has_runs:
+def _empty_message(runs: Sequence[RunSummary]) -> str:
+    """Explain what the page needs, naming how many runs it can offer."""
+    if runs:
+        count = len(runs)
         return (
-            "Pick two runs above and choose Compare, or add ?a=<run id>&b=<run id> "
-            "to the URL. For two candidates, add "
+            f"Pick two of the {count} run{'s' if count != 1 else ''} in the menus "
+            "above and choose Compare, or add ?a=<run id>&b=<run id> to the URL. For two "
+            "candidates, add "
             "?run=<run id>&candidate_a=<name>&candidate_b=<name>."
         )
     return (
@@ -421,6 +424,7 @@ def _side_view(side: CompareSide) -> dict[str, Any]:
         "n_ok": side.n_ok,
         "n_checks": side.n_checks,
         "n_passed": side.n_passed,
+        "price_table_id": side.price_table.id,
         "price_table_short": side.price_table.id[:12],
         "price_models": (
             ", ".join(sorted(side.price_table.prices)) or "none recorded"

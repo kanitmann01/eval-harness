@@ -13,6 +13,7 @@
       {% else %}
       <span class="step-link"><span class="step-number mono">{{ step.index }}</span><span>{{ step.title }}</span></span>
       {% endif %}
+      <span class="field-hint step-help">{{ step.description }}</span>
     </li>
     {% endfor %}
   </ol>
@@ -129,7 +130,7 @@
           </tbody>
         </table>
       </div>
-      <div class="form-actions">{{ add_button("case", "Add another case") }}</div>
+      <div class="form-actions">{{ add_button("case", "Add case") }}</div>
 {%- endmacro %}
 
 {% macro step_two_fields(page) -%}
@@ -153,7 +154,7 @@
           </tbody>
         </table>
       </div>
-      <div class="form-actions">{{ add_button("prompt", "Add another prompt") }}</div>
+      <div class="form-actions">{{ add_button("prompt", "Add prompt") }}</div>
 
       <h3>Contexts</h3>
       <p class="subtle">Reference text a candidate may cite. A blank line starts a new chunk.</p>
@@ -172,7 +173,7 @@
           </tbody>
         </table>
       </div>
-      <div class="form-actions">{{ add_button("context", "Add another context") }}</div>
+      <div class="form-actions">{{ add_button("context", "Add context") }}</div>
 
       <h3>Credential declarations</h3>
       <p class="subtle">Names the spec references. The secret itself lives in the credential store, never in the spec.</p>
@@ -191,7 +192,7 @@
           </tbody>
         </table>
       </div>
-      <div class="form-actions">{{ add_button("credential", "Add another credential") }}</div>
+      <div class="form-actions">{{ add_button("credential", "Add credential") }}</div>
 {%- endmacro %}
 
 {% macro step_three_fields(page) -%}
@@ -234,7 +235,7 @@
           </tbody>
         </table>
       </div>
-      <div class="form-actions">{{ add_button("candidate", "Add another candidate") }}</div>
+      <div class="form-actions">{{ add_button("candidate", "Add candidate") }}</div>
 {%- endmacro %}
 
 {% macro step_four_fields(page) -%}
@@ -260,7 +261,7 @@
           </tbody>
         </table>
       </div>
-      <div class="form-actions">{{ add_button("metric", "Add another metric") }}</div>
+      <div class="form-actions">{{ add_button("metric", "Add metric") }}</div>
 
       <h3>Judges</h3>
       <p class="subtle">Each judge adds a judge_pass metric under its metric key. The rubric lines become the scripted judge's claims; a model is optional for that judge.</p>
@@ -280,7 +281,7 @@
           </tbody>
         </table>
       </div>
-      <div class="form-actions">{{ add_button("judge", "Add another judge") }}</div>
+      <div class="form-actions">{{ add_button("judge", "Add judge") }}</div>
 
       <h3>Gates</h3>
       <p class="subtle">A gate turns the run into exit code 1 when the metric crosses the threshold. at least writes min; at most writes max.</p>
@@ -308,7 +309,7 @@
           </tbody>
         </table>
       </div>
-      <div class="form-actions">{{ add_button("gate", "Add another gate") }}</div>
+      <div class="form-actions">{{ add_button("gate", "Add gate") }}</div>
 
       <h3>Prices</h3>
       <p class="subtle">The schema needs a price for every candidate and judge model. provider_prices is optional and left untouched here; add one in the raw spec when a provider needs a separate table.</p>
@@ -328,10 +329,10 @@
           </tbody>
         </table>
       </div>
-      <div class="form-actions">{{ add_button("price", "Add another price") }}</div>
+      <div class="form-actions">{{ add_button("price", "Add price") }}</div>
 {%- endmacro %}
 
-{% macro wizard_rail(page, sections=()) -%}
+{% macro wizard_rail(page, sections=(), wizard=False) -%}
   <aside class="wizard-rail" aria-label="Estimate and spec graph">
     {% if sections %}
     <nav class="rail-nav" aria-label="Sections on this page">
@@ -342,15 +343,25 @@
     <section class="estimate-hero" aria-labelledby="estimate-heading">
       <div class="panel-title-row">
         <h2 id="estimate-heading">Estimate</h2>
-        <span class="chip">{{ "observed medians" if page.estimate.observed else "fallback medians" }}</span>
+        <span class="chip">{{ "observed medians" if page.estimate.observed else "estimated medians" }}</span>
       </div>
-      <p class="estimate-total" data-estimate-cost="{{ '%.4f'|format(page.estimate.cost_usd) }}">{{ page.estimate.cost_usd|usd }}<small>projected cost before the run</small></p>
+      <p class="estimate-total" data-estimate-cost="{{ page.estimate.cost_usd|usd }}" title="{{ page.estimate.cost_usd|usdexact }}">{{ page.estimate.cost_usd|usd }}<small>projected cost before the run; a planning estimate, not a quote</small></p>
+      <p class="field-hint estimate-note">
+        {% if page.estimate.observed %}
+        Token medians come from this spec's recorded runs. The run bills the tokens it actually uses, so the final cost can differ.
+        {% else %}
+        No run of this spec has recorded token medians yet, so the estimate uses the shipped default medians. The run bills the tokens it actually uses, so the final cost can differ.
+        {% endif %}
+      </p>
       <dl class="facts" data-estimate-cells="{{ page.estimate.cells }}">
         <div><dt>Cells</dt><dd>{{ page.estimate.cells }}</dd></div>
-        <div><dt>Tokens / cell</dt><dd>{{ page.estimate.tokens_per_cell }}</dd></div>
+        <div><dt>Median tokens / cell</dt><dd>{{ page.estimate.tokens_per_cell }}</dd></div>
         <div><dt>Budget</dt><dd>{{ page.estimate.budget_usd|usd if page.estimate.budget_usd is not none else "not set" }}</dd></div>
         <div><dt>Headroom</dt><dd>{{ page.estimate.headroom_usd|usd if page.estimate.headroom_usd is not none else "not set" }}</dd></div>
       </dl>
+      {% if wizard and page.step.index == 1 %}
+      <p class="field-hint estimate-note">Step 1 starts from one case and one candidate, so this estimate is for {{ "one cell" if page.estimate.cells == 1 else page.estimate.cells ~ " cells" }}. Each case you add here and each candidate you add in step 3 adds cells and cost.</p>
+      {% endif %}
       {% if page.estimate.budget_usd %}
       <div class="estimate-meter">
         <span class="meter {{ 'is-over' if page.estimate.over_budget else '' }}" aria-hidden="true"><span style="width: {{ page.estimate.budget_percent }}%"></span></span>

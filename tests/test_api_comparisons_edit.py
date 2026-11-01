@@ -126,6 +126,8 @@ async def test_the_form_shows_every_section_prefilled(editor: Console) -> None:
         path.read_text(encoding="utf-8").encode("utf-8")
     ).hexdigest()
     assert "data-estimate-cells" in body
+    assert "estimated medians" in body
+    assert "Step 1 starts from one case and one candidate" not in body
     assert 'class="spec-graph' in body
     assert "Spec graph" in body
     assert "/specs/smoke/edit" in body

@@ -8,6 +8,7 @@ ticket asks for equivalence or end-to-end proof, so no server and no network.
 from __future__ import annotations
 
 import asyncio
+import re
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, Iterator
@@ -132,6 +133,27 @@ async def test_empty_specs_directory_is_an_empty_state(editor: Console) -> None:
     assert not specs_dir.exists()
 
 
+async def test_the_editor_estimate_reads_as_usd_and_says_it_is_an_estimate(
+    editor: Console,
+) -> None:
+    """The rail shows a formatted USD amount and names where the medians came from."""
+    text = _yaml()
+    async with _client(editor.app) as client:
+        created = await _put(client, "smoke", text)
+        assert created.status_code == 200
+        page = await client.get("/specs/smoke/edit")
+        assert page.status_code == 200
+        match = re.search(r'data-cost="([^"]*)"', page.text)
+        assert match is not None
+        assert match.group(1).startswith("$")
+        assert match.group(1) != "$0.000000"
+        assert "estimated medians" in page.text
+        assert "Median tokens / cell" in page.text
+        assert "not a quote" in page.text
+        assert "shipped default medians" in page.text
+        assert "%.6f" not in page.text
+
+
 async def test_round_trip_edit_validate_and_save(editor: Console) -> None:
     text = _yaml()
     path = editor.settings.specs_dir / "smoke.yaml"
@@ -148,6 +170,8 @@ async def test_round_trip_edit_validate_and_save(editor: Console) -> None:
             "stub-explained": 1,
         }
         assert payload["cost_estimate"]["cost_usd"] > 0
+        assert payload["cost_estimate"]["cost_text"].startswith("$")
+        assert payload["cost_estimate"]["cost_exact"].startswith("$")
         assert payload["cost_estimate"]["observed"] is False
         assert payload["cost_estimate"]["median_prompt_tokens"] == 500
         assert payload["warnings"] == []
@@ -189,7 +213,7 @@ async def test_round_trip_edit_validate_and_save(editor: Console) -> None:
         assert "stub-concise" in page.text
         assert "Check" in page.text and "Save" in page.text
         assert "Cells per candidate" in page.text
-        assert ">Comparisons</a>" in page.text
+        assert ">Specs</a>" in page.text
 
         spec = base_spec()
         spec["source"]["options"]["cases"].append(
@@ -222,13 +246,46 @@ async def test_round_trip_edit_validate_and_save(editor: Console) -> None:
         assert sorted(item.name for item in path.parent.iterdir()) == ["smoke.yaml"]
 
 
-async def test_list_rows_open_the_structured_form(editor: Console) -> None:
-    """The list row action goes to the structured form, not the raw editor."""
+async def test_list_rows_offer_the_structured_and_raw_forms(editor: Console) -> None:
+    """A row opens the common-field form with Edit and the whole file with YAML."""
     async with _client(editor.app) as client:
         assert (await _put(client, "smoke", _yaml())).status_code == 200
         page = await client.get("/specs")
         assert "/comparisons/smoke/edit" in page.text
-        assert "/specs/smoke/edit" not in page.text
+        assert 'href="http://console.test/specs/smoke/edit">YAML</a>' in page.text
+        assert "href=\"http://console.test/comparisons/smoke/edit\">Edit</a>" in page.text
+        assert ">Estimate</th>" in page.text
+        assert 'href="http://console.test/launch?spec=smoke">Launch</a>' in page.text
+
+
+async def test_the_list_shortens_a_long_validation_reason(editor: Console) -> None:
+    """A multi-line validator message keeps one visible line and its full text."""
+    specs_dir = editor.settings.specs_dir
+    specs_dir.mkdir(parents=True, exist_ok=True)
+    (specs_dir / "broken.yaml").write_text(
+        "spec_version: 1\ncases: [\n  - {id: 'unterminated\n",
+        encoding="utf-8",
+    )
+    (specs_dir / "short.yaml").write_text("spec_version: 1\n", encoding="utf-8")
+    async with _client(editor.app) as client:
+        page = await client.get("/specs")
+    assert page.status_code == 200
+    reasons = re.findall(
+        r'<span class="validation-reason" title="([^"]*)">([^<]*)</span>',
+        page.text,
+    )
+    assert len(reasons) == 2
+    long_title, long_visible = next(
+        item for item in reasons if "the YAML did not parse" in item[0]
+    )
+    assert long_visible.endswith("…")
+    assert "\n" not in long_visible
+    assert len(long_visible) <= 61
+    assert "expected the node content" in long_title
+    short_title, short_visible = next(
+        item for item in reasons if item[0] != long_title
+    )
+    assert short_visible == short_title == "name: Field required"
 
 
 async def test_invalid_spec_names_the_field_and_is_never_written(

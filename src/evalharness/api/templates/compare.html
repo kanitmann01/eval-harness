@@ -96,7 +96,7 @@
       <div><span class="stat-label">Checks passed</span><span class="stat-value">{{ comparison.a.n_passed }}/{{ comparison.a.n_checks }}</span></div>
       <div><span class="stat-label">Cost per correct answer</span><span class="stat-value small">{{ comparison.a.cost_per_correct_text }}</span><span class="stat-detail">total {{ comparison.a.cost_text }}</span></div>
     </div>
-    <p class="side-note">Price table <span class="mono">{{ comparison.a.price_table_short }}</span> · {{ comparison.a.price_models }}</p>
+    <p class="side-note">Price table <span class="mono" title="{{ comparison.a.price_table_id }}">{{ comparison.a.price_table_short }}</span> · {{ comparison.a.price_models }}</p>
   </article>
   <article class="side-card" aria-labelledby="side-b-heading">
     <div class="side-card-head">
@@ -112,9 +112,11 @@
       <div><span class="stat-label">Checks passed</span><span class="stat-value">{{ comparison.b.n_passed }}/{{ comparison.b.n_checks }}</span></div>
       <div><span class="stat-label">Cost per correct answer</span><span class="stat-value small">{{ comparison.b.cost_per_correct_text }}</span><span class="stat-detail">total {{ comparison.b.cost_text }}</span></div>
     </div>
-    <p class="side-note">Price table <span class="mono">{{ comparison.b.price_table_short }}</span> · {{ comparison.b.price_models }}</p>
+    <p class="side-note">Price table <span class="mono" title="{{ comparison.b.price_table_id }}">{{ comparison.b.price_table_short }}</span> · {{ comparison.b.price_models }}</p>
   </article>
 </section>
+
+<p class="field-hint side-help">A cell is one case × candidate × replica run. <strong>Cells ok</strong> counts cells that ran without a harness error. Each cell records several metric and gate checks, so <strong>Checks passed</strong> counts the checks that passed: a cell can fail a check and still run ok. The price table fingerprint identifies the price snapshot the run used; costs are directly comparable only when both sides show the same fingerprint, and a different one raises the warning above.</p>
 
 <section class="panel graph-panel" aria-labelledby="graphs-heading">
   <div class="panel-head">

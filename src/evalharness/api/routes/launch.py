@@ -16,7 +16,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import Response
 
-from evalharness.api.deps import get_settings, render
+from evalharness.api.deps import get_repository, get_settings, render
 from evalharness.api.launch import (
     LaunchError,
     get_launches,
@@ -52,6 +52,7 @@ def launch_page(
         "launch.html",
         launch_page_context(
             settings=settings,
+            repository=get_repository(request),
             requested=spec,
             running_run_id=get_launches(request).active_run_id(),
         ),
@@ -77,6 +78,7 @@ async def launch_submit(request: Request) -> HTMLResponse:
             "launch.html",
             launch_page_context(
                 settings=settings,
+                repository=get_repository(request),
                 requested=spec_text,
                 budget_override=budget_text,
                 error=str(exc),

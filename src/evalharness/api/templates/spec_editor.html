@@ -67,13 +67,20 @@
     <section class="estimate-card" aria-labelledby="estimate-heading">
       <div class="panel-title-row">
         <h2 id="estimate-heading">Estimate</h2>
-        <span class="chip">{{ "observed medians" if estimate and estimate.observed else ("fallback medians" if estimate else "unavailable") }}</span>
+        <span class="chip">{{ "observed medians" if estimate and estimate.observed else ("estimated medians" if estimate else "unavailable") }}</span>
       </div>
-      <p class="estimate-total" data-cost>${% if estimate %}{{ "%.6f"|format(estimate.cost_usd) }}{% else %}-{% endif %}<small>projected cost before the run</small></p>
+      <p class="estimate-total" data-cost="{{ estimate.cost_usd|usd if estimate else "-" }}" title="{{ estimate.cost_usd|usdexact if estimate else '' }}">{{ estimate.cost_usd|usd if estimate else "-" }}<small>projected cost before the run; a planning estimate, not a quote</small></p>
+      <p class="field-hint">
+        {% if estimate and estimate.observed %}
+        Token medians come from this spec's recorded runs. The run bills the tokens it actually uses.
+        {% elif estimate %}
+        No run of this spec has recorded token medians yet, so the estimate uses the shipped default medians. The run bills the tokens it actually uses.
+        {% endif %}
+      </p>
       <dl class="facts">
         <div><dt>Cells</dt><dd data-cells>{{ estimate.cells if estimate else "-" }}</dd></div>
         <div><dt>Cases</dt><dd data-cases>{{ check.cases or "-" }}</dd></div>
-        <div><dt>Tokens / cell</dt><dd>{% if estimate %}{{ estimate.median_prompt_tokens }} + {{ estimate.median_completion_tokens }}{% else %}-{% endif %}</dd></div>
+        <div><dt>Median tokens / cell</dt><dd>{% if estimate %}{{ estimate.median_prompt_tokens }} + {{ estimate.median_completion_tokens }}{% else %}-{% endif %}</dd></div>
       </dl>
 
       <h3>Cells per candidate</h3>

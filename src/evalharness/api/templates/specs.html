@@ -21,6 +21,30 @@
 </div>
 {% endif %}
 
+<section class="panel" aria-labelledby="surfaces-heading">
+  <div class="panel-head">
+    <div>
+      <h2 id="surfaces-heading">Three ways to edit a spec</h2>
+      <p class="subtle">All three surfaces read and write the same YAML file; pick the one that fits the change.</p>
+    </div>
+  </div>
+  <dl class="surfaces">
+    <div>
+      <dt><a href="{{ url_for('comparison_new') }}">New comparison wizard</a></dt>
+      <dd>Start a new comparison. Four steps write a new YAML file, and nothing touches disk until the last step.</dd>
+    </div>
+    <div>
+      <dt>Structured edit</dt>
+      <dd>Open a spec with Edit. A form for the common fields: cases, prompts, candidates, cost and rules. Save validates the whole file before writing it.</dd>
+    </div>
+    <div>
+      <dt>Raw YAML</dt>
+      <dd>Open a spec with YAML. The whole file, including fields the form does not show. Check validates without saving.</dd>
+    </div>
+  </dl>
+  <p class="field-hint">Compare does not edit a spec: it puts two run ids side by side, or two candidates from one run, and reports the delta with its 95% interval. Launch starts a run from a saved spec.</p>
+</section>
+
 {% if specs %}
 <div class="table-wrap" tabindex="0" role="region" aria-label="Spec files table">
   <table class="specs">
@@ -31,6 +55,7 @@
         <th scope="col" class="col-lg">Name</th>
         <th scope="col" class="num col-md">Candidates</th>
         <th scope="col" class="num col-md">Cells</th>
+        <th scope="col" class="num col-lg">Estimate</th>
         <th scope="col" class="num col-lg">Size</th>
         <th scope="col" class="num col-lg">Modified</th>
         <th scope="col">Validation</th>
@@ -48,19 +73,25 @@
         <td class="col-lg">{{ row.spec_name or "-" }}</td>
         <td class="num col-md">{{ row.candidates }}</td>
         <td class="num col-md">{{ row.check.estimate.cells if row.check.estimate else "-" }}</td>
+        <td class="num col-lg" title="{{ row.check.estimate.cost_usd|usdexact if row.check.estimate else "" }}">{{ row.check.estimate.cost_usd|usd if row.check.estimate else "-" }}</td>
         <td class="num col-lg">{{ row.size }} B</td>
         <td class="num subtle col-lg">{{ row.modified|timestamp }}</td>
         <td>
           {% if row.check.valid %}
           <span class="status status-ok"><span class="status-glyph" aria-hidden="true">✓</span><span>valid</span></span>
           {% else %}
-          <span class="status status-error" title="{{ row.check.errors[0].field }}: {{ row.check.errors[0].reason }}"><span class="status-glyph" aria-hidden="true">✕</span><span>invalid</span></span>
-          <span class="validation-reason">{{ row.check.errors[0].field }}: {{ row.check.errors[0].reason }}</span>
+          {% set full_reason = row.check.errors[0].field ~ ": " ~ row.check.errors[0].reason %}
+          {% set first_sentence = full_reason.split(". ")[0].splitlines()[0] %}
+          {% set short_reason = first_sentence[:60].rstrip() %}
+          <span class="status status-error" title="{{ full_reason }}"><span class="status-glyph" aria-hidden="true">✕</span><span>invalid</span></span>
+          <span class="validation-reason" title="{{ full_reason }}">{{ short_reason }}{% if short_reason != full_reason %}…{% endif %}</span>
           {% endif %}
         </td>
         <td class="actions col-sm">
           <div class="actions-cell">
+            <a class="btn btn-ghost btn-sm" href="{{ url_for('launch_page') }}?spec={{ row.name|urlencode }}">Launch</a>
             <a class="btn btn-secondary btn-sm" href="{{ url_for('comparison_edit', name=row.name) }}">Edit</a>
+            <a class="btn btn-ghost btn-sm" href="{{ url_for('spec_edit', name=row.name) }}">YAML</a>
             <form method="post" action="{{ url_for('spec_duplicate', name=row.name) }}" class="inline-form">
               <button type="submit" class="btn btn-secondary btn-sm">Duplicate</button>
             </form>
@@ -75,7 +106,7 @@
 <div class="empty-state">
   <span class="empty-icon" aria-hidden="true">∅</span>
   <h2>No spec files yet</h2>
-  <p>Put a YAML spec in <code title="{{ specs_dir }}">{{ specs_dir|shortpath }}</code> and reload this page, or write one through <code>PUT /api/specs/&lt;name&gt;</code>. Nothing is stored in the database: the directory is the state.</p>
+  <p>The directory holds <strong>0 specs</strong> right now. Put a YAML spec in <code title="{{ specs_dir }}">{{ specs_dir|shortpath }}</code> and reload this page, build one with the <a href="{{ url_for('comparison_new') }}">new comparison wizard</a>, or write it through <code>PUT /api/specs/&lt;name&gt;</code>. Nothing is stored in the database: the directory is the state.</p>
 </div>
 {% endif %}
 {% endblock %}

@@ -30,7 +30,11 @@
       const value = button.dataset.copy || "";
       try {
         await copyText(value);
-        if (copyStatus) copyStatus.textContent = "Copied " + value;
+        const object =
+          button.dataset.copyLabel ||
+          button.textContent.trim().replace(/^Copy\s+/i, "") ||
+          "value";
+        if (copyStatus) copyStatus.textContent = "Copied " + object + " " + value;
         button.dataset.copied = "true";
         if (!button.classList.contains("copy-button")) {
           const previous = button.textContent;
@@ -108,6 +112,70 @@
     });
   }
 
+  const helpButtons = [...document.querySelectorAll("[data-help-tip]")];
+  function closeHelp(button, refocus) {
+    button.setAttribute("aria-expanded", "false");
+    button.parentElement.classList.add("is-dismissed");
+    if (refocus) button.focus();
+  }
+  for (const button of helpButtons) {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const open = button.getAttribute("aria-expanded") === "true";
+      for (const other of helpButtons) {
+        other.setAttribute("aria-expanded", "false");
+        other.parentElement.classList.remove("is-dismissed");
+      }
+      button.setAttribute("aria-expanded", open ? "false" : "true");
+      if (open) button.parentElement.classList.add("is-dismissed");
+    });
+    button.addEventListener("blur", () => {
+      button.parentElement.classList.remove("is-dismissed");
+    });
+  }
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    for (const button of helpButtons) {
+      if (button.getAttribute("aria-expanded") === "true") closeHelp(button, true);
+    }
+  });
+  document.addEventListener("pointerdown", (event) => {
+    for (const button of helpButtons) {
+      if (button.parentElement.contains(event.target)) continue;
+      const pinned =
+        button.getAttribute("aria-expanded") === "true" ||
+        button === document.activeElement;
+      button.setAttribute("aria-expanded", "false");
+      if (pinned) button.parentElement.classList.add("is-dismissed");
+    }
+  });
+
+  for (const form of document.querySelectorAll("[data-loading-form]")) {
+    form.addEventListener("submit", () => {
+      const selector = form.dataset.loadingTarget;
+      const target = selector ? document.querySelector(selector) : null;
+      if (!target) return;
+      target.setAttribute("aria-busy", "true");
+      const loaded = target.querySelector("[data-loaded-rows]");
+      const skeleton = target.querySelector("[data-skeleton-rows]");
+      if (loaded) loaded.hidden = true;
+      if (skeleton) skeleton.hidden = false;
+      const status = target.querySelector("[data-loading-status]");
+      if (status) status.textContent = form.dataset.loadingLabel || "Loading";
+    });
+  }
+  window.addEventListener("pageshow", () => {
+    for (const target of document.querySelectorAll("[data-loading-region]")) {
+      target.setAttribute("aria-busy", "false");
+      const loaded = target.querySelector("[data-loaded-rows]");
+      const skeleton = target.querySelector("[data-skeleton-rows]");
+      if (loaded) loaded.hidden = false;
+      if (skeleton) skeleton.hidden = true;
+      const status = target.querySelector("[data-loading-status]");
+      if (status) status.textContent = "";
+    }
+  });
+
   const progress = document.querySelector("[data-sse-url]");
   if (!progress || !window.EventSource) {
     return;
@@ -160,13 +228,16 @@
     }
   };
 
+  const noun = (count, singular) =>
+    count + " " + singular + (Number(count) === 1 ? "" : "s");
+
   const describe = (data) => {
     const payload = data.payload || {};
     const cell = payload.cell_id ? payload.cell_id.slice(0, 8) : "";
     const passed = typeof payload.passed === "number" ? " · " + payload.passed + " passed" : "";
     switch (data.kind) {
       case "run_started":
-        return "run started · " + (payload.n_cells || total) + " cells";
+        return "run started · " + noun(payload.n_cells || total, "cell");
       case "run_resumed":
         return "run resumed · " + (payload.n_remaining || 0) + " remaining";
       case "cell_completed":
@@ -176,7 +247,7 @@
       case "cell_cancelled":
         return "cell " + cell + " cancelled";
       case "budget_exceeded":
-        return "budget exceeded · $" + Number(payload.spend_usd || 0).toFixed(6);
+        return "budget exceeded · the run stopped at its cap";
       case "run_cancelled":
         return "run cancelled";
       case "run_finished":
@@ -184,8 +255,8 @@
           "run finished · " +
           (payload.n_ok || 0) +
           " of " +
-          (payload.n_cells || total) +
-          " cells passed"
+          noun(payload.n_cells || total, "cell") +
+          " passed"
         );
       default:
         return data.kind || "event";

@@ -178,6 +178,72 @@ async def test_launch_page_lists_specs_and_shows_the_estimate(
         assert "outside the specs directory" in outside.text
 
 
+async def test_the_launch_page_prefers_a_valid_smoke_spec(console: Console) -> None:
+    """A fresh checkout's smoke.yaml is the default pick, not a broken neighbour."""
+    specs = _specs_dir()
+    write_spec(specs / "aaa-broken.yaml", {"spec_version": 1})
+    write_spec(specs / "gated-failing.yaml", _console_spec())
+    write_spec(specs / "smoke.yaml", _console_spec())
+
+    async with _client(console.app) as client:
+        page = await client.get("/launch")
+
+    assert page.status_code == 200
+    assert 'value="smoke.yaml" selected' in page.text
+    assert "aaa-broken.yaml (invalid)" in page.text
+    assert 'title="name: Field required"' in page.text
+    assert "Estimate:" in page.text
+
+
+async def test_the_launch_page_skips_an_invalid_first_spec(console: Console) -> None:
+    """The first file alphabetically is not the default when it cannot launch."""
+    write_spec(_specs_dir() / "aaa-broken.yaml", {"spec_version": 1})
+
+    async with _client(console.app) as client:
+        page = await client.get("/launch")
+
+    assert page.status_code == 200
+    assert 'value="console.yaml" selected' in page.text
+    assert 'value="aaa-broken.yaml" selected' not in page.text
+    assert "aaa-broken.yaml (invalid)" in page.text
+
+
+async def test_no_spec_is_preselected_when_none_validate(
+    evalh_home: Path,
+    workdir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A directory of only broken specs explains why nothing is preselected."""
+    specs = workdir / "broken-specs"
+    specs.mkdir()
+    write_spec(specs / "broken.yaml", {"spec_version": 1})
+    monkeypatch.setenv("EVALH_SPECS_DIR", str(specs))
+    app = create_app()
+    try:
+        async with _client(app) as client:
+            page = await client.get("/launch")
+    finally:
+        app.state.database.dispose()
+
+    assert page.status_code == 200
+    assert 'value="broken.yaml" selected' not in page.text
+    assert "No spec validates." in page.text
+    assert "Field required" in page.text
+
+
+async def test_a_spec_that_cannot_be_read_is_marked_invalid(console: Console) -> None:
+    """A non-UTF-8 file is invalid in the picker instead of crashing the page."""
+    (_specs_dir() / "binary.yaml").write_bytes(b"\xff\xfe\x00")
+
+    async with _client(console.app) as client:
+        page = await client.get("/launch")
+
+    assert page.status_code == 200
+    assert 'value="console.yaml" selected' in page.text
+    assert "binary.yaml (invalid)" in page.text
+    assert "the file could not be read" in page.text
+
+
 async def test_api_launch_lands_on_the_run_and_streams_to_a_finished_record(
     console: Console,
 ) -> None:

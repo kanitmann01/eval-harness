@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import status, copy_button with context %}
+{% from "_macros.html" import status, copy_button, help_tip with context %}
 {% from "_graph.html" import render_graph %}
 {% block title %}{{ run.spec_snapshot.name or "Run detail" }} &middot; evalharness console{% endblock %}
 {% block content %}
@@ -19,7 +19,7 @@
     </p>
     <p class="identity">
       <span class="mono">{{ run.run_id }}</span>
-      {{ copy_button(run.run_id) }}
+      {{ copy_button(run.run_id, "Copy run ID", "run ID") }}
       <span aria-hidden="true">·</span>
       <span>seed {{ run.seed }}</span>
       <span aria-hidden="true">·</span>
@@ -30,7 +30,7 @@
     {% if run.status == "running" %}
     <a class="btn btn-secondary" href="#progress-heading">Live progress</a>
     {% endif %}
-    <button type="button" class="btn btn-secondary" data-copy="{{ run.run_id }}" hidden>Copy run ID</button>
+    <a class="btn btn-ghost" href="{{ url_for('compare') }}?a={{ run.run_id }}" title="Compare this run as side A">Compare</a>
     <a class="btn btn-ghost" href="{{ url_for('run_list') }}">All runs</a>
   </div>
 </div>
@@ -59,13 +59,14 @@
   </div>
   <div class="verdict-grid">
     <div class="verdict-stat">
-      <span class="stat-label">Pass rate</span>
+      <span class="stat-label">Check pass rate {{ help_tip("help-check-rate", "check pass rate", "Passed checks divided by recorded checks. Checks are recorded inside cells, so a cell with no checks is not counted in this rate.") }}</span>
       <span class="stat-value">{{ verdict.pass_rate|pct }}</span>
-      <span class="stat-detail">95% interval {{ verdict.interval_low|interval(verdict.interval_high) }}</span>
+      <span class="stat-detail">95% interval {{ verdict.interval_low|interval(verdict.interval_high) }} {{ help_tip("help-interval", "95% interval", "Wilson 95% interval over the recorded checks. It widens when few checks are recorded.") }}</span>
       <span class="stat-detail">{{ verdict.checks_passed }} of {{ verdict.checks_total }} checks</span>
+      <span class="stat-detail{{ ' is-warn' if verdict.cells_errored else '' }}">{{ verdict.cells_errored }} errored of {{ verdict.cells_recorded }} recorded cells{% if verdict.cells_errored %} · not in rate{% endif %}</span>
     </div>
     <div class="verdict-stat">
-      <span class="stat-label">Cost</span>
+      <span class="stat-label">Cost {{ help_tip("help-cost", "cost basis", "The sum of the recorded answer, judge and tool costs. Hover the value for the exact stored amount.") }}</span>
       <span class="stat-value" title="{{ run.cost_usd|usdexact }}">{{ run.cost_usd|usd }}</span>
       {% if run.budget_usd is not none %}
       <span class="stat-detail">of {{ run.budget_usd|usd }} budget{% if verdict.budget_over %} · over cap{% endif %}</span>
@@ -77,12 +78,12 @@
       {% endif %}
     </div>
     <div class="verdict-stat">
-      <span class="stat-label">Cells</span>
+      <span class="stat-label">Cells {{ help_tip("help-cells", "cells", "ok cells out of planned cells. Recorded includes cells with a failed check or a candidate error.") }}</span>
       <span class="stat-value">{{ run.n_ok }}/{{ run.n_cells }}</span>
       <span class="stat-detail">ok · {{ verdict.cells_errored }} errored · {{ verdict.cells_recorded }} recorded</span>
     </div>
     <div class="verdict-stat">
-      <span class="stat-label">Gates</span>
+      <span class="stat-label">Gates {{ help_tip("help-gates", "gates", "Passed gates out of declared gates. A run can finish ok and still fail a gate.") }}</span>
       <span class="stat-value">{{ verdict.gates_passed }}/{{ verdict.gates_total }}</span>
       <span class="stat-detail">
         {% if verdict.gates_total %}
@@ -201,7 +202,14 @@
       <h2 id="aggregates-heading">Aggregates</h2>
       <p class="subtle">One overall row per candidate and metric, then one row per case tier. The interval is the 95 percent Wilson bound over the recorded checks.</p>
     </div>
-    {% if aggregates %}<span class="chip">{{ aggregates|length }} rows</span>{% endif %}
+    <div class="panel-tools">
+      {% if aggregates %}<span class="chip">{{ aggregates|length }} rows</span>{% endif %}
+      <span class="panel-help">
+        {{ help_tip("help-aggregate-interval", "aggregate interval", "Wilson 95% interval over the checks behind this aggregate.") }}
+        {{ help_tip("help-pass-at-k", "pass@k", "Estimated probability that at least one of k attempts passes, from the recorded attempts.") }}
+        {{ help_tip("help-pass-k", "pass^k", "Estimated probability that all k attempts pass, from the recorded attempts.") }}
+      </span>
+    </div>
   </div>
   {% if aggregates %}
   <div class="table-wrap" tabindex="0" role="region" aria-label="Aggregates table">
@@ -271,7 +279,7 @@
   {% endif %}
 </section>
 
-<section class="panel cell-panel" aria-labelledby="cell-heading">
+<section class="panel cell-panel{% if not selected_cell %} no-print{% endif %}" aria-labelledby="cell-heading">
   <div class="panel-head">
     <div>
       <h2 id="cell-heading">Cell detail</h2>
@@ -280,7 +288,7 @@
     {% if selected_cell %}
     <div class="panel-actions">
       <span class="mono subtle" title="{{ selected_cell.cell_id }}">{{ selected_cell.cell_id[:12] }}</span>
-      {{ copy_button(selected_cell.cell_id, "Copy cell id") }}
+      {{ copy_button(selected_cell.cell_id, "Copy cell ID", "cell ID") }}
     </div>
     {% endif %}
   </div>

@@ -579,6 +579,53 @@ async def test_the_page_works_without_javascript(
         assert "No credentials stored" in listing.text
 
 
+async def test_the_row_actions_name_their_credential_and_the_verify_hint(
+    console: Console,
+) -> None:
+    """Buttons say what they act on; the verify URL hint appears with the rows."""
+    async with _client(console.app) as client:
+        empty = await client.get("/credentials")
+        assert empty.status_code == 200
+        assert "Test credential" not in empty.text
+        assert "Test makes one" not in empty.text
+
+        assert (await _add(client)).status_code == 201
+        page = await client.get("/credentials")
+        text = page.text
+        assert "Test credential</button>" in text
+        assert "Disable credential</button>" in text
+        assert "Delete credential</button>" in text
+        assert "Test makes one <code>GET</code> to <code>" in text
+        assert "Testing needs a verify URL" not in text
+        assert "sk-canary-add" not in text
+
+        disabled = await client.post("/credentials/openai/disable")
+        assert disabled.status_code == 303
+        listing = await client.get("/credentials")
+        assert "Enable credential</button>" in listing.text
+        assert "Test credential</button>" not in listing.text
+
+
+async def test_the_verify_url_warning_appears_only_when_a_row_can_be_tested(
+    console: Console,
+) -> None:
+    """No rows means nothing to test, so the add panel carries no warning."""
+    settings = replace(console.settings, verify_url=None)
+    app = create_app(settings=settings, repository=console.repository)
+    async with _client(app) as client:
+        empty = await client.get("/credentials")
+        assert empty.status_code == 200
+        assert "Testing needs a verify URL" not in empty.text
+
+        assert (await _add(client)).status_code == 201
+        page = await client.get("/credentials")
+        assert "Testing needs a verify URL" in page.text
+        assert "Test credential</button>" in page.text
+        add_panel = page.text.split('id="add-heading"', 1)[1].split("</section>", 1)[0]
+        assert "Testing needs a verify URL" not in add_panel
+        assert "sk-canary-add" not in page.text
+
+
 async def test_the_form_reports_a_missing_verify_url(console: Console) -> None:
     settings = replace(console.settings, verify_url=None)
     app = create_app(settings=settings, repository=console.repository)

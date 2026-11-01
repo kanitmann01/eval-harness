@@ -7,8 +7,25 @@
 <span class="status status-{{ value }}"><span class="status-glyph" aria-hidden="true">{{ glyph(value) }}</span><span>{{ label if label is not none else value|replace("_", " ") }}</span></span>
 {%- endmacro %}
 
-{% macro copy_button(value, label="Copy run id") -%}
-<button type="button" class="copy-button" data-copy="{{ value }}" aria-label="{{ label }}" title="{{ label }}" hidden><span aria-hidden="true">⧉</span></button>
+{% macro copy_button(value, label="Copy run ID", object="run ID") -%}
+<button type="button" class="copy-button" data-copy="{{ value }}" data-copy-label="{{ object }}" aria-label="{{ label }}" title="{{ label }}" hidden><span class="copy-glyph" aria-hidden="true">⧉</span><span class="copy-text">{{ label }}</span></button>
+{%- endmacro %}
+
+{% macro help_tip(tip_id, label, text, align="start") -%}
+<span class="help{{ ' help--end' if align == 'end' else '' }}">
+<button type="button" class="help-tip" aria-label="About {{ label }}" aria-describedby="{{ tip_id }}" aria-expanded="false" data-help-tip><span aria-hidden="true">?</span></button>
+<span class="help-pop" id="{{ tip_id }}" role="tooltip">{{ text }}</span>
+</span>
+{%- endmacro %}
+
+{% macro skeleton_rows(columns, rows=3) -%}
+<tbody class="skeleton-rows" data-skeleton-rows aria-hidden="true" hidden>
+{% for _row in range(rows) %}
+<tr class="skeleton-row">
+{% for _column in range(columns) %}<td><span class="skeleton"></span></td>{% endfor %}
+</tr>
+{% endfor %}
+</tbody>
 {%- endmacro %}
 
 {% macro callout(tone, title, icon=None) -%}

@@ -288,7 +288,6 @@ def default_draft() -> dict[str, Any]:
         "spec_version": 1,
         "name": "comparison",
         "description": "",
-        "seed": 0,
         "source": {
             "adapter": INLINE_SOURCE,
             "options": {"cases": [{"case_id": "case-1", "prompt": ""}]},

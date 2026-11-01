@@ -30,7 +30,8 @@ def format_usd(value: float | None) -> str:
     """Format a USD amount readably, keeping tiny non-zero costs visible.
 
     Amounts of a cent or more use ordinary currency rounding. Smaller amounts
-    keep two significant digits, so a real cost never collapses to $0.00.
+    keep three significant digits, so a real cost never collapses to $0.00 and
+    never needs scientific notation.
     """
     return "-" if value is None else _readable_usd(value)
 
@@ -42,7 +43,7 @@ def _readable_usd(value: float) -> str:
     magnitude = abs(value)
     if magnitude >= 0.01:
         return f"${value:,.2f}"
-    decimals = 1 - math.floor(math.log10(magnitude))
+    decimals = 3 - 1 - math.floor(math.log10(magnitude))
     return f"${value:.{decimals}f}"
 
 
@@ -61,8 +62,8 @@ def format_short_path(value: str | Path) -> str:
 
 
 def format_time(value: datetime | None) -> str:
-    """Format a stored timestamp to seconds, or a dash."""
-    return "-" if value is None else value.strftime("%Y-%m-%d %H:%M:%S")
+    """Format a stored UTC timestamp to seconds, or a dash."""
+    return "-" if value is None else value.strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
 def install_filters(templates: Jinja2Templates) -> None:
