@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status with context %}
+{% block title %}Spec diff &middot; {{ current.spec_name or "run" }} &middot; evalharness console{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Breadcrumb">
+  <a href="{{ url_for('run_list') }}">Runs</a>
+  <span class="separator" aria-hidden="true">/</span>
+  <a href="{{ current.run_url }}" class="mono" title="{{ current.run_id }}">{{ current.run_id[:8] }}</a>
+  <span class="separator" aria-hidden="true">/</span>
+  <span>Diff</span>
+</nav>
+
+<div class="page-header">
+  <div class="page-header-main">
+    <p class="eyebrow">Provenance diff</p>
+    <h1>Spec diff</h1>
+    <p class="lede">Compare what the current run executed with the baseline run. The spec diff comes first; judge drift follows, because a changed judge means the scored numbers are not like-for-like whatever the diff says.</p>
+    <p class="identity">
+      <span>baseline <a href="{{ against.run_url }}">{{ against.spec_name or "not recorded" }}</a> <span class="mono" title="{{ against.run_id }}">{{ against.run_id[:8] }}</span></span>
+      <span aria-hidden="true">·</span>
+      <span>current <a href="{{ current.run_url }}">{{ current.spec_name or "not recorded" }}</a> <span class="mono" title="{{ current.run_id }}">{{ current.run_id[:8] }}</span></span>
+    </p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-ghost" href="{{ against.receipt_url }}">Baseline receipt</a>
+    <a class="btn btn-ghost" href="{{ current.receipt_url }}">Current receipt</a>
+    <a class="btn btn-secondary" href="{{ swap_url }}">Swap runs</a>
+  </div>
+</div>
+
+<section class="panel" aria-labelledby="spec-diff-heading">
+  <div class="panel-head">
+    <div>
+      <p class="eyebrow">Snapshots</p>
+      <h2 id="spec-diff-heading">Spec diff</h2>
+      <p class="subtle">{{ against.spec_name or "baseline" }} to {{ current.spec_name or "current" }}, comparing prompts, candidates, judges, prices, run fields and gates.</p>
+    </div>
+  </div>
+  <p class="identity">
+    <span class="chip">{{ diff.total }} change{% if diff.total != 1 %}s{% endif %}</span>
+    {% for category, count in diff.counts.items() %}
+    {% if count %}<span class="chip">{{ category }} {{ count }}</span>{% endif %}
+    {% endfor %}
+  </p>
+  <p><strong>{{ diff.headline }}</strong></p>
+  {% if diff.changes %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Category</th><th>Path</th><th>Before</th><th>After</th><th>Change</th></tr></thead>
+      <tbody>
+        {% for change in diff.changes %}
+        <tr>
+          <td><span class="chip">{{ change.category }}</span></td>
+          <td class="mono">{{ change.path }}</td>
+          <td>{{ change.before if change.before is not none else "not recorded" }}</td>
+          <td>{{ change.after if change.after is not none else "not recorded" }}</td>
+          <td>{{ change.summary }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+
+<section class="panel" aria-labelledby="judge-drift-heading">
+  <div class="panel-head">
+    <div>
+      <p class="eyebrow">Judge provenance</p>
+      <h2 id="judge-drift-heading">Judge drift</h2>
+      <p class="subtle">A judge has drifted when one metric used more than one judge configuration in a run, or the compared runs scored the same judge name with different configuration hashes.</p>
+    </div>
+  </div>
+  {% if drift %}
+  {% for item in drift %}
+  <div class="callout callout-warn" role="alert">
+    <span class="callout-icon" aria-hidden="true">!</span>
+    <div>
+      <span class="callout-title">Not like-for-like: {{ item.judge }}</span>
+      {{ item.reason }}
+      <p class="subtle">metrics {{ item.metrics|join(", ") }} · runs {{ item.runs|join(", ") }}</p>
+    </div>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="empty-state">
+    <span class="empty-icon" aria-hidden="true">=</span>
+    <p>No judge drift: both runs used one consistent judge configuration per metric.</p>
+  </div>
+  {% endif %}
+</section>
+
+<section class="panel" aria-labelledby="sides-heading">
+  <div class="panel-head">
+    <div>
+      <p class="eyebrow">Runs</p>
+      <h2 id="sides-heading">Run facts</h2>
+    </div>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Side</th><th>Run</th><th>Status</th><th>Seed</th><th>Operator</th><th>Started</th><th>Finished</th></tr></thead>
+      <tbody>
+        {% for side in [against, current] %}
+        <tr>
+          <td>{{ "baseline" if loop.first else "current" }}</td>
+          <td><a href="{{ side.run_url }}">{{ side.spec_name or "not recorded" }}</a> <span class="mono" title="{{ side.run_id }}">{{ side.run_id[:8] }}</span></td>
+          <td>{{ status(side.status) }}</td>
+          <td>{{ side.seed }}</td>
+          <td>{% if side.operator_recorded %}{{ side.operator }}{% else %}not recorded{% endif %}</td>
+          <td>{{ side.started_at|timestamp }}</td>
+          <td>{% if side.finished_at %}{{ side.finished_at|timestamp }}{% else %}not finished{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

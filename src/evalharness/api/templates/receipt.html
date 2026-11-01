@@ -1,0 +1,228 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status, copy_button with context %}
+{% block title %}Receipt &middot; {{ receipt.spec_name or "run" }} &middot; evalharness console{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Breadcrumb">
+  <a href="{{ url_for('run_list') }}">Runs</a>
+  <span class="separator" aria-hidden="true">/</span>
+  <a href="{{ receipt.run_url }}" class="mono" title="{{ receipt.run_id }}">{{ receipt.run_id[:8] }}</a>
+  <span class="separator" aria-hidden="true">/</span>
+  <span>Receipt</span>
+</nav>
+
+<div class="page-header">
+  <div class="page-header-main">
+    <p class="eyebrow">Provenance receipt</p>
+    <h1>{{ receipt.spec_name or "(unnamed spec)" }}</h1>
+    <p class="lede">What this run actually executed: the spec snapshot and its hash, the harness revision, the candidate models, the judge configuration behind every scored metric, the price table, the seed, the operator and the gates.</p>
+    <p class="identity">
+      <span class="mono">{{ receipt.run_id }}</span>
+      {{ copy_button(receipt.run_id, "Copy run ID", "run ID") }}
+      <span aria-hidden="true">·</span>
+      {{ status(receipt.status) }}
+      <span aria-hidden="true">·</span>
+      <span>seed {{ receipt.seed }}</span>
+    </p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-secondary" href="{{ receipt.receipt_url }}">JSON</a>
+    {% if receipt.previous %}
+    <a class="btn btn-ghost" href="/runs/{{ receipt.run_id }}/diff?against={{ receipt.previous.run_id }}">Diff to previous</a>
+    {% endif %}
+    <a class="btn btn-ghost" href="{{ receipt.run_url }}">Run detail</a>
+  </div>
+</div>
+
+<section class="panel" aria-labelledby="identity-heading">
+  <div class="panel-head">
+    <div>
+      <p class="eyebrow">Identity</p>
+      <h2 id="identity-heading">Run and spec</h2>
+    </div>
+  </div>
+  <dl class="facts">
+    <div><dt>Run id</dt><dd class="mono">{{ receipt.run_id }}</dd></div>
+    <div><dt>Spec name</dt><dd>{{ receipt.spec_name or "not recorded" }}</dd></div>
+    <div><dt>Spec id</dt><dd class="mono">{{ receipt.spec_id or "not recorded" }}</dd></div>
+    <div><dt>Spec hash</dt><dd class="mono">{% if receipt.spec_sha_recorded %}{{ receipt.spec_sha }}{% else %}not recorded{% endif %}</dd></div>
+    <div><dt>Harness sha</dt><dd class="mono">{% if receipt.harness_sha_recorded %}{{ receipt.harness_sha }}{% else %}not recorded{% endif %}</dd></div>
+    <div><dt>Operator</dt><dd>{% if receipt.operator_recorded %}{{ receipt.operator }}{% else %}not recorded{% endif %}</dd></div>
+    <div><dt>Seed</dt><dd>{{ receipt.seed }}</dd></div>
+    <div><dt>Started</dt><dd>{{ receipt.started_at|timestamp }}</dd></div>
+    <div><dt>Finished</dt><dd>{% if receipt.finished_at %}{{ receipt.finished_at|timestamp }}{% else %}not finished{% endif %}</dd></div>
+  </dl>
+</section>
+
+<section class="panel" aria-labelledby="candidates-heading">
+  <div class="panel-head">
+    <div>
+      <p class="eyebrow">Candidates</p>
+      <h2 id="candidates-heading">Candidate models</h2>
+    </div>
+  </div>
+  {% if receipt.candidates %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Name</th><th>Adapter</th><th>Model</th></tr></thead>
+      <tbody>
+        {% for candidate in receipt.candidates %}
+        <tr>
+          <td>{{ candidate.name }}</td>
+          <td class="mono">{{ candidate.adapter or "not recorded" }}</td>
+          <td class="mono">{% if candidate.model_recorded %}{{ candidate.model }}{% else %}not recorded{% endif %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="subtle">No candidates were recorded in the spec snapshot.</p>
+  {% endif %}
+</section>
+
+<section class="panel" aria-labelledby="judges-heading">
+  <div class="panel-head">
+    <div>
+      <p class="eyebrow">Judges</p>
+      <h2 id="judges-heading">Judge pins</h2>
+      <p class="subtle">Every scored metric points at the judge configuration that produced its checks. The config hash covers the adapter, model and options, so a changed hash is not like-for-like.</p>
+    </div>
+  </div>
+  {% if receipt.judge_pins %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Metric</th><th>Judge</th><th>Adapter</th><th>Model</th><th>Options</th><th>Config hash</th><th>Source</th></tr></thead>
+      <tbody>
+        {% for pin in receipt.judge_pins %}
+        <tr>
+          <td>{{ pin.metric }}</td>
+          <td>{{ pin.judge_label }}</td>
+          <td class="mono">{{ pin.adapter or "not recorded" }}</td>
+          <td class="mono">{{ pin.model or "not recorded" }}</td>
+          <td>
+            {% if pin.temperature is not none %}<span class="chip">temperature {{ pin.temperature }}</span>{% endif %}
+            <span class="mono" title="{{ pin.options_digest }}">options {{ pin.options_digest[:12] }}</span>
+          </td>
+          <td class="mono" title="{{ pin.config_hash }}">{{ pin.config_hash[:12] }}</td>
+          <td>{{ pin.source }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <span class="empty-icon" aria-hidden="true">∅</span>
+    <p>No judge pins were recorded: this run stored no judge-scored checks and its spec declares no judge-backed metrics.</p>
+  </div>
+  {% endif %}
+</section>
+
+<section class="panel" aria-labelledby="prices-heading">
+  <div class="panel-head">
+    <div>
+      <p class="eyebrow">Prices</p>
+      <h2 id="prices-heading">Price table</h2>
+      <p class="subtle">The snapshot the run used. The fingerprint is the SHA-256 of the sorted price table, so two receipts with the same fingerprint priced the run identically.</p>
+    </div>
+  </div>
+  {% if receipt.price_table_recorded %}
+  <p class="identity">
+    <span>Fingerprint</span>
+    <span class="mono">{{ receipt.price_table.id }}</span>
+    {{ copy_button(receipt.price_table.id, "Copy price table id", "price table id") }}
+  </p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Model</th><th>Rates</th></tr></thead>
+      <tbody>
+        {% for model, rates in receipt.price_table.rates.items() %}
+        <tr>
+          <td class="mono">{{ model }}</td>
+          <td>{% for unit, rate in rates.items() %}{{ unit }} {{ rate }}{% if not loop.last %}, {% endif %}{% endfor %}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="subtle">No price table was recorded for this run.</p>
+  {% endif %}
+</section>
+
+<section class="panel" aria-labelledby="gates-heading">
+  <div class="panel-head">
+    <div>
+      <p class="eyebrow">Gates</p>
+      <h2 id="gates-heading">Gates</h2>
+    </div>
+  </div>
+  {% if receipt.gates %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Name</th><th>Metric</th><th>Result</th><th>Comparison</th><th>Threshold</th><th>Observed</th><th>n</th></tr></thead>
+      <tbody>
+        {% for gate in receipt.gates %}
+        <tr>
+          <td>{{ gate.name }}</td>
+          <td>{{ gate.metric }}</td>
+          <td>{% if gate.passed %}<span class="chip">pass</span>{% else %}<span class="chip chip-warn">fail</span>{% endif %}</td>
+          <td>{{ gate.comparison or "not recorded" }}</td>
+          <td>{% if gate.threshold is not none %}{{ gate.threshold }}{% else %}not recorded{% endif %}</td>
+          <td>{% if gate.observed is not none %}{{ gate.observed }}{% else %}not recorded{% endif %}</td>
+          <td>{{ gate.n }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="subtle">No gates were declared.</p>
+  {% endif %}
+</section>
+
+<section class="panel" aria-labelledby="previous-heading">
+  <div class="panel-head">
+    <div>
+      <p class="eyebrow">Comparison</p>
+      <h2 id="previous-heading">Previous run and spec diff</h2>
+    </div>
+  </div>
+  {% if receipt.previous %}
+  <p>
+    Previous run of this spec:
+    <a href="{{ receipt.previous.run_url }}">{{ receipt.previous.spec_name or "not recorded" }}</a>
+    <span class="mono" title="{{ receipt.previous.run_id }}">{{ receipt.previous.run_id[:8] }}</span>
+    <span aria-hidden="true">·</span>
+    {{ status(receipt.previous.status) }}
+    <span aria-hidden="true">·</span>
+    <span>started {{ receipt.previous.started_at|timestamp }}</span>
+  </p>
+  {% if receipt.diff %}
+  <p><strong>{{ receipt.diff.headline }}</strong></p>
+  {% if receipt.diff.changes %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Category</th><th>Path</th><th>Change</th></tr></thead>
+      <tbody>
+        {% for change in receipt.diff.changes %}
+        <tr>
+          <td><span class="chip">{{ change.category }}</span></td>
+          <td class="mono">{{ change.path }}</td>
+          <td>{{ change.summary }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+  <p><a class="btn btn-ghost" href="/runs/{{ receipt.run_id }}/diff?against={{ receipt.previous.run_id }}">Open the full diff</a></p>
+  {% endif %}
+  {% else %}
+  <div class="empty-state">
+    <span class="empty-icon" aria-hidden="true">∅</span>
+    <p>No previous run of this spec, so this receipt has no diff to show.</p>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
