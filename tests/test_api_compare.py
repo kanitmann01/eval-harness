@@ -2,7 +2,7 @@
 
 Every test seeds real runs through `evalharness.cli.main` and reads them through
 `httpx.AsyncClient` against the ASGI application. The console fixture, `_seed`
-and `_client` are reused from the read-only console tests.
+and `_client` are reused from the console tests.
 """
 
 from __future__ import annotations

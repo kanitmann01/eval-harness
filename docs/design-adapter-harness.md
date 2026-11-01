@@ -503,7 +503,7 @@ the parity test is committed.
 Exit: `--fail-on-gate` works, exit codes are CI-usable, an old-format
 export exists in `eval/legacy/`.
 
-**P3, read-only console.** `surfaces/api.py`, runs list, run detail,
+**P3, console shell.** `surfaces/api.py`, runs list, run detail,
 compare, SSE. Exit: a run can be launched from the CLI and read entirely
 from the browser, including per-cell evidence.
 
