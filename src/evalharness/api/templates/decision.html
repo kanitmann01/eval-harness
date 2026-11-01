@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status, empty_state with context %}
+{% block title %}Decision &middot; {{ spec_name }} &middot; evalharness console{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Breadcrumb">
+  <a href="{{ url_for('run_list') }}">Runs</a>
+  <span class="separator" aria-hidden="true">/</span>
+  <a class="mono" href="{{ url_for('run_detail', run_id=run.run_id) }}" title="{{ run.run_id }}">{{ run.run_id[:8] }}</a>
+  <span class="separator" aria-hidden="true">/</span>
+  <span>Decision</span>
+</nav>
+
+<div class="page-header">
+  <div class="page-header-main">
+    <p class="eyebrow">Decision</p>
+    <h1>{{ spec_name }}</h1>
+    <p class="lede">Which candidate to trust from this one run. The pass rate pools every check, the interval is a Wilson 95 percent interval, and a dominance call needs a non-overlapping interval plus no worse cost per correct check and no worse p95 latency.</p>
+    <p class="identity">
+      <span class="mono">{{ run.run_id }}</span>
+      <span aria-hidden="true">·</span>
+      {{ status(run.status) }}
+      <span aria-hidden="true">·</span>
+      <span>Primary metrics: {{ primary_metrics }}</span>
+    </p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-secondary" href="{{ json_url }}">JSON</a>
+    <a class="btn btn-ghost" href="{{ compare_url }}">Compare this run</a>
+    <a class="btn btn-ghost" href="{{ url_for('run_detail', run_id=run.run_id) }}">Run detail</a>
+  </div>
+</div>
+
+{% if candidates %}
+<div class="table-wrap" tabindex="0" role="region" aria-label="Ranked candidates table">
+  <table class="compare-metrics" id="decision-table">
+    <caption class="sr-only">Candidates ranked by pass rate, with the Wilson interval, cost per correct check, cell latency, cell counts and the conservative dominance call</caption>
+    <thead>
+      <tr>
+        <th scope="col" class="num">Rank</th>
+        <th scope="col">Candidate</th>
+        <th scope="col">Checks</th>
+        <th scope="col">Pass rate</th>
+        <th scope="col" class="num">Cost per correct</th>
+        <th scope="col" class="num">p50 / p95 latency</th>
+        <th scope="col">Cells</th>
+        <th scope="col">Dominance</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in candidates %}
+      <tr data-candidate="{{ row.candidate }}">
+        <td class="num">{{ row.rank }}</td>
+        <td><div class="table-title">{{ row.candidate }}</div></td>
+        <td>{{ row.checks_label }}</td>
+        <td>
+          <span class="metric-value">{{ row.pass_rate_label }}</span>
+          <span class="metric-sub">95% interval {{ row.interval_label }}</span>
+        </td>
+        <td class="num"><span class="metric-value">{{ row.cost_label }}</span></td>
+        <td class="num">{{ row.latency_label }}</td>
+        <td>{{ row.cells_label }}</td>
+        <td><span class="chip chip-{{ row.tone }}"><span aria-hidden="true">{{ row.glyph }}</span> {{ row.dominance_label }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p class="field-hint">Every check counts equally, so a metric that records more checks per cell carries more weight in the pooled pass rate. The cost per correct check divides the candidate's whole recorded cost by its passing checks; it is undefined when nothing passed, never zero. A dominance call is conservative and blocked by any undefined measure.</p>
+
+<section class="panel" aria-labelledby="pareto-heading">
+  <div class="panel-head">
+    <div>
+      <h2 id="pareto-heading">Pareto frontier</h2>
+      <p class="subtle">Pass rate against cost per correct check, frontier candidates only. A candidate is on the frontier when no other candidate dominates it.</p>
+    </div>
+  </div>
+  {% if chart %}
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Pareto scatter of pass rate and cost per correct check">
+    <svg viewBox="0 0 {{ chart.width|int }} {{ chart.height|int }}" role="img" aria-labelledby="pareto-title pareto-desc" width="100%" height="{{ chart.height|int }}" style="max-width: {{ chart.width|int }}px">
+      <title id="pareto-title">Pass rate versus cost per correct check</title>
+      <desc id="pareto-desc">{{ chart.summary }}</desc>
+      <line x1="{{ chart.plot_left }}" y1="{{ chart.plot_bottom }}" x2="{{ chart.plot_right }}" y2="{{ chart.plot_bottom }}" stroke="currentColor" stroke-opacity="0.45" />
+      <line x1="{{ chart.plot_left }}" y1="{{ chart.plot_top }}" x2="{{ chart.plot_left }}" y2="{{ chart.plot_bottom }}" stroke="currentColor" stroke-opacity="0.45" />
+      {% for tick in chart.x_ticks %}
+      <line x1="{{ tick.position }}" y1="{{ chart.plot_bottom }}" x2="{{ tick.position }}" y2="{{ chart.plot_top }}" stroke="currentColor" stroke-opacity="0.12" />
+      <text x="{{ tick.position }}" y="{{ chart.plot_bottom + 18 }}" text-anchor="middle" font-size="12" fill="currentColor">{{ tick.label }}</text>
+      {% endfor %}
+      {% for tick in chart.y_ticks %}
+      <line x1="{{ chart.plot_left }}" y1="{{ tick.position }}" x2="{{ chart.plot_right }}" y2="{{ tick.position }}" stroke="currentColor" stroke-opacity="0.12" />
+      <text x="{{ chart.plot_left - 8 }}" y="{{ tick.position + 4 }}" text-anchor="end" font-size="12" fill="currentColor">{{ tick.label }}</text>
+      {% endfor %}
+      <text x="{{ (chart.plot_left + chart.plot_right) / 2 }}" y="{{ chart.height - 4 }}" text-anchor="middle" font-size="12" fill="currentColor">{{ chart.x_axis_label }}</text>
+      <text x="{{ chart.plot_left }}" y="14" font-size="12" fill="currentColor">{{ chart.y_axis_label }}</text>
+      {% for point in chart.points %}
+      <circle cx="{{ point.cx }}" cy="{{ point.cy }}" r="5" fill="currentColor"></circle>
+      <text x="{{ point.cx + 8 }}" y="{{ point.cy + 4 }}" font-size="12" fill="currentColor">{{ point.candidate }}</text>
+      {% endfor %}
+    </svg>
+  </div>
+  {% else %}
+  <p class="field-hint">No candidate has a defined pass rate and cost per correct check, so there is nothing to plot.</p>
+  {% endif %}
+  <p class="field-hint">The ranked table above is the accessible table for this scatter. Pass rate runs left to right; cost per correct check runs bottom to top, so lower is better.</p>
+</section>
+{% else %}
+<section class="panel">
+  {% call empty_state("No cells recorded") %}
+  <p class="field-hint">This run has no cells yet, so no candidate has a pass rate, a cost per correct check or a latency. Start a run or open another run.</p>
+  {% endcall %}
+</section>
+{% endif %}
+{% endblock %}
