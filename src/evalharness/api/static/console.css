@@ -696,6 +696,9 @@ th, td {
   vertical-align: middle;
   overflow-wrap: anywhere;
 }
+/* Identifiers in the calibration review table are short and should not split
+   mid-word; the wrapper scrolls horizontally when the table needs more room. */
+.review-table td.mono { overflow-wrap: normal; white-space: nowrap; }
 thead th {
   position: sticky;
   top: 0;

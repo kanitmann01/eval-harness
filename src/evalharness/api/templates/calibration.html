@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Calibration &middot; evalharness console{% endblock %}
+{% block title %}Calibration &middot; {{ run.spec_name or run.run_id[:8] }} &middot; evalharness console{% endblock %}
 {% block content %}
 <nav class="crumbs" aria-label="Breadcrumb">
   <a href="{{ url_for('run_list') }}">Runs</a>
@@ -112,7 +112,7 @@
   </div>
   {% if report.checks %}
   <div class="table-wrap" tabindex="0" role="region" aria-label="Human review table">
-    <table>
+    <table class="review-table">
       <caption class="sr-only">Stored checks with the judge verdict, the human verdict and the save and clear controls</caption>
       <thead>
         <tr>

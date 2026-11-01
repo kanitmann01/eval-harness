@@ -420,7 +420,7 @@ async def test_receipt_html_shows_hashes_operator_and_no_previous_run(
         assert page.status_code == 200
         text = page.text
         assert "Spec hash" in text
-        assert "Harness sha" in text
+        assert "Harness revision" in text
         assert "not recorded" in text
         assert "no previous run" in text.lower()
         assert "Price table" in text
@@ -497,6 +497,19 @@ async def test_diff_page_puts_the_spec_diff_above_judge_drift(
         assert same.status_code == 200
         assert "No differences between the two snapshots." in same.text
         assert "No judge drift" in same.text
+
+
+async def test_diff_page_marks_a_field_the_baseline_lacked_as_absent(
+    provenance: Console,
+) -> None:
+    """A case the baseline did not declare reads absent, not as a recorded value."""
+    async with _client(provenance.app) as client:
+        page = await client.get(
+            f"/runs/{provenance.runs['changed_b']}/diff",
+            params={"against": provenance.runs["changed_a"]},
+        )
+        assert page.status_code == 200
+        assert "absent" in page.text
 
 
 async def test_receipt_and_diff_return_not_found_for_unknown_runs(

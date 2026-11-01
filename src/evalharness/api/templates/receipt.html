@@ -45,7 +45,7 @@
     <div><dt>Spec name</dt><dd>{{ receipt.spec_name or "not recorded" }}</dd></div>
     <div><dt>Spec id</dt><dd class="mono">{{ receipt.spec_id or "not recorded" }}</dd></div>
     <div><dt>Spec hash</dt><dd class="mono">{% if receipt.spec_sha_recorded %}{{ receipt.spec_sha }}{% else %}not recorded{% endif %}</dd></div>
-    <div><dt>Harness sha</dt><dd class="mono">{% if receipt.harness_sha_recorded %}{{ receipt.harness_sha }}{% else %}not recorded{% endif %}</dd></div>
+    <div><dt>Harness revision</dt><dd class="mono" title="The EVALH_HARNESS_SHA recorded on the run, or the package version when the build did not set one.">{% if receipt.harness_sha_recorded %}{{ receipt.harness_sha }}{% else %}not recorded{% endif %}</dd></div>
     <div><dt>Operator</dt><dd>{% if receipt.operator_recorded %}{{ receipt.operator }}{% else %}not recorded{% endif %}</dd></div>
     <div><dt>Seed</dt><dd>{{ receipt.seed }}</dd></div>
     <div><dt>Started</dt><dd>{{ receipt.started_at|timestamp }}</dd></div>

@@ -52,8 +52,8 @@
         <tr>
           <td><span class="chip">{{ change.category }}</span></td>
           <td class="mono">{{ change.path }}</td>
-          <td>{{ change.before if change.before is not none else "not recorded" }}</td>
-          <td>{{ change.after if change.after is not none else "not recorded" }}</td>
+          <td>{% if change.before is not none %}{{ change.before }}{% else %}<span class="faint" title="The baseline did not declare this field.">absent</span>{% endif %}</td>
+          <td>{% if change.after is not none %}{{ change.after }}{% else %}<span class="faint" title="The current snapshot did not declare this field.">absent</span>{% endif %}</td>
           <td>{{ change.summary }}</td>
         </tr>
         {% endfor %}

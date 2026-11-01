@@ -54,7 +54,13 @@ TALK_TRACK = """Talk track
   4. On /launch show the estimate from observed medians, then launch.
   5. Watch the run fill in on /runs/<id>: heatmap, evidence, gate cards, UTC times.
   6. Open /compare with two runs: deltas, intervals, cost per correct answer.
-  7. Open /credentials: BYOK, masked keys; this demo needs no key at all."""
+  7. On a run open Decision: ranked candidates, 95 percent intervals, cost per
+     correct answer, p95 latency and the Pareto frontier.
+  8. Open Receipt: spec hash, harness revision, operator demo, judge pins, price
+     snapshot, gates and the diff to the previous run.
+  9. Open Calibration: save a human verdict, then read agreement and its interval.
+ 10. Open Diff against an earlier run: prompt and model changes plus judge drift.
+ 11. Open /credentials: BYOK, masked keys; this demo needs no key at all."""
 
 
 class DemoError(Exception):
@@ -104,6 +110,7 @@ def base_env(home: Path, master_key: str) -> dict[str, str]:
     env["EVALH_HOME"] = str(home)
     env["EVALH_SPECS_DIR"] = str(home / "specs")
     env["EVALH_MASTER_KEY"] = master_key
+    env["EVALH_OPERATOR"] = "demo"
     env["PYTHONUNBUFFERED"] = "1"
     return env
 

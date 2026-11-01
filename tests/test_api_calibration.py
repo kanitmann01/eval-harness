@@ -131,6 +131,7 @@ async def test_page_renders_empty_state_and_review_rows(console) -> None:
     assert f"{len(cells)} unlabelled" in text
     assert "No human verdicts recorded yet." in text
     assert "exact_match" in text
+    assert 'class="review-table"' in text
     assert "Save human verdict" in text
     assert "Clear human verdict" in text
     assert "No disagreements." in text
