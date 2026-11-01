@@ -124,14 +124,14 @@ generated from the spec and the run record, never hand placed.
 
 | Where | Size | Variant | Notes |
 | --- | --- | --- | --- |
-| Runs list, every row | 96 x 32px | thumbnail | `aria-hidden`, no labels, 1px edges, shape only, dropped below 768px |
+| Runs list, every row | 144 x 48px | thumbnail | `aria-hidden`, no labels, 1px edges, shape only, dropped below 768px |
 | Run detail, between the stats row and the heatmap | 960 units wide | full | `role="img"`, title and description, one figcaption line with the counts |
 | Compare, one per side above the metrics | 640 units per side | full boxes, short headings | same columns and node order, every node label kept, captioned Side A and Side B |
 | Wizard rail, all four steps | 320 units wide | compact | column labels only, 18px nodes, every node kept |
 
 The same object at every size. Node columns are fixed and nodes are ordered by
 name, never by count or by state, so two runs of the same spec are
-pixel-comparable and the 96px thumbnail has the silhouette of the 960px graph.
+pixel-comparable and the 144px thumbnail has the silhouette of the 960px graph.
 The thumbnail is not a different diagram. A compare panel is the full graph at
 640 units with the abbreviated column headings: the long headings collide at that
 width, the node labels do not. The compact rail variant is the same graph at 320
@@ -144,9 +144,9 @@ defect: if a second thing genuinely needs a diagram, it is a table. The graph is
 not a flowchart with an arrowhead on every edge, not a force-directed hairball,
 not an icon.
 
-The only motion it may carry is the lit-path sweep in phase 1: an edge changes
-state when the cells it carries resolve, not when the page loads. Under reduced
-motion the state class swaps with no transition.
+The graph carries no motion. It is one static SVG with the final states at page
+load; state is colour plus dash pattern and glyph, never an animation, so
+reduced motion needs no special case here.
 
 ## Banned list
 
@@ -161,10 +161,10 @@ the only acceptable replacement in this codebase.
 | `#000` | `--ink` is the darkest text and `--canvas` the lightest surface. Every `#000` in the stylesheet sits inside the print block, where black on white is correct. |
 | Three identical cards in a row | A hairline table, a 1px-gap stat strip (`.verdict-grid`), or the two-column `.side-grid` on compare. A third identical card is a table that has not been admitted. |
 | Emoji | Text glyphs from the system font, declared once in `_macros.html` `glyph()`: ✓ ✕ ! ? ◐ · ∅ – ▲ ▼. No colour emoji, no flags, no pictographs. |
-| Marketing cliches (Elevate, Seamless, Supercharge, Unlock, Effortless) | Nouns and measurements: Runs, Cells ok, Pass rate, Cost, Duration, Gates, and the real spec names. Empty states name the next action instead of selling it. |
+| Marketing cliches (Elevate, Seamless, Supercharge, Unlock, Effortless) | Nouns and measurements: Runs, Cells ok, Check pass rate, Cost, Duration, Gates, and the real spec names. Empty states name the next action instead of selling it. |
 | Fake precision (99.99%, "10x faster") | Every rate carries its n and an interval ("95% interval 0.52 to 0.74"); money is exact in `title` and readable on screen; a null is undefined. Two runs with overlapping intervals produce "no measurable difference", not a winner. |
-| `100vh` | Content height, or `min-height: 100dvh` when a shell must fill the viewport. `body` still declares `min-height: 100vh` and that line is scheduled for phase 1. Only table and heatmap regions scroll, inside their own box. |
-| A generic spinner | Server-rendered pages have no loading state. A live heatmap uses skeleton cells at real dimensions and the progress region reports done / total. A spinner is never the only feedback. |
+| `100vh` | Content height, or `min-height: 100dvh` when a shell must fill the viewport. `body` declares `min-height: 100vh` and then `min-height: 100dvh`; the dynamic unit wins where it exists, the old line is only the fallback. Only table and heatmap regions scroll, inside their own box. |
+| A generic spinner | Pages use skeleton rows while a filter submit is in flight, a live heatmap uses skeleton cells at real dimensions, and the progress region reports done / total. A spinner is never the only feedback. |
 | A centred hero at VARIANCE 4 or below | A left-aligned `h1`, a `lede` at 76ch, page actions on the right. The largest type on a page is the verdict or the estimate, never a slogan. |
 | An icon with a different stroke weight | There is no icon set. Marks are text glyphs, so weight comes from `font-weight` (650 to 800). The one drawn path is the favicon (stroke 3.5) and it never appears in the interface. |
 
@@ -222,10 +222,10 @@ Each tone is a triple: background, ink and border.
 Focus is visible by default: `:focus-visible` gets a 2px `--accent` outline with
 a 2px offset, taken from `--focus-ring` and `--focus-offset`. Inputs swap the
 outline for a 3px `--accent-soft` halo plus an accent border, so focus survives
-a coloured callout background. One case is a known bug: the
-`input[aria-invalid="true"]` rule is declared after the focus rule with the same
-specificity, so an invalid control loses the focus signal while focused. The fix
-is specified under [Focus ring](#focus-ring).
+a coloured callout background. Focus survives a validation error too:
+`input[aria-invalid="true"]:focus-visible` keeps the bad halo and adds the
+accent ring outside it (see [Focus ring](#focus-ring)), so an invalid control
+reads invalid and focused at the same time.
 
 ### Type
 
@@ -266,17 +266,15 @@ that genuinely float.
 
 ### Tokens the components also use
 
-These are declared in the stylesheet and consumed by components, or reserved for
-one that lands in phase 2. A token used by a component is listed here in the
-same pull request; a literal colour, size or radius outside `:root` is a review
-defect.
+These are declared in the stylesheet and consumed by components. A token used
+by a component is listed here in the same pull request; a literal colour, size
+or radius outside `:root` is a review defect.
 
 | Token | Light | Dark | Use |
 | --- | --- | --- | --- |
 | `--font-sans` | system UI stack | same | prose and headings |
 | `--font-mono` | ui-monospace stack | same | ids, hashes, counts, code |
 | `--code-bg` | `#f4f6f5` | `#0d1210` | spec source, evidence JSON, answer wells |
-| `--on-accent-muted` | `#d7e9e1` | `#29483b` | declared, no consumer yet; proposed for secondary text on an accent fill in phase 2, or delete it |
 | `--focus-ring` | `2px solid var(--accent)` | same | global focus outline |
 | `--focus-offset` | `2px` | same | focus outline offset |
 | `--max-width` | `1320px` | same | page shell |
@@ -381,6 +379,11 @@ control gets `aria-invalid="true"` and `aria-describedby` pointing at the
 message. The spec editor uses this shape; validation errors are also listed in
 `#spec-errors`, which the textarea describes.
 
+Hints are always visible. `.field-hint` sits under the control, states the
+format or the default, and names the consequence of getting it wrong; it is
+wired with `aria-describedby`. A hint is not a tooltip and never holds the only
+explanation of a field.
+
 ### Callout
 
 ```html
@@ -406,9 +409,10 @@ uses `role="alert"`). A callout states the consequence, not only the fact.
 ```
 
 The console is server-rendered, so loading is the gap between navigation and
-the response; skeletons are used inside a live heatmap for cells the run has
-not recorded yet. They are hidden from assistive technology, and the progress
-region reports the real count.
+the response. A filter submit swaps the table for skeleton rows and marks the
+region `aria-busy`; a live heatmap uses skeleton cells for cells the run has
+not recorded yet. Both are hidden from assistive technology, a polite live
+region says what is loading, and the progress region reports the real count.
 
 ### Heatmap
 
@@ -438,9 +442,10 @@ and outcome, and the selected cell carries `aria-current`. Selection is a link
 glyphs and words; the summary column repeats each row's count and rate with a
 5rem meter.
 
-Below 700px the summary column is hidden today, so a row's rate leaves the
-screen; the run verdict above still carries the overall rate. Phase 1 moves the
-row rate into the row head under the candidate name instead of deleting it.
+Below 700px the summary column is dropped from the table, but the row's rate
+does not leave the screen: `.heat-rate` repeats it in the row head under the
+candidate name at that width (hidden above 700px, where the summary column
+already carries it). The run verdict above still carries the overall rate.
 
 ### Progress
 
@@ -458,10 +463,35 @@ replay is labelled "replay" or "complete".
 
 ### Tooltip
 
-Tooltips use the native `title` attribute on a non-essential detail: the full
-run id beside its short form, the exact USD value beside the readable one, the
-full case id on a heatmap column. Never put the only copy of required
-information in a tooltip.
+Two layers, one rule: never put the only copy of required information in a
+tooltip.
+
+- A `.help-tip` button with `aria-describedby`, a `role="tooltip"` popup and a
+  focus/hover/click state explains a metric or a column (check pass rate, the
+  Wilson interval, cells, gates, cost, pass@k). It is a real button with a 44px
+  touch target under `(pointer: coarse)`.
+- A native `title` attribute carries non-essential detail: the full run id beside
+  its short form, the exact USD value beside the readable one, the full case id
+  on a heatmap column, the full price-table fingerprint.
+
+### Timestamps and money
+
+Every stored timestamp is UTC-aware. The `timestamp` filter (Python
+`format_time`) renders `YYYY-MM-DD HH:MM:SS UTC`, with no locale-dependent format
+and an explicit suffix. No page converts a stored value to the browser's local
+zone; the footer also states that all times are UTC.
+
+Money goes through `format_usd`: `$0.00`, two decimals once the value reaches
+one cent, and three significant digits below that, so a real cost never collapses
+to `$0.00`. `format_usd_exact` keeps up to eight decimals and is only the
+`title` companion to the readable number. An unpriced cell shows `-`, never a
+fake `$0.00`. The filters are registered as `pct`, `interval`, `duration`,
+`usd`, `usdexact`, `shortpath` and `timestamp`.
+
+Help text is the always-visible `.field-hint` described under
+[Form field](#form-field), never a tooltip. Loading uses `.skeleton`, hidden
+from assistive technology, while the progress live region reports the real
+count.
 
 ### Verdict bar
 
@@ -481,7 +511,7 @@ information in a tooltip.
   </div>
   <div class="verdict-grid">
     <div class="verdict-stat">
-      <span class="stat-label">Pass rate</span>
+      <span class="stat-label">Check pass rate</span>
       <span class="stat-value">64%</span>
       <span class="stat-detail">95% interval 52 to 74%</span>
     </div>
@@ -569,8 +599,9 @@ layout).
 
 ### Spec graph
 
-Proposed, phase 1. The signature element, specified here so the view model and
-the SVG are built once.
+Shipped in 0.2.0: the signature element, rendered by `_graph.html` on the runs
+list, run detail, compare and the wizard rail. The shipped class names are
+`sg-*` (`sg-edge`, `sg-node`, `sg-tone-*`); the example below is illustrative.
 
 ```html
 <figure class="spec-graph-figure">
@@ -578,8 +609,8 @@ the SVG are built once.
        aria-labelledby="graph-title graph-desc" preserveAspectRatio="xMinYMin meet">
     <title id="graph-title">Spec graph: gated-qa</title>
     <desc id="graph-desc">4 candidates over 12 cases produce 48 cells; 3 gates, 1 failed; verdict: gate failed.</desc>
-    <g class="graph-edges">…</g>
-    <g class="graph-nodes">…</g>
+    <path class="sg-edge sg-state-pass" d="…"></path>
+    <g class="sg-node sg-tone-ok">…</g>
   </svg>
   <figcaption>4 candidates, 12 cases, 3 gates, 1 failed.</figcaption>
 </figure>
@@ -641,22 +672,25 @@ figcaption repeats the counts on the full rendering. The thumbnail is
 same facts. Nodes are not links and not focusable; selection belongs to the
 heatmap, so the graph never adds a second tab stop per node.
 
-Reduced motion: the lit-path sweep is a class change (`is-lit`) on edges as
-cells resolve, transitioned at 120ms on `stroke` and `stroke-dasharray`, and
-removed entirely under `prefers-reduced-motion: reduce`, where the class swaps
-with no transition. No SMIL, no keyframes in the SVG.
+Reduced motion: there is nothing to reduce. The SVG is static, with no SMIL, no
+keyframes and no stroke transition; live progress is the heatmap and the SSE
+panel, not the graph.
 
 No JavaScript: the SVG is server-rendered with the final states at page load.
 The stream handler only adds classes; with JavaScript off the graph is correct,
 the page does not update itself, and the event history below the progress bar
 plus a reload is the path. The existing `<noscript>` note says so.
 
-Below 700px the SVG is hidden and the [Stage list](#stage-list) renders the same
-five stages, so the graph never scrolls horizontally.
+Below 700px the SVG is hidden (`.run-graph`, `.col-graph`), so the graph never
+scrolls horizontally. The [Stage list](#stage-list) is the proposed phone
+fallback and is not in the templates yet; until it ships, the verdict bar and
+the heatmap summary carry the same facts.
 
 ### Stage list
 
-Proposed, phase 1. The mobile rendering of the spec graph, shown below 700px.
+Proposed, phase 1, and not shipped: no template renders `stage-list` yet. This
+is the intended mobile rendering of the spec graph below 700px, where the SVG
+is hidden.
 
 ```html
 <ol class="stage-list" aria-label="Spec graph">
@@ -688,7 +722,8 @@ colour alone.
 
 ### Matrix table
 
-Proposed, phase 2. Wizard step 3, one row per candidate.
+Shipped in 0.2.0 on wizard step 3, one row per candidate. The matrix classes
+and the server-side add/remove POST are in the wizard template.
 
 ```html
 <div class="table-wrap matrix-wrap" tabindex="0" role="region" aria-label="Candidates">
@@ -739,19 +774,21 @@ scroll sideways on a phone.
 
 ### Wizard rail and step strip
 
-Proposed, phase 2.
+Shipped in 0.2.0 on `/comparisons/new` and `/comparisons/new/{step}`. The HTML
+below is the shape the server renders; the draft lives in a hidden field and
+nothing is written until step 4.
 
 ```html
 <nav class="wizard-rail" aria-label="Steps">
   <ol class="step-list">
     <li class="step is-current" aria-current="step">
-      <span class="step-link"><span class="step-number mono">2</span>Cases and gates</span>
+      <span class="step-link"><span class="step-number mono">2</span>Add context</span>
     </li>
     <li class="step is-done">
-      <a class="step-link" href="?step=1"><span class="step-number mono">1</span>What varies</a>
+      <a class="step-link" href="?step=1"><span class="step-number mono">1</span>What to vary</a>
     </li>
     <li class="step is-todo">
-      <span class="step-link"><span class="step-number mono">3</span>Candidates</span>
+      <span class="step-link"><span class="step-number mono">3</span>Choose candidates</span>
     </li>
   </ol>
   <p class="step-summary"><span class="mono">48</span> cells, estimate <span class="mono">$0.0042</span></p>
@@ -762,8 +799,9 @@ Classes: `wizard-layout`, `wizard-rail`, `step-list`, `step` with `is-current`,
 `is-done`, `is-todo`, `step-number`, `step-link`, `step-summary`,
 `wizard-estimate`; below 900px, `step-strip` with four `step-segment` children.
 
-Rules: four steps in plain verbs (1 What varies, 2 Cases and gates, 3
-Candidates, 4 Review and save). The rail is 20rem, sticky at `top: 72px` under
+Rules: four steps in plain verbs, matching the shipped step titles (1 What to
+vary, 2 Add context, 3 Choose candidates, 4 Cost and rules). The rail is 20rem,
+sticky at `top: 72px` under
 the 56px bar. The current step carries `aria-current="step"` and a 2px accent
 left rule; completed steps are links and get a check glyph; future steps are
 spans, not disabled anchors, so they stay out of the tab order and are not
@@ -777,12 +815,15 @@ the strip shows numbers only and the current step's label is the panel heading;
 it never scrolls horizontally, and each segment is at least 44px tall.
 
 States: current, done, future, invalid step (the segment carries a warn glyph
-when a previous step has an unresolved error), and the final review step where
-the strip is fully done and the primary action is Save.
+when a previous step has an unresolved error), and the final step where the
+strip is fully done and the primary action is `Create comparison`. That button
+posts the hidden draft, writes `<name>.yaml`, and redirects to `/specs` with the
+saved stem; it does not launch. `Save and run` belongs to the structured edit
+form, which redirects to `/launch?spec=<stem>`.
 
 ### Estimate hero
 
-Proposed, phase 2 for the wizard; the launch page already ships this component.
+Shipped in 0.2.0 on `/launch` and in the wizard rail; both render the same hero.
 
 ```html
 <section class="estimate-hero" aria-labelledby="estimate-heading">
@@ -807,12 +848,12 @@ Rules: the total is the largest number on the page: 32px in the launch hero,
 26px in the editor's estimate card. The exact value lives in `title`, the
 readable value on screen, so the page never shows four decimals it cannot
 support. The chip always
-says which medians produced the number, observed or fallback. The meter is 5px
+says which medians produced the number, observed or estimated. The meter is 5px
 and `aria-hidden`; its labels carry the percentage and the cap. The facts list
 is cells, tokens, spec budget, headroom and medians.
 
-States: observed, fallback (the chip says so and a hint explains which runs
-produced it), over cap (`is-over` plus a warn callout), no cap (no meter, the
+States: observed, estimated (the chip says so and a hint explains which runs
+produced it, or that the shipped defaults were used), over cap (`is-over` plus a warn callout), no cap (no meter, the
 copy says "No budget cap on this spec"), unavailable (an error callout with the
 reason, never `$0.00`), locked (the vault callout sits above the form and the
 estimate still renders). Below 900px the rail stacks under the form in the order
@@ -820,7 +861,7 @@ form, estimate, steps.
 
 ### Tone chips
 
-The chip tones already exist; the semantic attribute is proposed for phase 2.
+The chip tones already exist; the semantic `data-tone` attribute does not.
 
 ```html
 <span class="chip chip-warn" data-tone="warn">
@@ -831,8 +872,8 @@ The chip tones already exist; the semantic attribute is proposed for phase 2.
 ```
 
 Classes: `chip` plus `chip-ok`, `chip-warn`, `chip-bad`, `chip-info`,
-`chip-neutral`. The `data-tone` attribute and the `chip-glyph` span are
-proposed, phase 2; the tone classes ship today.
+`chip-neutral`. No template uses the `data-tone` attribute or the `chip-glyph`
+span yet; the tone classes ship today, so a chip can carry a tone without them.
 
 Rules: a tone chip carries a meaning and therefore a word; the glyph is
 `aria-hidden` and never the only signal. At most one tone chip per row, the rest
@@ -845,8 +886,9 @@ the tone table; no new colour is introduced for a chip.
 
 ### Inline field errors
 
-The stylesheet has `.field-error-text` today and no template uses it; the shape
-is specified here for phase 2 and the YAML editor keeps its `#spec-errors` list.
+The wizard and the structured edit form use `.field-error-text` under the
+invalid control; the YAML editor keeps its `#spec-errors` list and describes the
+textarea with it.
 
 ```html
 <div class="field">
@@ -878,8 +920,9 @@ unchanged). The invalid control keeps a visible focus signal via the fix in
 
 ### Skeleton rows
 
-Proposed, phase 4. Only for a table region that a fetch replaces, which is not
-the case on any page today; the heatmap's pending cells already use `skeleton`.
+Shipped in 0.2.0 on the runs list. The `.skeleton` primitive also serves pending
+heat cells; `console.js` listens for `data-loading-form`, hides the loaded rows
+and shows the skeleton body until the next page arrives.
 
 ```html
 <tr class="skeleton-row" aria-hidden="true">
@@ -908,12 +951,12 @@ the single action per screen.
 | Screen | Heading | Sentence | Action |
 | --- | --- | --- | --- |
 | Runs, none | No runs yet | Start one from a terminal with `evalh run spec.yaml`, or launch a saved spec. | Launch a run |
-| Runs, filtered | No runs match these filters | Clear the status or spec filter to see the rest. | Clear filters |
+| Runs, filtered | No runs match these filters | Clear the candidate or metric filter to see the rest. | Clear filters |
 | Run detail, no cell | Select a cell | Pick a cell in the heatmap to read its answer, checks and artifacts. | none |
 | Run detail, no checks | No checks were recorded for this cell | The candidate errored before metrics ran, so the answer is the only evidence. | Open evidence JSON |
 | Compare, fewer than two | Two runs are needed | Pick a baseline and a candidate from the runs list. | Choose runs |
 | Compare, no difference | No measurable difference | The intervals overlap and the point estimates differ by less than the noise. | none |
-| Comparisons, none | No saved specs | Specs live in the specs directory; add one with `PUT /api/specs/<name>`. | none |
+| Specs, none | No saved specs | Specs live in the specs directory; add one with `PUT /api/specs/<name>`. | none |
 | Launch, no spec | Choose a spec | The estimate appears once a spec is selected. | none |
 | Credentials, none | No credentials stored | Add an API key to run a live candidate; scripted candidates need none. | Add a credential |
 
@@ -935,9 +978,9 @@ Mechanics, in order of specificity:
 - Never write `outline: none` without an equivalent visible replacement, and
   never use a positive `tabindex`.
 
-The known failure: an invalid input loses focus, because
-`input[aria-invalid="true"]` is declared after `input:focus-visible` with equal
-specificity. Proposed, phase 1:
+An invalid input keeps focus. `input[aria-invalid="true"]:focus-visible` is
+declared after the base input focus rule with the bad halo plus an outer accent
+ring. Shipped in 0.2.0:
 
 ```css
 input[aria-invalid="true"]:focus-visible {
@@ -946,7 +989,8 @@ input[aria-invalid="true"]:focus-visible {
 ```
 
 That keeps the bad halo and adds the accent ring outside it, so the control
-reads invalid and focused at the same time.
+reads invalid and focused at the same time. The pinned style test asserts the
+invalid and invalid-plus-focus rules stay in that order.
 
 States: default, hover, focus-visible, invalid, invalid plus focus, and the
 scroll-region ring on the table and heatmap wrappers. Selection rings (the
@@ -965,7 +1009,9 @@ thead th {
 }
 ```
 
-The header cell needs an opaque background, or rows show through it. The z-index
+The header cell needs an opaque background, or rows show through it. This is
+shipped and verified: the pinned style test asserts the wrapper scrolls on both
+axes with `max-height: 70vh` and `thead th` sticks to `top: 0`. The z-index
 stack is: top bar 40, sticky head 1, and inside the heatmap the head row 2 with
 the sticky row head at 1 and the head's own row head at 3.
 
@@ -990,31 +1036,34 @@ region, not with the page; keep that in mind when a page promises both.
 ## Motion
 
 Every motion in the stylesheet answers a state: pointer hover, focus, a live run,
-or a cell the run has not recorded. The spec graph is the only addition in
-phase 1. Each is a state change; none plays after the state is final.
+or a cell the run has not recorded. Each is a state change; none plays after the
+state is final.
 
 | Motion | Property | Duration | Verdict |
 | --- | --- | --- | --- |
 | heat cell hover | transform, box-shadow | 100ms | keep; transform is compositor-only, the shadow is paint-only |
 | button hover | background, border, colour | 120ms | keep |
-| skip link | `top` | 150ms | replace with `transform` in phase 1 |
-| progress fill | `width` | 350ms | replace with `transform: scaleX` in phase 1 |
+| skip link | `top` | 150ms | legacy; replace with `transform` (future work) |
+| progress fill | `width` | 350ms | legacy; replace with `transform: scaleX` (future work) |
 | skeleton shimmer | background-position | 1.5s loop | keep on a real pending cell, static under reduced motion |
 | live dot pulse | box-shadow | 1.8s loop | keep, static ring under reduced motion |
-| spec graph edge | stroke, dash pattern | 120ms, phase 1 | new, none under reduced motion |
+| spec graph edge | none | - | static stroke; state is colour, not motion |
 
 New motion is transform or opacity only, per the anti-slop rule. Colour,
 border-colour and box-shadow transitions already ship, they are paint-only and do
 not reflow, so they stay and are not extended. Animating `width`, `height`, `top`
-or `left` is not allowed; the two cases above are legacy and are replaced in
-phase 1. No load reveals, no scroll-driven animation, no count-ups, no
+or `left` is not allowed; the two cases above are legacy and are still replaced
+as future work. No load reveals, no scroll-driven animation, no count-ups, no
 `will-change` left on an element, no animation on focus.
 
 Content is visible at first paint. Nothing waits for JavaScript to become
 readable, and no element starts at `opacity: 0`.
 
-Reduced motion, proposed phase 1, because the stylesheet has no such block
-today:
+Reduced motion ships, coarsely. The stylesheet sets every animation and
+transition duration to 0.01ms, forces `scroll-behavior: auto` and removes the
+live-dot animation under `prefers-reduced-motion: reduce`. That stops the
+shimmer and the pulse without a flicker, but it is a global override, not the
+targeted static states below. The targeted block is the intended refinement:
 
 ```css
 @media (prefers-reduced-motion: reduce) {
@@ -1025,9 +1074,10 @@ today:
 }
 ```
 
-The block is targeted, not a global `animation-duration: 0.01ms` kill: the
-shimmer and the pulse are replaced with static states that still carry the
-meaning, rather than being sped up into a flicker.
+The refinement is targeted rather than a global kill: the shimmer and the pulse
+are replaced with static states that still carry the meaning, instead of being
+sped up into a flicker. That targeted block is future work; the coarse override
+above is what ships today.
 
 ## Accessibility checklist
 
@@ -1040,14 +1090,15 @@ meaning, rather than being sped up into a flicker.
   `aria-invalid` plus a linked error when validation fails.
 - The SSE panel is `aria-live="polite"`; the copy action reports through a
   separate live region so it never steals focus.
-- Contrast targets AA in both schemes; `--faint` is metadata only.
-- `prefers-reduced-motion` replaces the shimmer, the pulse and the graph sweep
-  with static states; the block is specified under [Motion](#motion) and is not
-  in the stylesheet yet (phase 1).
+- Contrast targets AA in both schemes; the shipped pairs are measured in the
+  table below and pass, `--faint` included as metadata only.
+- `prefers-reduced-motion` ships as a coarse override that stops the shimmer, the
+  pulse and every transition; the targeted static states are specified under
+  [Motion](#motion) and remain future work.
 - Focus is visible on every control, including an invalid input
   (see [Focus ring](#focus-ring)).
-- Phone targets are 44 x 44 at 375px (see [Tap targets](#tap-targets); not met
-  today).
+- Phone targets are 44 x 44 at 375px (see [Tap targets](#tap-targets);
+  implemented and verified).
 
 ### Contrast pairs actually used
 
@@ -1103,6 +1154,8 @@ at any width, `(max-width: 768px)` covers a narrow window driven by a mouse. Gro
 the visible box; do not add an absolutely positioned 44px overlay, because
 overlapping hit areas steal taps from the next control in a dense table. The
 3.1rem heat column leaves room for the 44px link without reflowing the matrix.
+The pinned style test asserts both media blocks and both 44px dimensions for the
+full class list, so this is implemented and verified, not aspirational.
 
 ### Focus
 
@@ -1110,8 +1163,8 @@ overlapping hit areas steal taps from the next control in a dense table. The
   visible on canvas, surface and every callout tone.
 - Scroll regions are focusable and carry the same ring, so a keyboard user can
   scroll the heatmap.
-- The invalid-input override in [Focus ring](#focus-ring) is the only known
-  place where focus disappears; fix it before phase 2.
+- The invalid-input override in [Focus ring](#focus-ring) is fixed: an invalid
+  control keeps the bad halo and gains an outer accent ring while focused.
 - Selection is never the focus indicator: the heatmap's double ring marks the
   chosen cell, the outline marks the focused one.
 
@@ -1125,7 +1178,7 @@ change to this document in the same pull request.
       no row of three identical cards, no emoji, no cliche, no `100vh`, no
       spinner, no centred hero, no mixed-stroke icon.
 - [ ] The spec graph appears once, is the only diagram on the screen, and reads
-      at 96px, at 320 units in the wizard rail and at full width. Compare shows
+      at 144px, at 320 units in the wizard rail and at full width. Compare shows
       two and nothing else competes.
 - [ ] Every state that can occur exists: empty, loading, error, running, partial,
       cancelled, denied, success, and the filtered-empty for lists.

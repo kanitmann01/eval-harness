@@ -143,8 +143,9 @@ or copy an existing file in:
 docker compose cp ./my-spec.yaml harness:/data/specs/my-spec.yaml
 ~~~
 
-The image seeds `smoke.yaml` and `stub-pack.yaml` into `/data/specs` when the
-volume is first created. Copy `smoke.yaml` as a starting point. The field-by-field
+The image seeds four bundled no-credential specs into `/data/specs` when the
+volume is first created: `smoke.yaml`, `stub-pack.yaml`, `gated.yaml` and
+`gated-failing.yaml`. Copy `smoke.yaml` as a starting point. The field-by-field
 reference is [docs/spec-v1.md](docs/spec-v1.md); a spec declares its source,
 candidates, metrics, prices and optional gates, and it never contains a secret.
 
@@ -243,7 +244,6 @@ python -m evalharness run examples/specs/providers.yaml  # terminal 2
 
 `EVALH_HOME` is where the SQLite database and artifacts live by default;
 `EVALH_DATABASE_URL` and `EVALH_ARTIFACTS_DIR` override them individually.
-<<<<<<< HEAD
 The stub-pack demo runs all four candidate stubs (scripted, slow, prompt-fixed
 and always-failing) plus the deterministic judge in one spec. It exits 0, records
 the always-failing cells as errors, and needs no credentials. The judge example runs
@@ -255,13 +255,9 @@ points the row at it with `EVALH_HTTP_CONFORMANCE_BASE_URL`; locally start the
 demo server, or set the same variable, or that row reports a connection error. The
 four provider rows follow the same rule with `examples/provider_server.py` and
 `EVALH_PROVIDER_CONFORMANCE_BASE_URL`.
-=======
+
 PostgreSQL is optional: `pip install -e ".[postgres]"` and set
 `EVALH_DATABASE_URL=postgresql+psycopg://user:password@host:5432/evalharness`.
-The conformance suite's HTTP candidate row needs a live endpoint: CI starts
-`examples/http_candidate_server.py` and points it at the row with
-`EVALH_HTTP_CONFORMANCE_BASE_URL`; locally start that server or set the same
-variable.
 
 ## Master key, data and backups
 
@@ -303,7 +299,130 @@ docker compose up -d
 
 `docker compose down -v` deletes both volumes and every existing run. Use
 `docker compose down` for a restart that keeps them.
->>>>>>> 7e113fb (feat: add an end-to-end smoke script and the stranger quick start)
+
+## Console v2
+
+The console is the front door: a single-user, local-only, server-rendered UI at
+<http://127.0.0.1:8000>. There is no Node build, no CDN and no client framework.
+It has three jobs and one safety rule: build a spec, launch it, read the result,
+and never render a secret.
+
+![The run list after a console v2 run](docs/evidence/runs-after.jpg)
+
+### Routes and navigation
+
+| Route | What it does |
+| --- | --- |
+| `/` | Run list: candidate and metric filters, spec graph thumbnail, status, pass rate, cost, duration and start time. |
+| `/runs/{id}` | Run detail: verdict bar, candidate by case heatmap, per-cell evidence, gate cards and live progress. |
+| `/specs` | Spec list: every spec in the specs directory, with its cells, estimate, Launch, Edit, YAML and Duplicate actions. |
+| `/specs/{name}/edit` | Raw YAML editor with Check and Save. An invalid document is never written. |
+| `/comparisons/new` | Four-step wizard that writes a new spec. |
+| `/comparisons/{name}/edit` | Structured edit form: every section of the spec on one page, with View YAML as the escape hatch. |
+| `/launch` | Cost estimate from observed medians, budget cap and Launch. |
+| `/compare` | Compare chooser: two runs, or one run and two candidates, with deltas and intervals. |
+| `/credentials` | BYOK vault: add, mask, test, disable, enable and delete provider keys. |
+
+Navigation carries `Runs`, `Specs`, `Compare`, `Launch` and `Credentials`; `New
+comparison` is the primary action in the top bar. The run page links straight to
+`Compare this run`, and a spec row links to `Launch`.
+
+![A run detail page with the heatmap and evidence](docs/evidence/detail-after.jpg)
+
+### Wizard, structured edit and raw YAML
+
+New specs start in the wizard at `/comparisons/new`: four stateless steps (what to
+vary, add context, choose candidates, cost and rules). Each step re-validates a
+hidden draft, nothing is written until step 4, and the finished spec lands in the
+specs directory and returns to `/specs`.
+
+Existing specs open in the structured edit form at `/comparisons/{name}/edit`. All
+sections are on one page with a sticky estimate rail. `Save` writes the file and
+returns to the list; `Save and run` writes it and redirects to
+`/launch?spec=<stem>`. If the file changed on disk since the page loaded, the save
+is refused with a 409 and the page says which version won. `View YAML` switches to
+the raw editor, where Check validates and Save writes only a valid document.
+
+![The specs list, the entry point for the wizard and the edit form](docs/evidence/specs-after.jpg)
+
+### Launch
+
+`/launch` shows the estimate before anything runs: the chip names the medians that
+produced it, observed where the spec has history and fallback otherwise. Over the
+cap turns the meter warn tone; a spec without a cap hides the meter. Launch is
+refused with 409 while another run is in flight, and with 400 when the spec no
+longer validates.
+
+![The launch page with its cost estimate](docs/evidence/launch-after.jpg)
+
+### Compare
+
+`/compare` with no query is a chooser: two runs, or one run with two candidates.
+With `?a=<run>&b=<run>` (or `?run=<id>&candidate_a=<name>&candidate_b=<name>`) it
+shows side-by-side metrics, deltas, intervals, verdict, cost per correct answer and
+the two spec graphs. Overlapping intervals produce "No measurable difference"
+rather than a fake winner.
+
+![Comparing two runs](docs/evidence/compare-after.jpg)
+
+### Credentials
+
+`/credentials` stores provider keys in the encrypted vault. A key is shown masked,
+with a fingerprint, never in full; Test performs a canary call, and disable, enable
+and delete act per name. Without a master key the page explains the bootstrap
+instead of failing.
+
+![The credentials page](docs/evidence/credentials-after.jpg)
+
+### Timestamps and money
+
+Every timestamp in the console is UTC and renders as `YYYY-MM-DD HH:MM:SS` with
+no local-time conversion, so the same run read on two machines agrees. Costs are
+formatted for reading: `$0.00` for zero, two decimals from one cent up, and three
+significant digits below that, so a real cost never collapses to `$0.00`. The exact
+value is in the `title` tooltip of the number; percentages always sit beside their
+interval.
+
+### The four offline specs
+
+The repository carries four no-credential specs under `examples/specs/`. Together
+they exercise every exit code a demo needs:
+
+| Spec | What it runs | Expected exit |
+| --- | --- | --- |
+| `smoke.yaml` | Two stub candidates over one case. No network, no key. | 0 |
+| `stub-pack.yaml` | Four stub shapes (scripted, slow, prompt-fixed, always-failing) plus a deterministic judge. The always-failing cells are errors and the gate still passes. | 0 |
+| `gated.yaml` | A stub that answers 42, with a gate at 0.90. | 0 |
+| `gated-failing.yaml` | A stub that answers 41 against the same gate. | 1 |
+
+### Run it offline
+
+No Docker, no network and no paid key. The first vault command prints
+`EVALH_MASTER_KEY=...` once and exits 2; export that value and rerun.
+
+~~~bash
+export PYTHONPATH="$PWD/src"
+export EVALH_HOME="$PWD/.demo"
+export EVALH_SPECS_DIR="$PWD/examples/specs"
+python -m evalharness run examples/specs/smoke.yaml
+python -m evalharness run examples/specs/stub-pack.yaml
+python -m evalharness run examples/specs/gated.yaml
+python -m evalharness run examples/specs/gated-failing.yaml   # exits 1
+python -m evalharness serve                                   # http://127.0.0.1:8000
+~~~
+
+`scripts/demo.py` does the same in one command and then serves the console:
+
+~~~bash
+python scripts/demo.py --home .demo
+~~~
+
+It generates a demo master key into `<home>/demo.env` (mode 0600 where the platform
+allows it), copies the four specs into `<home>/specs`, runs all four, prints the talk
+track, the run ids and the console URL, and then serves. `--no-serve` stops before
+the server, `--no-run` prepares the home and prints the talk track only, `--reset`
+deletes the demo home first, and `--port` changes the console port. The generated
+key is never printed.
 
 ## Exit codes and gates
 

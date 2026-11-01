@@ -12,6 +12,12 @@ the CLI's orchestration, so a console run and a command line run of one spec
 produce the same record. The [spec editor](#spec-editor) writes spec files and
 the [credentials page](#credentials) writes the encrypted vault.
 
+This page map describes console v2 (0.2.0): the comparisons list, the wizard,
+the structured edit form, the compare chooser and the shared error pages.
+Every timestamp on these pages is UTC, rendered as `YYYY-MM-DD HH:MM:SS`, and
+money is formatted for reading; see
+[design-system.md](design-system.md#timestamps-and-money).
+
 ## Run it
 
 ~~~bash
@@ -36,11 +42,28 @@ status through its own middleware and never logs the query, headers or bodies.
 | Page | Route | What it shows |
 | --- | --- | --- |
 | Runs | `GET /` | Status, spec name, candidates, cells ok, pass rate, cost, duration and start time, newest first. Query parameters `candidate=` and `metric=` narrow the list. |
-| Run detail | `GET /runs/{run_id}` | Candidate by case heatmap, aggregates with 95 percent Wilson intervals and pass@k / pass^k, gates, and the selected cell. Add `?cell=<cell_id>` to select one. |
+| Run detail | `GET /runs/{run_id}` | Candidate by case heatmap, aggregates with 95 percent Wilson intervals and pass@k / pass^k, gates, the spec graph and the selected cell. Add `?cell=<cell_id>` to select one. |
 | Cell detail | `GET /runs/{run_id}/cells/{cell_id}` | The same run detail page with that cell selected. |
 | Artifact | `GET /runs/{run_id}/cells/{cell_id}/artifact` | The stored `cell.json` for the cell. Add `?file=answer.txt` for the answer file. |
-| Credentials | `GET /credentials` | Every stored credential, masked: name, provider, fingerprint prefix, created and last verified times, last error, state and actions. |
-| Not found | any unknown id | A 404 page with a link back to the run list. |
+| Specs | `GET /specs` | Every spec in the specs directory: name, candidates, cells, estimate, size, modified time, validation state and the Launch, Edit, YAML and Duplicate actions. `/comparisons` redirects here. |
+| Raw YAML editor | `GET` and `POST /specs/{name}/edit` | The textarea, Check and Save described under [Spec editor](#spec-editor). An invalid document is never written. |
+| Comparison wizard | `GET` and `POST /comparisons/new`, then `/comparisons/new/{step}` for steps 1 to 4 | Four stateless steps that build a new spec from scratch and write it at step 4. |
+| Structured edit | `GET` and `POST /comparisons/{name}/edit` | Every section of an existing spec on one page, with Save, Save and run, View YAML, a sticky estimate rail and a 409 when the file changed on disk. |
+| Launch | `GET` and `POST /launch` | Spec picker, estimate, budget override and Launch. See [Launch and cancel](#launch-and-cancel). |
+| Compare | `GET /compare` | The chooser when no query is given, otherwise the side-by-side comparison. See [Compare](#compare). |
+| Credentials | `GET` and `POST /credentials` | Every stored credential, masked: name, provider, fingerprint prefix, created and last verified times, last error, state and actions. |
+| Not found | any unknown id or path | A 404 page that names what was asked and links back to the run list. |
+| Refused | a cancel this console does not drive, a changed spec, a missing vault key | A 409 or 503 page with the reason and the next action, never a stack trace. |
+
+Navigation carries `Runs`, `Specs`, `Compare`, `Launch` and `Credentials`, plus a
+`New comparison` primary action in the top bar; a run page links to `Compare this
+run` and a spec row links to `Launch`. The active section carries
+`aria-current="page"`.
+
+Every displayed timestamp is UTC and uses `YYYY-MM-DD HH:MM:SS UTC`; the database
+stores timezone-aware UTC values and no page converts to the visitor's zone, so
+two machines reading one run agree. Money and percentages are formatted for
+reading; see [design-system.md](design-system.md#timestamps-and-money).
 
 The heatmap has one link per planned cell. Colour is never the only signal:
 pass is a green check, fail a red cross, error an amber exclamation with a
@@ -108,6 +131,50 @@ and the server re-renders the same error list and summary. A small debounced
 script on top posts the textarea to `/api/specs/validate` and updates the
 errors, cells per candidate, cost and the Save button, but it never replaces
 the form path.
+
+## Comparisons: the wizard and the structured edit form
+
+`GET /comparisons` is an alias: it redirects to `/specs`, so a saved spec has one
+canonical list URL. The wizard writes a new spec; the structured form edits an
+existing one; the raw YAML editor above remains the escape hatch for both.
+
+### Wizard
+
+`GET /comparisons/new` redirects to step 1. Steps 1 to 4 live at
+`/comparisons/new/{step}` and cover what to vary (name, description, cases),
+contexts, prompts and credentials, candidates, then cost and rules (budget,
+metrics, judges, gates and prices).
+
+| Route | What it does |
+| --- | --- |
+| `GET /comparisons/new` | 303 to `/comparisons/new/1`. |
+| `GET /comparisons/new/{step}` | Renders that step with the current draft and the estimate rail. |
+| `POST /comparisons/new/{step}` | Re-validates the hidden draft, then advances (`Continue`) or, at step 4, writes `<name>.yaml` atomically and redirects to `/comparisons?saved=<stem>` (303 to `/specs`). |
+
+The wizard is stateless: the draft travels in a hidden field, every step
+re-validates it, nothing is written until step 4, and a failed step keeps every
+value. There is one primary action per step (`Continue`, then `Create
+comparison`) plus Back and Cancel. Editing fields without JavaScript still
+works because every step is a normal form POST.
+
+### Structured edit form
+
+`GET /comparisons/{name}/edit` renders the whole spec on one page in four
+sections: identity and cases, contexts and credentials, candidates, and cost and
+rules. Rows are added and removed with ordinary submit buttons, and the sticky
+rail repeats the cell count and estimate.
+
+| Action | Result |
+| --- | --- |
+| `Save` | Validates, writes the file atomically and 303s to `/specs?saved=<stem>`. |
+| `Save and run` | Does the same write, then 303s to `/launch?spec=<stem>`. |
+| `View YAML` | Opens `/specs/{name}/edit` with the saved text. |
+| `Cancel` | Returns to `/specs` without writing. |
+
+The form carries the sha256 digest of the file it rendered. If the file changed
+on disk since then, Save is refused with a 409 page that says which version won,
+so a terminal edit is never silently overwritten. Invalid input re-renders the
+form with a 400, the field named and the value kept.
 
 ## Credentials
 
@@ -334,10 +401,10 @@ The route module registers a shutdown handler. When the application stops
 in-flight launch and joins its thread with a ten second timeout, so a run is
 left cancelled rather than `running` and a test does not leak a thread.
 
-The read-only pages are untouched by this feature. `base.html` carries the
-primary navigation (Specs, Credentials, Compare, Launch) and, when the page context has a
-`run` whose status is `running`, the cancel form; `api/routes/launch.py` is
-one more discovered route module.
+The shared layout carries the primary navigation (`Runs`, `Specs`, `Compare`,
+`Launch`, `Credentials`, and the `New comparison` action) and, when the page context has a
+`run` whose status is `running`, the cancel form; `api/routes/launch.py` is one
+more discovered route module.
 
 ## How tests build the app
 
@@ -367,8 +434,8 @@ hand.
 ## Extension points for the next tickets
 
 - **A new page or API surface** is a new module in `api/routes/` exposing
-  `router`. `create_app` imports every module in that package, so #10 to #13
-  add files and do not edit `app.py`.
+  `router`. `create_app` imports every module in that package, so a new screen
+  is a new file and does not edit `app.py`.
 - **Shared dependencies** live in `api/deps.py`: `get_repository`,
   `get_settings`, `get_templates` and `render`. Reuse them instead of
   reaching into `request.app.state` directly.
@@ -377,10 +444,11 @@ hand.
   `list_cells`, `list_checks_for_run`, `get_cell`, `artifact_path`,
   `list_aggregates`, `list_gates`, `list_events` and
   `list_events_after`.
-- **Spec editing and launch** (#10, #11) add write routes and spec validation
-  on top of the same repository; the read routes stay read-only.
-- **Compare and credentials** (#12, #13) add pages and JSON under the same
-  discovery rule. If a new first-party adapter is introduced, add its factory
+- **Spec editing, the wizard and launch** are write routes on top of the same
+  repository: they validate through `core.spec`, write the file atomically and
+  launch through `service.py`. The read routes stay read-only.
+- **Compare and credentials** are pages and JSON under the same discovery rule.
+  If a new first-party adapter is introduced, add its factory
   path and kind to `adapters/manifest.py` so `evalh conformance --all`
   covers it.
 - **New display formatting** belongs in `api/templating.py` as a Jinja filter,
@@ -400,11 +468,12 @@ under which judge. The same numbers are served as JSON at
 | `/compare?a=<run id>&b=<run id>&candidate_a=<name>&candidate_b=<name>` | Compare one candidate from each of two runs. |
 | `/api/compare` with any of the above | The same comparison as JSON. |
 
-The page also offers a form with two run selects. With no query parameters it
-renders an empty state that explains what to pick; with no runs at all it says
-how to start one. A missing or unknown run id, an unknown candidate, or a
-half-specified candidate query is a 404 with a message naming the argument to
-fix. A candidate name must have cells in the run it is paired with.
+With no query parameters `/compare` is the chooser: a form that compares two
+whole runs, plus the candidate pair fields when one run holds two candidates.
+The chooser explains what to pick, and with no runs at all it says how to start
+one. A missing or unknown run id, an unknown candidate, or a half-specified
+candidate query is a 404 with a message naming the argument to fix. A candidate
+name must have cells in the run it is paired with.
 
 The JSON shape is:
 

@@ -1,6 +1,7 @@
 # Console v2: screen flow
 
-Status: phase 0, for approval. Written 2026-10-25 on branch `design/console-v2`.
+Status: shipped in console v2 (release 0.2.0, 2026-11-01). Written 2026-10-25 on
+branch `design/console-v2`; the flow below is what the server renders.
 This file is the contract for every screen that follows. Wireframes live in `docs/mockups/`.
 
 ## 1. What the console is
@@ -57,29 +58,29 @@ detail and the compare view, and that lights up as cells resolve.**
 - Owned: it is the spec itself. Cases, prompts and contexts feed candidates, candidates feed
   metrics, metrics feed gates, gates produce the verdict. Only this product can draw it,
   because only this product has that intermediate object.
-- Sustained: 96 x 32 thumbnail on every run row, full width on run detail, one 640-unit graph
+- Sustained: 144 x 48 thumbnail on every run row, full width on run detail, one 640-unit graph
   per side on compare with short column headings, compact 320-unit graph in the wizard rail.
 
-The node columns are fixed, so the same shape reads at 96px wide, at 320 units and at 960
+The node columns are fixed, so the same shape reads at 144px wide, at 320 units and at 960
 units. The compact variant drops node labels, not nodes: at 320 units a 9px label is unreadable,
 so the rail shows the structure and the page shows the names.
 
 ## 4. Information architecture
 
-Top navigation keeps three items and one primary action:
+Top navigation keeps five items and one primary action:
 
 ```
 Runs          the results that exist          /
-Comparisons   the specs that can run           /specs
-Credentials   the vault                        /credentials
+Specs         the specs that can run          /specs
+Compare       two runs, side by side          /compare
+Launch        pick a spec and run it          /launch
+Credentials   the vault                       /credentials
                                     [+ New comparison]
 ```
 
-- `/launch` and `/compare` stay valid and reachable, but leave the top nav: launching is an
-  action on a comparison row, and comparing is a selection action on the runs list. No route
-  is renamed or removed.
-- "Specs" is relabelled "Comparisons" in the UI only. The route stays `/specs`, the JSON API is
-  untouched, and the YAML file stays the object.
+- The page heading and the nav item both say `Specs`; the route stays `/specs`, the JSON API
+  is untouched, and the YAML file stays the object. The comparison wizard and the structured
+  edit form keep their `/comparisons/...` routes.
 - `/comparisons/new` is the wizard. `/comparisons/{name}/edit` is the structured edit page.
   `/specs/{name}/edit` remains the raw YAML editor, reachable from the edit page.
 
@@ -116,7 +117,7 @@ ordered as they read top to bottom, then left to right.
 - **Regions:** page header (counts, New comparison, Compare selected) / toolbar (candidate,
   metric, status filters) / the run table / empty state.
 - **Table:** spec name plus run id, the graph thumbnail, status, candidates, cells ok, pass
-  rate with meter, cost, duration, started. Pass rate is the only coloured number.
+  rate with meter, cost, duration, started. Check pass rate is the only coloured number.
 - **Primary action:** open a run. Secondary: create a comparison.
 - **States:** empty (no runs, points at the wizard), filtered-empty, running row with a live
   dot, error row, long list (table scrolls, header sticks).
@@ -137,9 +138,11 @@ ordered as they read top to bottom, then left to right.
 - **Mobile:** verdict stacks, graph becomes the vertical stage list, heatmap scrolls inside
   its own container with a sticky candidate column, evidence below.
 
-### 6.3 Compare (`/compare?runs=a,b`)
+### 6.3 Compare (`/compare?a=<run>&b=<run>`)
 
-- **Job:** which of these runs should I trust, and why.
+- **Job:** which of these runs should I trust, and why. Opened from the runs list, or
+  directly. With no query it is the chooser: two run selects and a Compare button, not a 404.
+  It also accepts `run=<id>&candidate_a=<name>&candidate_b=<name>` for two candidates in one run.
 - **Regions:** decision banner (the recommendation in one sentence, plus the deltas that drove
   it) / two spec graphs, aligned, shared nodes marked / paired metric table with deltas and
   intervals / per-case disagreement list, only the cells that differ.
@@ -152,58 +155,66 @@ ordered as they read top to bottom, then left to right.
 ### 6.4 Comparisons (`/specs`)
 
 - **Job:** my saved experiments: see them, run them, edit them.
-- **Regions:** header with New comparison / table: name, axes summary (for example "3 prompts x
-  2 models"), candidates, cases, estimate, last run and its verdict, actions / empty state.
-- **Primary action:** Run. Secondary: Edit, Duplicate, view YAML.
-- **States:** empty, invalid spec (validation error inline, Run disabled with the reason),
-  never run, last run failed its gate.
-- **Mobile:** one card per comparison, actions in a row of 44px targets.
+- **Regions:** header with the spec count and "Launch a spec"; a panel naming the three ways
+  to edit one file (wizard, structured edit, raw YAML); table: spec file, parsed name,
+  candidates, cells, size, modified (UTC), validation, actions / empty state.
+- **Primary action:** open a spec with Edit. Secondary: YAML, Duplicate. Launch is a separate
+  page action; the list does not launch a row.
+- **States:** empty (points at the wizard), invalid spec (inline status and the first error),
+  saved (inline confirmation naming the file). The list shows no run history; the runs page
+  owns that.
+- **Mobile:** the name link is always visible; candidate, cell, size, modified and action
+  columns drop by breakpoint, so a phone reads file, validation and the way in.
 
 ### 6.5 Wizard (`/comparisons/new`, steps 1 to 4)
 
 - **Job:** produce a valid `spec.yaml` without asking the operator to write YAML.
 - **Chrome:** left rail with the four steps, current one marked, completed ones clickable, and
-  a live estimate at the bottom. Right: the step body. Footer: Back, Next, and on step 4,
-  Create and run / Save only.
-- **Step 1, what varies.** Comparison name (slug previewed), test cases (pick a saved spec cases,
-  paste YAML or JSON, or upload a file), then the axes: prompt variants as named textareas,
-  models as rows, parameters (temperature, max_tokens) per model, replicas and concurrency.
-  Each axis is optional; at least one must vary, and the page says so.
-- **Step 2, context.** Named context sets: paste text, upload a file, or attach a knowledge
-  graph export. Each set shows its chunk count and total characters. Attach sets to
-  candidates here or in step 3. Credentials needed by an adapter are listed with their vault
-  state and a link to `/credentials`.
-- **Step 3, candidates.** The matrix: one row per candidate with name, adapter, model, prompt,
-  context, credential, temperature, max_tokens. Rows are editable, addable, removable, and the
-  derived cell count updates. Validation errors appear under the field they name.
-- **Step 4, cost.** Estimate hero (total, cells, tokens per cell, medians source), budget cap
-  with the percent meter, over-cap warning, and the two exits.
-- **States:** invalid field (inline, field named), no cases, no varying axis, candidate
-  referencing a missing prompt or context, credential missing or untested, estimate
-  unavailable, over budget, spec write conflict.
+  a live estimate at the bottom. Right: the step body. Footer: Back, Cancel, and one primary
+  action: Continue on steps 1 to 3, `Create comparison` on step 4. The last step saves and
+  redirects to `/specs`; the wizard never starts a run.
+- **Step 1, what varies.** Comparison name (slug previewed), source, and the case rows
+  (case id, prompt, expected, rubric, tier). Cases are the unit every candidate answers.
+- **Step 2, add context.** Prompt, context and credential rows: name a set, paste its text, or
+  point at a stored credential. Credentials needed by an adapter show their vault state and a
+  link to `/credentials`.
+- **Step 3, choose candidates.** One row per candidate: name, adapter, model, credential,
+  prompt, context. Rows are editable, addable, removable, and the derived cell count updates.
+  Validation errors appear under the field they name.
+- **Step 4, cost and rules.** Estimate hero (total, cells, tokens per cell, medians source),
+  budget cap with the percent meter, price rows, metrics, judges and gates. Over-cap is a
+  warning with the cap named.
+- **States:** invalid field (inline, field named), no cases, candidate referencing a missing
+  prompt, context or credential, credential missing or untested, estimate unavailable, over
+  budget, spec write conflict.
 - **Mobile:** rail becomes a horizontal step strip under the header; the matrix becomes one
-  card per candidate.
+  card per candidate; the primary action stays a 44px target.
 
 ### 6.6 Edit (`/comparisons/{name}/edit`)
 
 - **Job:** change a saved comparison without reading YAML.
-- **Regions:** same rail as the wizard, sections collapsed into one page, sticky estimate
-  rail, Save and Run in the header, "View YAML" as a quiet link.
+- **Regions:** every section on one page (identity and cases, contexts and credentials,
+  candidates, cost and rules), sticky estimate rail, Save and `Save and run` in the header,
+  Cancel, "View YAML" as a quiet link.
 - **Primary action:** Save. The form and the YAML round-trip through the same validator.
-- **States:** dirty (leave guard), invalid, saved (inline confirmation, not a toast), spec
-  changed on disk since load (refuse the write and show a diff link).
-- **Mobile:** one column, sticky actions bar at the bottom.
+  `Save and run` writes the file and continues to `/launch?spec=<stem>`; Save alone returns to
+  `/specs?saved=<stem>`.
+- **States:** invalid (400, same page, field errors), saved (303 plus an inline confirmation,
+  not a toast), spec changed on disk since load (409, the write is refused; reload and reapply).
+- **Mobile:** one column; the estimate stacks under the form and the actions wrap into 44px
+  targets.
 
 ### 6.7 YAML editor (`/specs/{name}/edit`)
 
-Unchanged in behaviour. It is the escape hatch: Check, Save, inline errors, estimate summary,
-duplicate, Ctrl/Cmd+S. It gains a "Back to the form" link when the spec also parses into the
-structured model.
+The escape hatch, opened from the YAML action on `/specs`. Check validates and refreshes the
+estimate without writing; Save writes the file atomically and never writes a spec that fails
+validation; errors sit under the editor and in the error list; Ctrl/Cmd+S saves when valid.
+Duplicate lives on the spec list, not in the editor.
 
 ### 6.8 Launch (`/launch`)
 
-- **Job:** confirm spend, then start. Reached from a comparison row or the wizard last step,
-  not from the top nav.
+- **Job:** confirm spend, then start. Reached from the "Launch a spec" action on `/specs` or
+  from `Save and run` on the structured edit form, not from the top nav.
 - **Regions:** spec summary, estimate, budget override, what happens next, equivalent CLI
   command. One run at a time is stated, not discovered.
 - **States:** no specs, running-lock, over budget, unknown spec, launch refused with the
@@ -214,14 +225,16 @@ structured model.
 - **Job:** which keys exist, which work, and add or replace one.
 - **Regions:** table (name, provider, fingerprint prefix, created, last verified, last error,
   state, actions) / add form / test result.
-- **States:** masked by default, reveal per row, untested, failed test, disabled, empty,
-  vault locked.
+- **States:** masked (the secret is never rendered, only a fingerprint prefix), untested,
+  failed test, disabled, empty, vault locked (503). Test, disable, enable and delete act on one
+  row at a time; there is no reveal control.
 
 ### 6.10 Error pages
 
-`/runs/{unknown}`, `/specs/{unknown}`, traversal attempts and missing artifacts all land on one
-error page that names what was asked for, why it failed, and the way back. No stack traces, no
-ids the operator cannot act on.
+`/runs/{unknown}`, `/specs/{unknown}`, `/compare` with unknown runs, traversal attempts and
+missing artifacts all land on one HTML error page that names what was asked for, why it failed,
+and the way back. A refused cancel is a 409 page with the same shape; a missing master key on
+`/credentials` is a 503 page. No stack traces, no ids the operator cannot act on.
 
 ## 7. The wizard contract
 
@@ -232,8 +245,9 @@ and the server re-renders the next step from it.
   keys and re-validates with the CLI validator, so an invalid draft cannot advance.
 - Nothing is written to disk until step 4. Somewhere in the middle the operator can close the
   tab and lose nothing but the draft, and the console holds no state the spec does not.
-- The final action writes `<slug>.yaml` through the existing atomic writer, then redirects to the
-  run (launch) or to the edit page (save only).
+- The final action writes `<slug>.yaml` through the existing atomic writer, then redirects to
+  `/specs?saved=<stem>`. The wizard never launches; `Save and run` on the edit form or the
+  Launch page starts a run after a separate confirmation.
 - JavaScript is an enhancement only: live estimate recalculation, add-row, dirty marker. The
   POST-per-step flow works with JavaScript disabled.
 - Field errors name the field, the value and the fix, matching rule 6 in `AGENTS.md`.
@@ -253,8 +267,8 @@ Columns, left to right: `cases` / `prompts and contexts` / `candidates` / `metri
 - Accessible name: one `role="img"` with a generated description ("4 candidates over 12 cases
   produce 48 cells; 3 gates, 1 failed"). The full graph uses `<title>` and `<desc>` ids; the
   thumbnail is `aria-hidden="true"` because the row cells carry the same facts.
-- Variants are transforms of one model: thumbnail scales the boxes to 96 x 32, the rail relayouts
-  them to 320 units without labels, and both keep node order and tones.
+- Variants are transforms of one model: the thumbnail renders the 96 x 32 model at 144 x 48,
+  the rail relayouts it to 320 units without labels, and both keep node order and tones.
 - Reduced motion: the lit-paths sweep is replaced by static states.
 - No JavaScript: the SVG is server-rendered, so it is the fallback.
 
@@ -265,7 +279,7 @@ Every screen must show, at minimum:
 | State | Where it surfaces |
 | --- | --- |
 | Empty | runs, comparisons, evidence sheet, credentials, compare |
-| Loading | skeleton with real row dimensions, never a spinner |
+| Loading | server-rendered, never a spinner; a live heatmap shows skeleton pending cells and the progress region reports the count |
 | Error | field-level for forms, page-level for a failed read, inline callout for a refused action |
 | Running | live dot, SSE counts, graph edges, cancel available |
 | Partial | cancelled and budget-exceeded runs keep their cells and say so |
@@ -316,12 +330,20 @@ Adapted from `skills/antislop-web/SKILL.md` Part C, with the stack mapped to pla
 
 ## 13. Phasing
 
-1. **Phase 0 (this document).** `docs/ux-flow.md`, `docs/mockups/`, `docs/design-system.md` updated
-   with the dials, the signature and the bans.
-2. **Phase 1.** The spec graph: view model plus server-rendered SVG, TDD, used first in run
-   detail.
-3. **Phase 2.** The wizard: four steps, stateless draft, TDD on every step view model and
-   route, HTTP seam tests.
-4. **Phase 3.** The structured edit form and the YAML escape hatch wiring.
-5. **Phase 4.** Screen passes: runs, detail, compare, comparisons, credentials, errors.
-6. **Phase 5.** Screenshot matrix, coverage gate, commits, PR.
+Console v2 shipped in 0.2.0 on 2026-11-01. The phases landed together rather than as
+separate releases:
+
+1. **Design.** This document, `docs/mockups/`, and the dials, signature and bans in
+   `docs/design-system.md`.
+2. **Spec graph.** Server-rendered SVG used in the runs list, run detail, compare and wizard
+   rail.
+3. **Wizard.** `/comparisons/new` steps 1 to 4 with the stateless hidden draft.
+4. **Structured edit.** `/comparisons/{name}/edit`, plus the raw YAML editor as the escape
+   hatch.
+5. **Screen passes.** Runs, run detail, compare chooser, comparisons, credentials, and the
+   404/409/503 error pages.
+6. **Evidence.** Screenshot matrix under `docs/evidence/*-after.jpg`, the 100% line coverage
+   gate, and the offline demo.
+
+Known follow-ups, none blocking 0.2.0: targeted reduced-motion static states, skeleton rows for
+fetched table regions, and transform-based skip-link and progress-fill motion.
