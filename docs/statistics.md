@@ -93,6 +93,86 @@ flagged as a different judge. The implementation is
 [difference_interval](../src/evalharness/core/stats.py) and
 [delta_or_none](../src/evalharness/core/stats.py).
 
+## Percentiles
+
+`percentile(values, quantile)` answers a question about observed samples, not
+a proportion: what value sits at a given position in the sample. It sorts the
+values and linearly interpolates between the two order statistics around
+`quantile * (len(values) - 1)`. A quantile outside [0, 1] or an empty sample
+raises `ValueError` with the fix in the message; a percentile of no samples is
+undefined, never a default.
+
+The decision page uses p50 and p95 latency over ok cells only. An errored cell
+has a wall time but it did not measure an answer, so including it would let a
+crash look fast. With two samples the p95 is an interpolation between them,
+not the larger value; that is the honest answer for a small sample.
+
+## Required sample size
+
+`required_sample_size(baseline, effect, power=0.8, alpha=0.05)` returns the
+number of samples **per side** needed to detect `effect` in a two-proportion
+comparison. It assumes two independent proportions, equal n on each side, and
+a two-sided Wald test at `alpha`. The effect is the absolute difference:
+`p2 = baseline + effect`, not a relative lift. `effect` may be negative when
+the second side is expected to be worse.
+
+With `p1 = baseline`, `p2 = baseline + effect`, `pbar = (p1 + p2) / 2`,
+`z_alpha = NormalDist().inv_cdf(1 - alpha / 2)` and
+`z_power = NormalDist().inv_cdf(power)`:
+
+~~~text
+n = ceil(
+      (z_alpha * sqrt(2 * pbar * (1 - pbar))
+       + z_power * sqrt(p1 * (1 - p1) + p2 * (1 - p2)))^2
+      / effect^2
+    )
+~~~
+
+The result is clamped to at least one sample per side. Worked values the tests
+pin:
+
+| baseline | effect | n per side |
+| --- | --- | --- |
+| 0.70 | +0.10 | 294 |
+| 0.50 | +0.10 | 388 |
+| 0.80 | +0.10 | 199 |
+| 0.70 | -0.10 | 356 |
+| 0.90 | +0.10 | 74 |
+
+`evalh sample-size --baseline 0.70 --effect 0.10` prints the per-side n, the
+total n and every assumption above. `--power` and `--alpha` override the
+defaults, and `--json` returns the same fields. A baseline outside (0, 1), an
+effect of zero, a target outside [0, 1], or power or alpha outside (0, 1) exits
+2 with one actionable stderr line naming the value and the fix.
+
+This is a planning number. It is not a promise that a significant result will
+appear at that n, and it does not correct for multiple metrics: testing five
+metrics at alpha 0.05 raises the chance that one crosses zero by luck.
+
+## Change my mind
+
+The compare verdict gets a derived line under the decision. It is built from
+the primary comparable metric, which is the first metric with a defined
+verdict:
+
+* When the 95 percent interval already excludes zero, the line says so and
+  states the current n on each side. No larger sample is needed to establish
+  that direction.
+* When the interval crosses zero and the observed delta is not zero, the line
+  calls `required_sample_size(A value, delta)` and reports the per-side n
+  needed at 80 percent power and a two-sided 0.05 alpha, plus the n each side
+  actually has. The delta can be negative, in which case the second side is
+  worse and the same two-sided formula applies.
+* When the observed delta is exactly zero, no sample size makes the interval
+  exclude zero, and the line says that plainly.
+* When the delta is undefined, or the values fall outside [0, 1] so the
+  two-proportion formula does not apply, the line says the number cannot be
+  computed.
+
+The line never changes the verdict and never turns an inconclusive result into
+a win. It answers the next question a reader asks: "what would it take to
+change my mind?"
+
 ## pass@k versus pass^k
 
 These are two different claims and are never collapsed into one figure:
