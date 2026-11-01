@@ -30,6 +30,7 @@ from evalharness.core.compare import (
     compare_runs,
 )
 from evalharness.core.models import CellRecord, RunRecord
+from evalharness.core.stats import required_sample_size
 from evalharness.storage.repository import Repository, RunSummary
 
 GRAPH_WIDTH = 640.0
@@ -62,6 +63,7 @@ class DecisionView:
     sentence: str
     support: tuple[tuple[str, str], ...]
     caveat: str
+    next_step: str
 
 
 def select(
@@ -541,6 +543,7 @@ def decision_view(comparison: Comparison) -> DecisionView:
             "the interval excludes zero.",
             support,
             caveat,
+            _sample_size_line(primary),
         )
     if verdicts == {WORSE}:
         return _decision(
@@ -553,6 +556,7 @@ def decision_view(comparison: Comparison) -> DecisionView:
             "the interval excludes zero, in the other direction.",
             support,
             caveat,
+            _sample_size_line(primary),
         )
     if verdicts == {INCONCLUSIVE}:
         return _decision(
@@ -565,6 +569,7 @@ def decision_view(comparison: Comparison) -> DecisionView:
             "crosses zero, so the result is inconclusive.",
             support,
             caveat,
+            _sample_size_line(primary),
         )
     better = [item.metric for item in comparable if item.verdict == BETTER]
     worse = [item.metric for item in comparable if item.verdict == WORSE]
@@ -577,6 +582,7 @@ def decision_view(comparison: Comparison) -> DecisionView:
         "each metric row rather than one headline.",
         support,
         caveat,
+        _sample_size_line(primary),
     )
 
 
@@ -588,6 +594,7 @@ def _decision(
     sentence: str,
     support: tuple[tuple[str, str], ...],
     caveat: str,
+    next_step: str = "",
 ) -> DecisionView:
     """Build one decision view; the fields mirror the page layout."""
     return DecisionView(
@@ -598,6 +605,39 @@ def _decision(
         sentence=sentence,
         support=support,
         caveat=caveat,
+        next_step=next_step,
+    )
+
+
+def _sample_size_line(item: MetricComparison) -> str:
+    """Return the sample size that would settle the primary metric."""
+    if item.a.value is None or item.b.value is None or item.delta is None:
+        return (
+            f"Change my mind: the delta on {item.metric} is undefined, so a "
+            "required sample size cannot be computed."
+        )
+    if item.verdict in (BETTER, WORSE):
+        return (
+            "Change my mind: the 95% interval already excludes zero with "
+            f"n={item.a.n} on side A and n={item.b.n} on side B, so no larger "
+            "sample is needed to establish this direction."
+        )
+    if item.delta == 0:
+        return (
+            f"Change my mind: the observed delta on {item.metric} is exactly "
+            "zero, so no sample size would exclude zero."
+        )
+    try:
+        needed = required_sample_size(item.a.value, item.delta)
+    except ValueError:
+        return (
+            f"Change my mind: the values on {item.metric} fall outside 0 to 1, "
+            "so the two-proportion sample size does not apply."
+        )
+    return (
+        "Change my mind: to exclude zero at 80 percent power (two-sided alpha "
+        f"0.05) you would need about n={needed} per side; this comparison has "
+        f"n={item.a.n} on side A and n={item.b.n} on side B."
     )
 
 

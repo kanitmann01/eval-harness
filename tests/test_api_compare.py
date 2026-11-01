@@ -16,6 +16,7 @@ from evalharness.api.app import create_app
 from evalharness.api.compare_views import decision_view
 from evalharness.core.compare import (
     BETTER,
+    INCONCLUSIVE,
     UNDEFINED,
     WORSE,
     CompareSide,
@@ -176,6 +177,7 @@ async def test_reverse_comparison_calls_b_better_and_lists_b_only_cases(
     ]
     assert "B better" in page.text
     assert "B is better on exact_match" in page.text
+    assert "already excludes zero" in page.text
 
 
 async def test_candidate_mode_compares_two_candidates_in_one_run(
@@ -616,14 +618,16 @@ def _decision_metric(
     metric: str,
     verdict: str,
     *,
-    delta: float = 0.2,
+    delta: float | None = 0.2,
+    value: float = 0.8,
+    n: int = 10,
     comparable: bool = True,
 ) -> MetricComparison:
-    """Return one metric row with ten samples on each side."""
+    """Return one metric row with the given value and sample count."""
     side = MetricSide(
-        n=10,
-        passed=8,
-        value=0.8,
+        n=n,
+        passed=round(value * n),
+        value=value,
         ci_low=0.5,
         ci_high=0.95,
         cost_per_correct=0.00125,
@@ -697,3 +701,56 @@ def test_decision_view_handles_mixed_metrics_and_missing_metrics() -> None:
     )
     assert "different price tables" in prices.caveat
     assert "Small samples" not in prices.caveat
+
+
+def test_decision_view_derives_the_sample_size_that_would_change_the_call() -> None:
+    """The derived line turns a verdict into a concrete next experiment."""
+    inconclusive = decision_view(
+        _decision_comparison(
+            [
+                _decision_metric(
+                    "exact_match",
+                    INCONCLUSIVE,
+                    value=0.7,
+                    delta=0.1,
+                    n=40,
+                )
+            ]
+        )
+    )
+    assert "Change my mind" in inconclusive.next_step
+    assert "n=294 per side" in inconclusive.next_step
+    assert "n=40 on side A" in inconclusive.next_step
+
+    settled = decision_view(
+        _decision_comparison([_decision_metric("exact_match", BETTER)])
+    )
+    assert "already excludes zero with n=10 on side A" in settled.next_step
+
+    flat = decision_view(
+        _decision_comparison(
+            [_decision_metric("exact_match", INCONCLUSIVE, delta=0.0)]
+        )
+    )
+    assert "exactly zero" in flat.next_step
+
+    undefined = decision_view(
+        _decision_comparison(
+            [_decision_metric("exact_match", INCONCLUSIVE, delta=None)]
+        )
+    )
+    assert "delta on exact_match is undefined" in undefined.next_step
+
+    impossible = decision_view(
+        _decision_comparison(
+            [
+                _decision_metric(
+                    "exact_match",
+                    INCONCLUSIVE,
+                    value=0.8,
+                    delta=0.5,
+                )
+            ]
+        )
+    )
+    assert "outside 0 to 1" in impossible.next_step
