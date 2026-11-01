@@ -13,8 +13,10 @@ that triggered it, split from the answer's cost and rolled up per provider. Prov
 keys are added, listed, verified and deleted from the command line or the console,
 encrypted at rest and redacted everywhere. The console serves the run list, the candidate
 by case heatmap, per-cell evidence, the spec editor, a side-by-side compare view with
-deltas, intervals and cost per correct answer, and launch and cancel, one run per
-container at a time.
+deltas, intervals and cost per correct answer, launch and cancel, one run per
+container at a time, and five Trust surfaces: a ranked decision view, a what-would-
+change-my-mind line, a sample-size planner, a spec diff, a run receipt and a judge
+calibration report.
 The spec of record is issue #1 in this repository.
 
 ## What it will be
@@ -315,6 +317,10 @@ and never render a secret.
 | --- | --- |
 | `/` | Run list: candidate and metric filters, spec graph thumbnail, status, pass rate, cost, duration and start time. |
 | `/runs/{id}` | Run detail: verdict bar, candidate by case heatmap, per-cell evidence, gate cards and live progress. |
+| `/runs/{id}/decision` | Ranked candidates: checks, pass rate with its 95 percent interval, cost per correct answer, p50/p95 latency, cells, a conservative dominance call and a Pareto scatter. |
+| `/runs/{id}/receipt` | One-page provenance: spec hash, harness revision, operator, seed, timestamps, candidates, judge pins, price snapshot, gates and the diff to the previous run. |
+| `/runs/{id}/diff?against={id}` | Structured spec diff between two runs, grouped into case, candidate, judge, price, run field and gate changes, plus judge drift. |
+| `/runs/{id}/calibration` | Judge calibration: save a human pass or fail per stored check, read agreement with a 95 percent interval, per-judge configuration stamps and the disagreements. |
 | `/specs` | Spec list: every spec in the specs directory, with its cells, estimate, Launch, Edit, YAML and Duplicate actions. |
 | `/specs/{name}/edit` | Raw YAML editor with Check and Save. An invalid document is never written. |
 | `/comparisons/new` | Four-step wizard that writes a new spec. |
@@ -324,8 +330,9 @@ and never render a secret.
 | `/credentials` | BYOK vault: add, mask, test, disable, enable and delete provider keys. |
 
 Navigation carries `Runs`, `Specs`, `Compare`, `Launch` and `Credentials`; `New
-comparison` is the primary action in the top bar. The run page links straight to
-`Compare this run`, and a spec row links to `Launch`.
+comparison` is the primary action in the top bar. The run page links to `Decision`,
+`Receipt`, `Calibration`, `Compare` and `All runs`, and a spec row links to
+`Launch`.
 
 ![A run detail page with the heatmap and evidence](docs/evidence/detail-after.jpg)
 
@@ -364,6 +371,43 @@ the two spec graphs. Overlapping intervals produce "No measurable difference"
 rather than a fake winner.
 
 ![Comparing two runs](docs/evidence/compare-after.jpg)
+
+### Trust
+
+The Trust surfaces answer the question a scoreboard cannot: should I believe this
+result, and what would change it? A run page links `Decision`, `Receipt` and
+`Calibration`; the compare page links both receipts and renders their spec diff
+above the metric table.
+
+- **Decision** ranks three or more candidates on checks, pass rate with its 95
+  percent Wilson interval, cost per correct answer, p50/p95 latency, cells and a
+  conservative dominance call. A Pareto scatter plots every candidate with a
+  defined rate and cost: filled points are on the frontier, hollow points are
+  dominated.
+- **What would change my mind** sits under the compare verdict and names the
+  samples per side needed for the observed delta to exclude zero at 80 percent
+  power and a two-sided alpha of 0.05. It is a planning estimate, not a
+  post-hoc test.
+- **Sample size** before a run: `python -m evalharness sample-size --baseline 0.6
+  --effect 0.2` prints the samples per side; `--power`, `--alpha` and `--json`
+  are there for automation. Exit 2 names the invalid argument and the fix.
+- **Spec diff** compares the snapshots behind two runs: cases and their prompts,
+  candidate adapter and model swaps, judge declarations, price table rates, run
+  fields and gates. A changed judge configuration is called out as judge drift,
+  and the comparison is flagged as not like-for-like.
+- **Receipt** is the one-page provenance record: run and spec ids, spec hash,
+  harness revision (the `EVALH_HARNESS_SHA` when the build sets one, otherwise
+  the package version), operator, seed, UTC timestamps, candidate adapters and
+  models, judge pins with configuration hashes, the price snapshot fingerprint,
+  gates and the diff to the previous run.
+- **Calibration** stores a human pass or fail on any stored check, then reports
+  agreement with a 95 percent Wilson interval, the labelled and unlabelled
+  counts, one row per judge configuration with its last-validated stamp, and the
+  disagreement list with a link to each cell. The check itself is never edited.
+
+Every run records `EVALH_OPERATOR` when it is set (the demo sets it to `demo`);
+without it the receipt says `not recorded`. Nothing about a credential, prompt or
+answer leaves the redactor.
 
 ### Credentials
 

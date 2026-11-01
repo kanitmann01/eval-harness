@@ -42,7 +42,7 @@ def test_readme_documents_console_v2_routes_and_screens() -> None:
     """The front door names console v2, the wizard, the edit form and every route."""
     readme = _text(REPO / "README.md")
     assert "Console v2" in readme
-    for phrase in ("wizard", "Comparisons", "Compare", "Launch", "Credentials"):
+    for phrase in ("wizard", "Comparisons", "Compare", "Launch", "Credentials", "Decision", "Receipt", "Calibration"):
         assert phrase.lower() in readme.lower(), f"README does not mention {phrase}"
     for route in (
         "/specs",
@@ -51,6 +51,10 @@ def test_readme_documents_console_v2_routes_and_screens() -> None:
         "/comparisons/{name}/edit",
         "/launch",
         "/compare",
+        "/runs/{id}/decision",
+        "/runs/{id}/receipt",
+        "/runs/{id}/diff",
+        "/runs/{id}/calibration",
         "/credentials",
     ):
         assert route in readme, f"README does not document the route {route}"
@@ -111,6 +115,21 @@ def test_changelog_consolidates_console_v2() -> None:
         assert phrase in lowered, f"CHANGELOG.md does not mention {phrase}"
 
 
+def test_changelog_consolidates_the_trust_release() -> None:
+    """The 0.3.0 entry records decision, receipt, diff, calibration and operator."""
+    changelog = _text(REPO / "CHANGELOG.md").lower()
+    for phrase in (
+        "decision",
+        "what-would-change-my-mind",
+        "sample-size",
+        "spec diff",
+        "receipt",
+        "calibration",
+        "operator",
+    ):
+        assert phrase in changelog, f"CHANGELOG.md does not mention {phrase}"
+
+
 def test_console_docs_page_map_covers_console_v2() -> None:
     """The page map lists the v2 screens, not only the original six pages."""
     console = _text(REPO / "docs" / "console.md")
@@ -120,6 +139,10 @@ def test_console_docs_page_map_covers_console_v2() -> None:
         "/specs/{name}/edit",
         "/launch",
         "/compare",
+        "/runs/{run_id}/decision",
+        "/runs/{run_id}/receipt",
+        "/runs/{run_id}/diff",
+        "/runs/{run_id}/calibration",
         "/credentials",
     ):
         assert route in console, f"docs/console.md does not document {route}"

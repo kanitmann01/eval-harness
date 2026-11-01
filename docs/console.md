@@ -5,15 +5,17 @@ raw artifact behind that cell, and a launch and cancel surface. Pages are Jinja2
 templates served by FastAPI; there is no Node build, no CDN and no client-side
 state.
 
-The results pages are read-only: they never edit a run, a cell or a stored
-record. Launch and cancel, described under
-[Launch and cancel](#launch-and-cancel), are the write actions on runs; they use
-the CLI's orchestration, so a console run and a command line run of one spec
-produce the same record. The [spec editor](#spec-editor) writes spec files and
-the [credentials page](#credentials) writes the encrypted vault.
+The results pages never edit a run, a cell or a stored check. Launch and cancel,
+described under [Launch and cancel](#launch-and-cancel), are the write actions on
+runs; they use the CLI's orchestration, so a console run and a command line run of
+one spec produce the same record. The [spec editor](#spec-editor) writes spec
+files, the [credentials page](#credentials) writes the encrypted vault and
+[calibration](#trust) writes human labels, which annotate a check and never
+change it.
 
-This page map describes console v2 (0.2.0): the specs list, the wizard,
-the structured edit form, the compare chooser and the shared error pages.
+This page map describes console v2 and the Trust surfaces (0.3.0): the specs
+list, the wizard, the structured edit form, the compare chooser, the decision,
+receipt, diff and calibration pages, and the shared error pages.
 Every timestamp on these pages is UTC, rendered as `YYYY-MM-DD HH:MM:SS UTC`, and
 money is formatted for reading; see
 [design-system.md](design-system.md#timestamps-and-money).
@@ -50,7 +52,11 @@ status through its own middleware and never logs the query, headers or bodies.
 | Comparison wizard | `GET` and `POST /comparisons/new`, then `/comparisons/new/{step}` for steps 1 to 4 | Four stateless steps that build a new spec from scratch and write it at step 4. |
 | Structured edit | `GET` and `POST /comparisons/{name}/edit` | Every section of an existing spec on one page, with Save, Save and run, View YAML, a sticky estimate rail and a 409 when the file changed on disk. |
 | Launch | `GET` and `POST /launch` | Spec picker, estimate, budget override and Launch. See [Launch and cancel](#launch-and-cancel). |
-| Compare | `GET /compare` | The chooser when no query is given, otherwise the side-by-side comparison. See [Compare](#compare). |
+| Compare | `GET /compare` | The chooser when no query is given, otherwise the side-by-side comparison with the spec diff above the metrics. See [Compare](#compare). |
+| Decision | `GET /runs/{run_id}/decision` | Ranked candidates with checks, pass rate and interval, cost per correct answer, p50/p95 latency, cells, dominance and a Pareto scatter. |
+| Receipt | `GET /runs/{run_id}/receipt` | Spec hash, harness revision, operator, seed, timestamps, candidates, judge pins, price snapshot, gates and the diff to the previous run. |
+| Spec diff | `GET /runs/{run_id}/diff?against={run_id}` | Structured changes from the baseline run to this one, plus judge drift and a like-for-like refusal. |
+| Calibration | `GET /runs/{run_id}/calibration` | Human labels per stored check, agreement and interval, per-judge stamps and the disagreements. |
 | Credentials | `GET` and `POST /credentials` | Every stored credential, masked: name, provider, fingerprint prefix, created and last verified times, last error, state and actions. |
 | Not found | any unknown id or path | A 404 page that names what was asked and links back to the run list. |
 | Refused | a cancel this console does not drive, a changed spec, a missing vault key | A 409 or 503 page with the reason and the next action, never a stack trace. |
@@ -273,6 +279,10 @@ ISO 8601 strings; a missing value is `null`, never a fabricated zero.
 | `GET /api/runs/{run_id}` | One run with summary fields, `aggregates`, `gates` and `cells`. |
 | `GET /api/runs/{run_id}/cells` | `{"run_id": ..., "cells": [...]}`; every cell carries its checks. |
 | `GET /api/runs/{run_id}/events` | The SSE stream, identical to the HTML-facing `/runs/{run_id}/events`. |
+| `GET /api/runs/{run_id}/decision` | The ranked decision report and its Pareto points. |
+| `GET /api/runs/{run_id}/receipt` | The receipt: identity, candidates, judge pins, price snapshot, gates and the previous-run diff. |
+| `GET /api/runs/{run_id}/calibration` | Agreement, per-judge configuration and the labelled checks. |
+| `POST /runs/{run_id}/calibration/labels` | Save or replace one human label; `POST .../labels/clear` removes it. Both redirect 303. |
 
 A run summary has `run_id`, `spec_name`, `status`, `cost_usd`,
 `pass_rate`, `duration_s`, `n_cells`, `n_ok`, `started_at`,
@@ -535,3 +545,63 @@ The verdict follows the statistical rule in [statistics.md](statistics.md):
 when it is negative and the interval lies below zero, `inconclusive` when the
 interval crosses zero, and `undefined` when either side has no samples. A side
 with n = 0 is rendered as undefined, never as zero.
+
+## Trust
+
+The Trust surfaces answer whether a result is believable. Each has an HTML page,
+a JSON route where one is listed above, and a link from the run page.
+
+### Decision
+
+`GET /runs/{run_id}/decision` ranks every candidate in one run. The pass rate
+pools every check the candidate's cells recorded, so a metric that records two
+checks per cell contributes twice; the table says `n` beside the rate. Cost per
+correct answer is the candidate's whole recorded cost divided by its passing
+checks, and is undefined when nothing passed. p50 and p95 latency use ok cells
+only, because an errored cell never measured an answer.
+
+Dominance is deliberately conservative. A candidate dominates another only when
+its Wilson lower bound is above the other's upper bound, its cost per correct
+answer is no higher, its p95 latency is no higher, and all three measures are
+known. A candidate with an undefined rate or cost is drawn as undefined, never as
+zero, so it cannot reach the frontier. Rank order uses the pass rate first, then
+cost per correct answer, then p95 latency, then name; the table states the order
+and the scatter plots every candidate with a defined rate and cost, filled for the
+frontier and hollow for the dominated.
+
+### Receipt and spec diff
+
+`GET /runs/{run_id}/receipt` is the provenance record for one run: run and spec
+ids, the stored spec hash, the harness revision (`EVALH_HARNESS_SHA` when the
+build sets one, otherwise the package version), the operator recorded from
+`EVALH_OPERATOR`, seed, UTC timestamps, candidate adapters and models, judge pins
+with configuration hashes and last use, the price snapshot fingerprint and rates,
+gate results and the diff to the previous run.
+
+`GET /runs/{run_id}/diff?against={baseline_id}` compares the snapshots behind two
+runs. Changes are grouped into cases, candidates, judges, prices, run fields and
+gates and ordered by category then path. A field the baseline never declared
+reads `absent`. A judge configuration change on the same metric is judge drift:
+the page names it and the comparison is flagged as not like-for-like until the
+judge is pinned. Missing `?against` and an unknown run are 404 with the argument to fix.
+
+### Calibration
+
+`GET /runs/{run_id}/calibration` shows a human label per stored check. Saving a
+label writes to the `human_labels` table with the run id, cell id and metric; it
+never changes the check, so agreement can always be recomputed. The summary
+reports labelled and unlabelled counts, the agreement rate with its 95 percent
+Wilson interval, and the last human label time. One row per judge configuration
+carries its configuration hash and last-validated stamp, and the disagreement
+table links each mismatched check to its cell. `POST .../labels` saves or replaces
+one label and `POST .../labels/clear` is an idempotent delete; both redirect 303.
+
+### Sample-size CLI
+
+Before a run, `evalh sample-size --baseline 0.6 --effect 0.2` prints the samples
+per side needed for a two-proportion test at 80 percent power and a two-sided
+alpha of 0.05. `--power`, `--alpha` and `--json` cover tighter plans and
+automation. A baseline outside 0 to 1, an effect that leaves the feasible range,
+or a power or alpha outside 0 to 1 exits 2 and names the argument, the value and
+the fix. The same calculation supplies the what-would-change-my-mind line under
+the compare verdict.
