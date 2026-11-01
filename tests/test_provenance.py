@@ -5,9 +5,15 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from evalharness.core.config import Settings
 from evalharness.core.judge_pins import judge_drift, pins_for_run
 from evalharness.core.judges import judge_config_hash
 from evalharness.core.models import Check, JudgeSpec, RunRecord
+from evalharness.storage.db import Database
+from evalharness.storage.models import RunRow
+from evalharness.storage.repository import Repository
+from tests.helpers import base_spec, write_spec
+from tests.test_api_console import _seed
 
 FINISHED = datetime(2026, 1, 2, 3, 4, 5, tzinfo=timezone.utc)
 STARTED = datetime(2026, 1, 2, 3, 0, 0, tzinfo=timezone.utc)
@@ -130,3 +136,56 @@ def test_compared_runs_with_different_judge_hashes_are_not_like_for_like() -> No
 
     unjudged = _run({"metrics": [{"key": "exact_match", "options": {}}]}, "run-c")
     assert judge_drift(run_a, [], unjudged, []) == ()
+
+
+def _read_run(run_id: str) -> tuple[Repository, Database, RunRecord]:
+    settings = Settings.from_env()
+    database = Database(settings.database_url)
+    database.create_all()
+    repository = Repository(database)
+    run = repository.get_run(run_id)
+    assert run is not None
+    return repository, database, run
+
+
+def test_operator_is_captured_and_trimmed_from_the_environment(
+    evalh_home: Any,
+    workdir: Any,
+    capsys: Any,
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setenv("EVALH_OPERATOR", "  Ken / FDE  ")
+    spec = base_spec()
+    spec["name"] = "operator-spec"
+    run_id = _seed(capsys, write_spec(workdir / "operator.yaml", spec))
+
+    repository, database, run = _read_run(run_id)
+    try:
+        assert run.operator == "Ken / FDE"
+        assert repository.get_run(run_id).operator == "Ken / FDE"
+    finally:
+        database.dispose()
+
+
+def test_operator_reads_as_empty_when_unset_or_null(
+    evalh_home: Any,
+    workdir: Any,
+    capsys: Any,
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.delenv("EVALH_OPERATOR", raising=False)
+    spec = base_spec()
+    spec["name"] = "no-operator-spec"
+    run_id = _seed(capsys, write_spec(workdir / "no-operator.yaml", spec))
+
+    repository, database, run = _read_run(run_id)
+    try:
+        assert run.operator == ""
+        assert repository.get_run(run_id).operator == ""
+        with database.session() as session:
+            row = session.get(RunRow, run_id)
+            assert row is not None
+            row.operator = None
+        assert repository.get_run(run_id).operator == ""
+    finally:
+        database.dispose()

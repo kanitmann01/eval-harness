@@ -179,6 +179,7 @@ class RunRecord(BaseModel):
     spec_snapshot: dict[str, Any] = Field(default_factory=dict)
     prices_snapshot: dict[str, Any] = Field(default_factory=dict)
     harness_sha: str = ""
+    operator: str = ""
     seed: int = 0
     status: str = "pending"
     started_at: datetime = Field(default_factory=utc_now)

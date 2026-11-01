@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
@@ -385,6 +386,7 @@ def _launch_run(
         spec_snapshot=resolved.spec.model_dump(mode="json"),
         prices_snapshot=resolved.price_table.snapshot(),
         harness_sha=harness_revision(),
+        operator=os.environ.get("EVALH_OPERATOR", "").strip(),
         seed=resolved.spec.seed,
         status="running",
         started_at=started,
