@@ -31,6 +31,7 @@
     <a class="btn btn-secondary" href="#progress-heading">Live progress</a>
     {% endif %}
     <a class="btn btn-ghost" href="{{ url_for('run_decision', run_id=run.run_id) }}">Decision</a>
+    <a class="btn btn-ghost" href="{{ url_for('run_receipt', run_id=run.run_id) }}">Receipt</a>
     <a class="btn btn-ghost" href="{{ url_for('run_calibration', run_id=run.run_id) }}">Calibration</a>
     <a class="btn btn-ghost" href="{{ url_for('compare') }}?a={{ run.run_id }}" title="Compare this run as side A">Compare</a>
     <a class="btn btn-ghost" href="{{ url_for('run_list') }}">All runs</a>

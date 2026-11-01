@@ -15,6 +15,7 @@ from typing import Any
 from urllib.parse import urlencode
 
 from evalharness.api.graph_views import SpecGraph, run_graph
+from evalharness.api.provenance_views import diff_data
 from evalharness.api.templating import format_usd
 from evalharness.core.compare import (
     BETTER,
@@ -315,6 +316,10 @@ def comparison_page(
     if comparison is not None:
         context["comparison"] = comparison_view(comparison)
         context["graph_a"], context["graph_b"] = side_graphs(repository, comparison)
+        if comparison.a.run_id != comparison.b.run_id:
+            context["spec_diff"] = diff_data(
+                repository, comparison.b.run_id, comparison.a.run_id
+            )
     return context
 
 

@@ -88,7 +88,7 @@
       <div>
         <span class="side-label">Side A · baseline</span>
         <p class="side-name" id="side-a-heading">{{ comparison.a.label }}</p>
-        <p class="side-run"><a href="/runs/{{ comparison.a.run_id }}">{{ comparison.a.spec_name }}</a> · <span class="mono" title="{{ comparison.a.run_id }}">{{ comparison.a.run_id[:8] }}</span></p>
+        <p class="side-run"><a href="/runs/{{ comparison.a.run_id }}">{{ comparison.a.spec_name }}</a> · <span class="mono" title="{{ comparison.a.run_id }}">{{ comparison.a.run_id[:8] }}</span> · <a href="/runs/{{ comparison.a.run_id }}/receipt">Receipt</a></p>
       </div>
       {{ status(comparison.a.status) }}
     </div>
@@ -104,7 +104,7 @@
       <div>
         <span class="side-label">Side B · candidate</span>
         <p class="side-name" id="side-b-heading">{{ comparison.b.label }}</p>
-        <p class="side-run"><a href="/runs/{{ comparison.b.run_id }}">{{ comparison.b.spec_name }}</a> · <span class="mono" title="{{ comparison.b.run_id }}">{{ comparison.b.run_id[:8] }}</span></p>
+        <p class="side-run"><a href="/runs/{{ comparison.b.run_id }}">{{ comparison.b.spec_name }}</a> · <span class="mono" title="{{ comparison.b.run_id }}">{{ comparison.b.run_id[:8] }}</span> · <a href="/runs/{{ comparison.b.run_id }}/receipt">Receipt</a></p>
       </div>
       {{ status(comparison.b.status) }}
     </div>
@@ -137,6 +137,47 @@
     </figure>
   </div>
 </section>
+
+{% if spec_diff %}
+<section class="panel" aria-labelledby="spec-diff-heading">
+  <div class="panel-head">
+    <div>
+      <p class="eyebrow">Provenance</p>
+      <h2 id="spec-diff-heading">Spec diff</h2>
+      <p class="subtle">{{ spec_diff.diff.headline }}. Prompt, candidate, judge, price, run-field and gate changes are shown before the metrics: a changed input explains a delta the metric table cannot.</p>
+    </div>
+    <a class="btn btn-ghost" href="{{ spec_diff.diff_url }}">Open full diff</a>
+  </div>
+  {% for item in spec_diff.drift %}
+  <div class="callout callout-warn" role="alert">
+    <span class="callout-icon" aria-hidden="true">!</span>
+    <div>
+      <span class="callout-title">Not like-for-like: {{ item.judge }}</span>
+      {{ item.reason }}
+      <p class="subtle">metrics {{ item.metrics|join(", ") }} &middot; runs {{ item.runs|join(", ") }}</p>
+    </div>
+  </div>
+  {% endfor %}
+  {% if spec_diff.diff.changes %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Category</th><th>Path</th><th>Change</th></tr></thead>
+      <tbody>
+        {% for change in spec_diff.diff.changes %}
+        <tr>
+          <td><span class="chip">{{ change.category }}</span></td>
+          <td class="mono">{{ change.path }}</td>
+          <td>{{ change.summary }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="subtle">No changes in the spec snapshots, price table, run fields, gates or judge configuration.</p>
+  {% endif %}
+</section>
+{% endif %}
 
 <section class="panel" aria-labelledby="metrics-heading">
   <div class="panel-head">

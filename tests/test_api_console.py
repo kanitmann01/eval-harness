@@ -671,6 +671,15 @@ async def test_run_detail_breadcrumb_uses_a_short_run_id(console: Console) -> No
         assert f">{run_id}<" not in crumbs
 
 
+async def test_run_detail_links_to_provenance_surfaces(console: Console) -> None:
+    run_id = console.runs["alpha"]
+    async with _client(console.app) as client:
+        text = (await client.get(f"/runs/{run_id}")).text
+        assert f"/runs/{run_id}/decision" in text
+        assert f"/runs/{run_id}/receipt" in text
+        assert f"/runs/{run_id}/calibration" in text
+
+
 async def test_pages_declare_an_inline_favicon_and_an_accurate_badge(
     console: Console,
 ) -> None:

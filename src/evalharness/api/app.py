@@ -48,15 +48,19 @@ def create_app(
 
     Parameter:
         settings: process settings; read from the environment when omitted.
-        repository: an already-open repository, which keeps tests disposable.
+        repository: an already-open repository, which keeps tests disposable;
+            a repository that exposes a database also gets the schema created.
     """
     resolved = settings or Settings.from_env()
+    database: Database | None
     if repository is None:
         database = Database(resolved.database_url)
         repository = Repository(database)
+        database.create_all()
     else:
-        database = repository.database
-    database.create_all()
+        database = getattr(repository, "database", None)
+        if database is not None:
+            database.create_all()
     app = FastAPI(title="evalharness console", version=__version__)
     app.state.settings = resolved
     app.state.repository = repository

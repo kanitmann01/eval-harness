@@ -61,6 +61,12 @@ async def test_two_runs_compare_with_deltas_intervals_and_cost(
         assert "A is better on exact_match" in page.text
         assert "Swap A and B" in page.text
         assert "Spec graphs" in page.text
+        assert 'id="spec-diff-heading"' in page.text
+        assert "Open full diff" in page.text
+        assert f'/runs/{run_b}/diff?against={run_a}' in page.text
+        assert page.text.index("Spec diff") < page.text.index('id="metrics-heading"')
+        assert f'/runs/{run_a}/receipt' in page.text
+        assert f'/runs/{run_b}/receipt' in page.text
         assert page.text.count('class="spec-graph spec-graph--pair"') == 2
         assert 'class="graph-pair"' in page.text
         assert "Side A · baseline: all candidates" in page.text
