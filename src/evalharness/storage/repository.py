@@ -75,6 +75,11 @@ class Repository:
     def __init__(self, database: Database) -> None:
         self._database = database
 
+    @property
+    def database(self) -> Database:
+        """Return the database this repository reads and writes."""
+        return self._database
+
     def ping(self) -> None:
         """Execute a trivial query, raising when the database does not answer.
 

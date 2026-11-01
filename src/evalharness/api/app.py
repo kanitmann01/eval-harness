@@ -51,11 +51,12 @@ def create_app(
         repository: an already-open repository, which keeps tests disposable.
     """
     resolved = settings or Settings.from_env()
-    database: Database | None = None
     if repository is None:
         database = Database(resolved.database_url)
-        database.create_all()
         repository = Repository(database)
+    else:
+        database = repository.database
+    database.create_all()
     app = FastAPI(title="evalharness console", version=__version__)
     app.state.settings = resolved
     app.state.repository = repository
