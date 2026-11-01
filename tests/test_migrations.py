@@ -20,6 +20,7 @@ from evalharness.core.models import (
 )
 from evalharness.errors import SchemaMigrationError
 from evalharness.storage.db import Database
+from evalharness.storage.migrations import SCHEMA_VERSION
 from evalharness.storage.repository import Repository
 from tests.helpers import base_spec, open_repository, run_id_from, write_spec
 
@@ -282,7 +283,7 @@ def test_migration_adds_gate_arithmetic_columns(evalh_home, workdir):
             version = connection.exec_driver_sql(
                 "SELECT MAX(version) FROM schema_version"
             ).scalar()
-        assert version == 6
+        assert version == SCHEMA_VERSION
     finally:
         reopened.dispose()
 
@@ -395,7 +396,7 @@ def test_migration_adds_credentials_disabled(evalh_home, workdir):
             version = connection.exec_driver_sql(
                 "SELECT MAX(version) FROM schema_version"
             ).scalar()
-        assert version == 6
+        assert version == SCHEMA_VERSION
     finally:
         reopened.dispose()
 
@@ -476,6 +477,6 @@ def test_migration_adds_provider_attribution_to_a_version_4_database(
             version = connection.execute(
                 text("SELECT MAX(version) FROM schema_version")
             ).scalar()
-        assert version == 6
+        assert version == SCHEMA_VERSION
     finally:
         reopened.dispose()

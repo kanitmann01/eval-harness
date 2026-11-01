@@ -5,11 +5,14 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+from sqlalchemy import text
+
 from evalharness.core.config import Settings
 from evalharness.core.judge_pins import judge_drift, pins_for_run
 from evalharness.core.judges import judge_config_hash
 from evalharness.core.models import Check, JudgeSpec, RunRecord
 from evalharness.storage.db import Database
+from evalharness.storage.migrations import SCHEMA_VERSION
 from evalharness.storage.models import RunRow
 from evalharness.storage.repository import Repository
 from tests.helpers import base_spec, write_spec
@@ -136,6 +139,46 @@ def test_compared_runs_with_different_judge_hashes_are_not_like_for_like() -> No
 
     unjudged = _run({"metrics": [{"key": "exact_match", "options": {}}]}, "run-c")
     assert judge_drift(run_a, [], unjudged, []) == ()
+
+
+def test_a_version_6_database_gains_the_operator_column(
+    evalh_home: Any, workdir: Any
+) -> None:
+    url = "sqlite:///" + (workdir / "version-6.db").as_posix()
+    database = Database(url)
+    database.create_all()
+    repository = Repository(database)
+    repository.save_spec(
+        "spec-old", "old-spec", "yaml", "sha", datetime.now(timezone.utc)
+    )
+    repository.create_run(
+        RunRecord(
+            run_id="run-old",
+            spec_id="spec-old",
+            status="ok",
+            started_at=datetime.now(timezone.utc),
+        )
+    )
+    with database.engine.begin() as connection:
+        connection.exec_driver_sql("ALTER TABLE runs DROP COLUMN operator")
+        connection.execute(text("UPDATE schema_version SET version = 6"))
+    database.dispose()
+
+    reopened = Database(url)
+    repository = Repository(reopened)
+    try:
+        old = repository.get_run("run-old")
+        assert old is not None
+        assert old.operator == ""
+        repository.update_run(old.model_copy(update={"operator": "Ken"}))
+        assert repository.get_run("run-old").operator == "Ken"
+        with reopened.engine.begin() as connection:
+            version = connection.exec_driver_sql(
+                "SELECT MAX(version) FROM schema_version"
+            ).scalar()
+        assert version == SCHEMA_VERSION
+    finally:
+        reopened.dispose()
 
 
 def _read_run(run_id: str) -> tuple[Repository, Database, RunRecord]:
