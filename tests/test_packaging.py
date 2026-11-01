@@ -2,20 +2,29 @@
 
 The compose assertions parse the YAML and check the references between services
 and named volumes rather than matching the file as text. The smoke script has
-its own HTTP-seam test file because it drives a real server.
+its own HTTP-seam test file because it drives a real server. The release
+assertions read the package and the project metadata together so the version
+and the licence cannot drift apart.
 """
 
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 
 import yaml
+
+from evalharness import __version__
 
 REPO = Path(__file__).resolve().parents[1]
 COMPOSE = REPO / "compose.yaml"
 DOCKERFILE = REPO / "Dockerfile"
 ENV_EXAMPLE = REPO / ".env.example"
 DOCKERIGNORE = REPO / ".dockerignore"
+PYPROJECT = REPO / "pyproject.toml"
+LICENSE = REPO / "LICENSE"
+SPECS = REPO / "examples" / "specs"
+OFFLINE_SPECS = ("smoke.yaml", "stub-pack.yaml", "gated.yaml", "gated-failing.yaml")
 
 
 def test_compose_wires_the_harness_to_a_healthy_named_volume_database() -> None:
@@ -50,6 +59,18 @@ def test_compose_wires_the_harness_to_a_healthy_named_volume_database() -> None:
     assert "${EVALH_POSTGRES_PASSWORD:?" in db["environment"]["POSTGRES_PASSWORD"]
     assert "${EVALH_MASTER_KEY:-}" in environment["EVALH_MASTER_KEY"]
 
+    # Compose only reports a health state for a service that declares a probe,
+    # so the harness mirrors the image's own /healthz check here as well.
+    healthcheck = harness["healthcheck"]
+    probe = healthcheck["test"]
+    assert probe[:3] == ["CMD", "python", "-c"]
+    assert "urllib.request.urlopen" in probe[3]
+    assert "http://127.0.0.1:8000/healthz" in probe[3]
+    assert healthcheck["interval"] == "30s"
+    assert healthcheck["timeout"] == "5s"
+    assert healthcheck["retries"] == 3
+    assert healthcheck["start_period"] == "15s"
+
 
 def test_dockerfile_is_multistage_slim_nonroot_and_health_checked() -> None:
     text = DOCKERFILE.read_text(encoding="utf-8")
@@ -74,10 +95,15 @@ def test_dockerfile_is_multistage_slim_nonroot_and_health_checked() -> None:
     )
     assert 'pip install ".[postgres]"' in text
     assert "[dev]" not in text
-    # The named /data volume is primed with the offline spec the smoke script
-    # launches, so a fresh compose project can run it without a bind mount.
+    # The named /data volume is primed with the offline specs CI and the smoke
+    # script launch, so a fresh compose project can run them without a bind
+    # mount.
     assert "cp examples/specs/smoke.yaml" in text
     assert "/data/specs" in runtime
+    seeding = text.split("RUN install -d", 1)[1].split("&& chown", 1)[0]
+    for name in OFFLINE_SPECS:
+        assert f"examples/specs/{name}" in seeding, name
+        assert (SPECS / name).is_file(), name
 
 
 def test_dockerignore_keeps_the_context_small_and_the_env_out() -> None:
@@ -100,3 +126,19 @@ def test_env_example_holds_no_secret_default() -> None:
     for key, value in values.items():
         if any(word in key for word in ("KEY", "PASSWORD", "SECRET", "TOKEN")):
             assert value == "", f"{key} must not ship a default secret"
+
+
+def test_the_version_is_pinned_in_the_source_and_the_project_metadata() -> None:
+    project = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"]
+    assert project["version"] == "0.2.0"
+    assert __version__ == project["version"]
+
+
+def test_the_licence_is_mit_for_the_project_contributors() -> None:
+    text = LICENSE.read_text(encoding="utf-8")
+    assert text.startswith("MIT License")
+    assert "Copyright (c) 2026 evalharness contributors" in text
+    assert "Permission is hereby granted, free of charge" in text
+    assert 'THE SOFTWARE IS PROVIDED "AS IS"' in text
+    project = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"]
+    assert project["license"] == {"text": "MIT"}

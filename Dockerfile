@@ -50,10 +50,11 @@ COPY examples/specs ./examples/specs
 COPY scripts ./scripts
 
 # A named volume mounted at /data is initialised from this directory on first
-# use, so a fresh compose project can launch the bundled no-credential specs
-# from the console. A later image does not overwrite an existing volume.
+# use, so a fresh compose project can launch the four bundled no-credential
+# specs from the console. A later image does not overwrite an existing volume.
 RUN install -d -o evalh -g evalh /data/artifacts /data/db /data/specs \
-    && cp examples/specs/smoke.yaml examples/specs/stub-pack.yaml /data/specs/ \
+    && cp examples/specs/smoke.yaml examples/specs/stub-pack.yaml \
+        examples/specs/gated.yaml examples/specs/gated-failing.yaml /data/specs/ \
     && chown -R evalh:evalh /data
 
 USER evalh

@@ -71,7 +71,11 @@ def _non_negative_int(text: str) -> int:
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="evalh",
-        description="Run and validate adapter-based evaluation specs.",
+        description=(
+            "Run and validate adapter-based evaluation specs, and serve the "
+            "console that edits specs, launches and cancels runs and manages "
+            "credentials."
+        ),
     )
     commands = parser.add_subparsers(dest="command")
     run_parser = commands.add_parser("run", help="execute a spec")
@@ -175,7 +179,16 @@ def _build_parser() -> argparse.ArgumentParser:
         credentials_parser=credentials_parser,
     )
     serve_parser = commands.add_parser(
-        "serve", help="serve the read-only console on the CLI's database"
+        "serve",
+        help=(
+            "serve the console that edits specs, launches and cancels runs "
+            "and manages credentials"
+        ),
+        description=(
+            "Serve the console on the CLI's database: edit specs, launch and "
+            "cancel runs, read results and manage encrypted provider "
+            "credentials."
+        ),
     )
     serve_parser.add_argument("--host", default="127.0.0.1")
     serve_parser.add_argument("--port", type=int, default=8000)

@@ -32,6 +32,14 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Compose only tracks a health state for services that declare a probe, so
+    # the harness mirrors the check baked into the image.
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     # No restart policy: the first start without a key prints the key once and
     # exits 2 on purpose. Restarting it in a loop would print a new key each
     # time and never converge.
