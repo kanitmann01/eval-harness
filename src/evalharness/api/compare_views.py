@@ -360,8 +360,8 @@ def _empty_message(runs: Sequence[RunSummary]) -> str:
         count = len(runs)
         return (
             f"Pick two of the {count} run{'s' if count != 1 else ''} in the menus "
-            "above and choose Compare, or add ?a=<run id>&b=<run id> to the URL. For two "
-            "candidates, add "
+            "above and choose Compare, or add ?a=<run id>&b=<run id> to the "
+            "URL. For two candidates, add "
             "?run=<run id>&candidate_a=<name>&candidate_b=<name>."
         )
     return (

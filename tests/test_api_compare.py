@@ -697,7 +697,9 @@ def test_decision_view_handles_mixed_metrics_and_missing_metrics() -> None:
     assert (absent.tone, absent.label) == ("undefined", "No metrics")
 
     prices = decision_view(
-        _decision_comparison([_decision_metric("exact_match", BETTER)], b_price="price-b")
+        _decision_comparison(
+            [_decision_metric("exact_match", BETTER)], b_price="price-b"
+        )
     )
     assert "different price tables" in prices.caveat
     assert "Small samples" not in prices.caveat

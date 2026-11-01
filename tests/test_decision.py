@@ -131,8 +131,14 @@ def test_conservative_dominance_needs_interval_cost_and_latency():
 
 
 def test_overlapping_intervals_and_worse_cost_never_dominate():
-    a = [_cell("a", f"case-{index}", wall_ms=100, cost_usd=0.1) for index in range(1, 3)]
-    b = [_cell("b", f"case-{index}", wall_ms=100, cost_usd=0.1) for index in range(1, 3)]
+    a = [
+        _cell("a", f"case-{index}", wall_ms=100, cost_usd=0.1)
+        for index in range(1, 3)
+    ]
+    b = [
+        _cell("b", f"case-{index}", wall_ms=100, cost_usd=0.1)
+        for index in range(1, 3)
+    ]
     checks = {
         a[0].cell_id: _checks(3, 5),
         a[1].cell_id: _checks(3, 5),
