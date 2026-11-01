@@ -14,6 +14,8 @@ Two vocabularies matter and are never collapsed:
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
+from statistics import NormalDist
 
 Z_95 = 1.96
 """The standard normal quantile for a two-sided 95 percent interval."""
@@ -127,6 +129,92 @@ def delta_or_none(
     if passed_a is None or passed_b is None:
         return None
     return passed_b - passed_a
+
+
+def percentile(values: Sequence[float], quantile: float) -> float:
+    """Return the quantile of values by linear interpolation.
+
+    The method matches the common numpy default: sort the values, place the
+    position at quantile * (n - 1) and interpolate between the two
+    neighbours. The result is an observed quantile, not a fitted one, so a
+    p95 latency never claims precision the sample does not have.
+
+    Raises:
+        ValueError: when values is empty or quantile is outside [0, 1].
+    """
+    if not values:
+        raise ValueError("percentile needs at least one value; got an empty list")
+    if not 0.0 <= quantile <= 1.0:
+        raise ValueError(f"quantile must be between 0 and 1, got {quantile}")
+    ordered = sorted(values)
+    position = quantile * (len(ordered) - 1)
+    lower = math.floor(position)
+    upper = math.ceil(position)
+    if lower == upper:
+        return float(ordered[lower])
+    weight = position - lower
+    return float(ordered[lower] + (ordered[upper] - ordered[lower]) * weight)
+
+
+def required_sample_size(
+    baseline: float,
+    effect: float,
+    power: float = 0.8,
+    alpha: float = 0.05,
+) -> int:
+    """Return the samples per side needed to detect an effect.
+
+    Plans a two-sided test of two independent proportions with equal n:
+    p1 = baseline and p2 = baseline + effect. The normal approximation is::
+
+        n = (z(1 - alpha/2) * sqrt(2 * pbar * (1 - pbar))
+             + z(power) * sqrt(p1 * (1 - p1) + p2 * (1 - p2))) ** 2
+            / effect ** 2
+
+    with pbar = (p1 + p2) / 2. The result is rounded up, so it never
+    understates the plan. It assumes the observed rates match the plan and
+    ignores continuity correction; it is a planning figure, not a promise.
+
+    Raises:
+        ValueError: when baseline or baseline + effect is outside [0, 1],
+            effect is zero, or power or alpha is outside (0, 1).
+    """
+    if not 0.0 <= baseline <= 1.0:
+        raise ValueError(
+            f"baseline must be a proportion between 0 and 1, got {baseline}; "
+            "pass a rate such as 0.70"
+        )
+    if effect == 0.0:
+        raise ValueError(
+            "effect must not be zero; pass the smallest difference worth "
+            "detecting, for example 0.10"
+        )
+    target = baseline + effect
+    if not 0.0 <= target <= 1.0:
+        raise ValueError(
+            f"baseline + effect must stay between 0 and 1, got {target}; "
+            "lower the effect or the baseline"
+        )
+    if not 0.0 < power < 1.0:
+        raise ValueError(
+            f"power must be between 0 and 1, got {power}; pass 0.80 for "
+            "80 percent power"
+        )
+    if not 0.0 < alpha < 1.0:
+        raise ValueError(
+            f"alpha must be between 0 and 1, got {alpha}; pass 0.05 for a "
+            "two-sided 95 percent interval"
+        )
+    normal = NormalDist()
+    z_alpha = normal.inv_cdf(1.0 - alpha / 2.0)
+    z_power = normal.inv_cdf(power)
+    pooled = (baseline + target) / 2.0
+    between = math.sqrt(2.0 * pooled * (1.0 - pooled))
+    within = math.sqrt(
+        baseline * (1.0 - baseline) + target * (1.0 - target)
+    )
+    numerator = (z_alpha * between + z_power * within) ** 2
+    return max(1, math.ceil(numerator / (effect * effect)))
 
 
 def pass_at_k(outcomes: list[bool], k: int) -> float | None:

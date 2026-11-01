@@ -6,6 +6,8 @@ import pytest
 
 from evalharness.core.stats import (
     Z_95,
+    percentile,
+    required_sample_size,
     delta_or_none,
     difference_interval,
     pass_at_k,
@@ -138,3 +140,65 @@ def test_pass_at_k_rejects_ragged_or_impossible_k():
     with pytest.raises(ValueError) as raised:
         pass_k([True], 0)
     assert "at least 1" in str(raised.value)
+
+def test_percentile_interpolates_linearly():
+    values = [15.0, 20.0, 35.0, 40.0, 50.0]
+    assert percentile(values, 0.0) == 15.0
+    assert percentile(values, 0.5) == 35.0
+    assert percentile(values, 1.0) == 50.0
+    assert percentile([10.0, 20.0], 0.25) == 12.5
+    assert percentile([10.0, 20.0, 30.0], 0.9) == pytest.approx(28.0)
+
+
+def test_percentile_sorts_its_input_and_handles_one_value():
+    assert percentile([30.0, 10.0, 20.0], 0.5) == 20.0
+    assert percentile([7], 0.75) == 7.0
+
+
+def test_percentile_rejects_empty_values_and_out_of_range_quantiles():
+    with pytest.raises(ValueError) as raised:
+        percentile([], 0.5)
+    assert "at least one value" in str(raised.value)
+    for quantile in (-0.1, 1.1):
+        with pytest.raises(ValueError) as raised:
+            percentile([1.0, 2.0], quantile)
+        assert "between 0 and 1" in str(raised.value)
+
+
+def test_required_sample_size_matches_the_two_proportion_formula():
+    assert required_sample_size(0.70, 0.10) == 294
+    assert required_sample_size(0.50, 0.10) == 388
+    assert required_sample_size(0.80, 0.10) == 199
+    assert required_sample_size(0.70, -0.10) == 356
+    assert required_sample_size(0.00, 0.10) == 74
+    assert required_sample_size(0.90, 0.10) == 74
+
+
+def test_required_sample_size_grows_with_power_and_shrinks_with_alpha():
+    assert required_sample_size(0.70, 0.10, power=0.90) > required_sample_size(
+        0.70, 0.10
+    )
+    assert required_sample_size(0.70, 0.10, alpha=0.01) > required_sample_size(
+        0.70, 0.10
+    )
+    assert isinstance(required_sample_size(0.70, 0.10), int)
+
+
+def test_required_sample_size_names_the_field_and_the_fix():
+    with pytest.raises(ValueError) as raised:
+        required_sample_size(1.5, 0.10)
+    assert "baseline" in str(raised.value)
+    assert "between 0 and 1" in str(raised.value)
+    with pytest.raises(ValueError) as raised:
+        required_sample_size(0.70, 0.0)
+    assert "effect" in str(raised.value)
+    assert "zero" in str(raised.value)
+    with pytest.raises(ValueError) as raised:
+        required_sample_size(0.90, 0.20)
+    assert "baseline + effect" in str(raised.value)
+    with pytest.raises(ValueError) as raised:
+        required_sample_size(0.70, 0.10, power=1.0)
+    assert "power" in str(raised.value)
+    with pytest.raises(ValueError) as raised:
+        required_sample_size(0.70, 0.10, alpha=0.0)
+    assert "alpha" in str(raised.value)
