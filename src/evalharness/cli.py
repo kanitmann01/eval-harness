@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import getpass
+import json
 import os
 import signal
 import sys
@@ -30,6 +31,7 @@ from evalharness.core.cost import (
 from evalharness.core.models import Aggregate
 from evalharness.core.planner import per_candidate_counts
 from evalharness.core.spec import ResolvedSpec, load_and_validate
+from evalharness.core.stats import required_sample_size
 from evalharness.core.vault import (
     MasterKeyError,
     Vault,
@@ -108,6 +110,44 @@ def _build_parser() -> argparse.ArgumentParser:
     validate_parser = commands.add_parser("validate", help="validate a spec only")
     validate_parser.add_argument("spec", help="path to the YAML spec")
     validate_parser.set_defaults(handler=_validate)
+    sample_parser = commands.add_parser(
+        "sample-size",
+        help="plan the samples per side for a two-proportion test",
+    )
+    sample_parser.add_argument(
+        "--baseline",
+        type=float,
+        required=True,
+        metavar="RATE",
+        help="pass rate of the current side, between 0 and 1",
+    )
+    sample_parser.add_argument(
+        "--effect",
+        type=float,
+        required=True,
+        metavar="RATE",
+        help="smallest difference worth detecting, p2 - p1, not zero",
+    )
+    sample_parser.add_argument(
+        "--power",
+        type=float,
+        default=0.8,
+        metavar="P",
+        help="statistical power, between 0 and 1 (default 0.80)",
+    )
+    sample_parser.add_argument(
+        "--alpha",
+        type=float,
+        default=0.05,
+        metavar="A",
+        help="two-sided significance level, between 0 and 1 (default 0.05)",
+    )
+    sample_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="print the plan as one JSON object",
+    )
+    sample_parser.set_defaults(handler=_sample_size)
     conformance_parser = commands.add_parser(
         "conformance",
         help="run the public adapter contract suite",
@@ -237,6 +277,47 @@ def _validate(args: argparse.Namespace) -> int:
     print(
         f"spec valid: {spec.name} "
         f"({len(spec.candidates)} candidates, {len(spec.metrics)} metrics)"
+    )
+    return exit_codes.SUCCESS
+
+
+def _sample_size(args: argparse.Namespace) -> int:
+    """Print the two-proportion sample-size plan or an actionable error."""
+    try:
+        per_side = required_sample_size(
+            args.baseline,
+            args.effect,
+            power=args.power,
+            alpha=args.alpha,
+        )
+    except ValueError as error:
+        print(f"sample-size error: {error}", file=sys.stderr)
+        return exit_codes.SPEC_ERROR
+    total = per_side * 2
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "alpha": args.alpha,
+                    "baseline": args.baseline,
+                    "effect": args.effect,
+                    "n_per_side": per_side,
+                    "power": args.power,
+                    "total": total,
+                },
+                sort_keys=True,
+            )
+        )
+        return exit_codes.SUCCESS
+    print(f"n per side: {per_side}")
+    print(f"total n: {total}")
+    print(
+        "assumptions: "
+        f"two-sided alpha {args.alpha:.2f}, "
+        f"power {args.power:.2f}, "
+        f"baseline {args.baseline:.2f}, "
+        f"effect {args.effect:+.2f} "
+        "(two independent proportions, equal n)"
     )
     return exit_codes.SUCCESS
 
