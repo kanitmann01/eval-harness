@@ -10,6 +10,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import Session, sessionmaker
 
+from evalharness.storage import label_models  # noqa: F401 - table registration
 from evalharness.storage.migrations import migrate
 from evalharness.storage.models import Base
 
