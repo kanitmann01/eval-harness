@@ -69,13 +69,14 @@ class ChartTick:
 
 @dataclass(frozen=True, slots=True)
 class ChartPoint:
-    """One Pareto candidate placed on the scatter."""
+    """One candidate placed on the scatter."""
 
     candidate: str
     cx: float
     cy: float
     pass_rate_label: str
     cost_label: str
+    on_frontier: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,6 +119,7 @@ def decision_page(snapshot: DecisionSnapshot) -> dict[str, object]:
         "report": report,
         "candidates": tuple(_candidate_row(item) for item in report.candidates),
         "chart": _chart(report),
+        "unplotted": _unplotted(report),
         "primary_metrics": _primary_metrics_label(report),
         "json_url": f"/api/runs/{report.run_id}/decision",
         "compare_url": f"/compare?a={report.run_id}",
@@ -248,8 +250,12 @@ def _primary_metrics_label(report: DecisionReport) -> str:
 
 
 def _chart(report: DecisionReport) -> ParetoChart | None:
-    """Build the Pareto scatter, or None when the frontier is empty."""
-    points = [item for item in report.candidates if item.on_pareto_frontier]
+    """Build the scatter of every plottable candidate, or None when none is."""
+    points = [
+        item
+        for item in report.candidates
+        if item.pass_rate is not None and item.cost_per_correct is not None
+    ]
     if not points:
         return None
     costs = [item.cost_per_correct or 0.0 for item in points]
@@ -272,6 +278,7 @@ def _chart(report: DecisionReport) -> ParetoChart | None:
             * (plot_bottom - plot_top),
             pass_rate_label=_pct(item.pass_rate or 0.0),
             cost_label=format_usd(item.cost_per_correct),
+            on_frontier=item.on_pareto_frontier,
         )
         for item in points
     )
@@ -301,13 +308,29 @@ def _chart(report: DecisionReport) -> ParetoChart | None:
         y_axis_label="Cost per correct check (lower is better)",
         summary=(
             f"{len(chart_points)} candidate"
-            f"{'' if len(chart_points) == 1 else 's'} on the Pareto frontier: "
+            f"{'' if len(chart_points) == 1 else 's'} plotted: "
             + "; ".join(
                 f"{point.candidate} at {point.pass_rate_label} pass rate and "
                 f"{point.cost_label} per correct check"
+                f"{' on the frontier' if point.on_frontier else ' not on the frontier'}"
                 for point in chart_points
             )
-            + ". Pass rate runs left to right; cost per correct check runs "
-            "bottom to top, lower is better."
+            + ". Filled markers are on the frontier; hollow markers are "
+            "dominated or have an undefined measure."
         ),
     )
+
+
+def _unplotted(report: DecisionReport) -> tuple[str, ...]:
+    """Name every candidate the scatter cannot place, and why."""
+    messages: list[str] = []
+    for item in report.candidates:
+        if item.pass_rate is None:
+            messages.append(
+                f"Not plotted: {item.candidate} has an undefined pass rate."
+            )
+        elif item.cost_per_correct is None:
+            messages.append(
+                f"Not plotted: {item.candidate} has no cost per correct check."
+            )
+    return tuple(messages)

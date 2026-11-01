@@ -92,15 +92,21 @@
       <text x="{{ (chart.plot_left + chart.plot_right) / 2 }}" y="{{ chart.height - 4 }}" text-anchor="middle" font-size="12" fill="currentColor">{{ chart.x_axis_label }}</text>
       <text x="{{ chart.plot_left }}" y="14" font-size="12" fill="currentColor">{{ chart.y_axis_label }}</text>
       {% for point in chart.points %}
-      <circle cx="{{ point.cx }}" cy="{{ point.cy }}" r="5" fill="currentColor"></circle>
-      <text x="{{ point.cx + 8 }}" y="{{ point.cy + 4 }}" font-size="12" fill="currentColor">{{ point.candidate }}</text>
+      <circle cx="{{ point.cx }}" cy="{{ point.cy }}" r="5" data-frontier="{{ 'true' if point.on_frontier else 'false' }}"{% if point.on_frontier %} fill="currentColor"{% else %} fill="none" stroke="currentColor" stroke-opacity="0.55"{% endif %}></circle>
+      <text x="{{ point.cx + 8 }}" y="{{ point.cy + 4 }}" font-size="12" fill="currentColor"{% if not point.on_frontier %} fill-opacity="0.65"{% endif %}>{{ point.candidate }}</text>
       {% endfor %}
     </svg>
   </div>
+  <p class="field-hint">Filled markers are on the frontier; hollow markers are dominated or have an undefined measure. Pass rate runs left to right; cost per correct check rises from the cheapest at the bottom to the most expensive at the top, so lower is better.</p>
   {% else %}
   <p class="field-hint">No candidate has a defined pass rate and cost per correct check, so there is nothing to plot.</p>
   {% endif %}
-  <p class="field-hint">The ranked table above is the accessible table for this scatter. Pass rate runs left to right; cost per correct check runs bottom to top, so lower is better.</p>
+  {% if unplotted %}
+  <ul class="field-hint">
+    {% for message in unplotted %}<li>{{ message }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  <p class="field-hint">The ranked table above is the accessible table for this scatter.</p>
 </section>
 {% else %}
 <section class="panel">

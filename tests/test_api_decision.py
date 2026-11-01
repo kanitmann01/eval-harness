@@ -140,6 +140,10 @@ async def test_decision_page_ranks_candidates_and_plots_the_frontier(
         assert "Pass rate" in text
         assert "Cost per correct check (lower is better)" in text
         assert text.count("<circle") == 2
+        assert text.count('data-frontier="true"') == 2
+        assert "Filled markers are on the frontier" in text
+        assert "hollow markers" in text
+        assert "cheapest at the bottom" in text
         assert "The ranked table above is the accessible table" in text
         assert f"/api/runs/{run_id}/decision" in text
         assert f"/compare?a={run_id}" in text
@@ -182,6 +186,7 @@ async def test_wrong_answers_have_no_cost_per_correct_and_no_chart(
         assert "0.0%" in text
         assert "No correct check" in text
         assert "No candidate has a defined pass rate and cost per correct check" in text
+        assert "Not plotted: wrong-stub has no cost per correct check." in text
         assert "<circle" not in text
         assert "No cells recorded" not in text
 
@@ -204,6 +209,8 @@ async def test_errored_cells_show_an_undefined_pass_rate(console: Console) -> No
         assert "Latency undefined" in text
         assert "No checks recorded" in text
         assert "1 errored" in text
+        assert "Not plotted: broken-stub has an undefined pass rate." in text
+        assert "<circle" not in text
 
         payload = (await client.get(f"/api/runs/{run_id}/decision")).json()
         candidate = payload["candidates"][0]
@@ -234,6 +241,7 @@ async def test_a_candidate_without_latency_is_not_on_the_frontier(
         response = await client.get(f"/runs/{run_id}/decision")
         assert response.status_code == 200
         assert "Latency undefined" in response.text
+        assert 'data-frontier="false"' in response.text
 
         payload = (await client.get(f"/api/runs/{run_id}/decision")).json()
         candidate = payload["candidates"][0]
@@ -298,6 +306,7 @@ async def test_single_candidate_gets_a_rank_and_a_chart(
         assert text.count("data-candidate=") == 1
         assert "On the frontier" in text
         assert text.count("<circle") == 1
+        assert text.count('data-frontier="true"') == 1
         assert "The ranked table above is the accessible table" in text
 
         payload = (await client.get(f"/api/runs/{run_id}/decision")).json()
@@ -316,7 +325,9 @@ async def test_dominance_is_reported_on_the_page_and_in_json(
         text = response.text
         assert "Dominates slow" in text
         assert "Dominated by fast" in text
-        assert text.count("<circle") == 1
+        assert text.count("<circle") == 2
+        assert text.count('data-frontier="true"') == 1
+        assert text.count('data-frontier="false"') == 1
         assert "fast" in text and "slow" in text
 
         payload = (await client.get(f"/api/runs/{run_id}/decision")).json()
