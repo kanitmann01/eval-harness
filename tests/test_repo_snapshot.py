@@ -522,13 +522,20 @@ def test_a_file_stat_error_is_actionable(
     root.mkdir()
     (root / "a.txt").write_text("alpha\n", encoding="utf-8")
     real_stat = Path.stat
+    real_is_symlink = Path.is_symlink
 
     def stat(self: Path, *, follow_symlinks: bool = True) -> os.stat_result:
         if self.name == "a.txt":
             raise OSError("denied")
         return real_stat(self, follow_symlinks=follow_symlinks)
 
+    def is_symlink(self: Path) -> bool:
+        if self.name == "a.txt":
+            return False
+        return real_is_symlink(self)
+
     monkeypatch.setattr(Path, "stat", stat)
+    monkeypatch.setattr(Path, "is_symlink", is_symlink)
     with pytest.raises(SpecError) as error:
         snapshot_repo("tiny", _repo(root), base_dir=tmp_path, home=tmp_path / "home")
     assert error.value.field == "repos.tiny.root"
