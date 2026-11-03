@@ -333,10 +333,10 @@ class RepoSpec(BaseModel):
     """One repository a source may read cases and fixtures from.
 
     There is exactly one location: a local root (relative to the spec's
-    directory) or an HTTPS URL. The URL branch is declared now so a spec keeps
-    its shape when remote fetching lands, but version 0.4.0a only snapshots a
-    local root. Caps and exclusions are part of the spec, so a run can never
-    silently read more of a tree than the spec allowed.
+    directory) or an HTTPS URL. A remote URL is fetched shallowly into the
+    cache before the snapshot, optionally with a ref and a credential. Caps and
+    exclusions are part of the spec, so a run can never silently read more of a
+    tree than the spec allowed.
     """
 
     model_config = ConfigDict(extra="forbid")
