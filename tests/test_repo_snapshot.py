@@ -149,7 +149,7 @@ def test_snapshot_is_content_addressed_and_records_only_relative_paths(
     assert first.bytes == sum(item.bytes for item in first.files)
     assert first.metadata() == {
         "name": "tiny",
-        "root": str(root),
+        "root": ".",
         "url": None,
         "ref": None,
         "commit": first.commit,

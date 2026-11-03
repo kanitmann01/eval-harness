@@ -18,7 +18,7 @@ import shutil
 import stat
 import subprocess
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Iterable, Mapping, Sequence
 from uuid import uuid4
 
@@ -150,8 +150,21 @@ def snapshot_repo(
         root,
         home,
         url=None,
-        recorded_root=repo.root,
+        recorded_root=_recorded_root(repo.root),
     )
+
+
+def _recorded_root(root: str) -> str:
+    """Keep an absolute host path out of every run record.
+
+    A spec root is relative and validated, but the function is public and a
+    direct caller can pass an absolute path; the provenance invariant still
+    holds, so an absolute root is recorded as the spec-relative default.
+    """
+    path = PureWindowsPath(root)
+    if Path(root).is_absolute() or path.is_absolute() or path.drive:
+        return "."
+    return root
 
 
 def _snapshot_tree(
@@ -380,7 +393,7 @@ def _collect_files(
                     )
                 path = resolved
             try:
-                size = path.stat().st_size
+                info = path.stat()
             except OSError as exc:
                 raise SpecError(
                     f"repos.{name}.root",
@@ -388,6 +401,7 @@ def _collect_files(
                     f"a repository file could not be read: {exc}",
                     "fix the file permissions or exclude the path",
                 ) from exc
+            size = info.st_size
             if size > repo.max_file_bytes:
                 raise SpecError(
                     f"repos.{name}.max_file_bytes",
@@ -435,7 +449,7 @@ def _collect_files(
                     path=relative,
                     sha256=hashlib.sha256(payload).hexdigest(),
                     bytes=len(payload),
-                    mode=stat.S_IMODE(path.stat().st_mode),
+                    mode=stat.S_IMODE(info.st_mode),
                 )
             )
     included.sort(key=lambda item: item.path)
