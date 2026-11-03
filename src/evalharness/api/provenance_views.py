@@ -54,6 +54,8 @@ def receipt_data(repository: Repository, run_id: str) -> dict[str, Any]:
             run.spec_snapshot,
             previous.prices_snapshot,
             run.prices_snapshot,
+            a_source=previous.source_snapshot,
+            b_source=run.source_snapshot,
         )
         if previous is not None
         else None
@@ -78,6 +80,8 @@ def receipt_data(repository: Repository, run_id: str) -> dict[str, Any]:
             _candidate_data(candidate)
             for candidate in run.spec_snapshot.get("candidates") or []
         ],
+        "source": run.source_snapshot or {},
+        "source_recorded": bool(run.source_snapshot),
         "judge_pins": [_pin_data(pin) for pin in pins],
         "price_table": {"id": price_id, "rates": rates},
         "price_table_recorded": bool(rates),
@@ -129,6 +133,8 @@ def diff_data(
         current.spec_snapshot,
         baseline.prices_snapshot,
         current.prices_snapshot,
+        a_source=baseline.source_snapshot,
+        b_source=current.source_snapshot,
     )
     drifts = judge_drift(
         baseline,

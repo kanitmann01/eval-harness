@@ -334,6 +334,22 @@ def provenance(
     lonely["name"] = "lonely-spec"
     lonely_id = _seed(capsys, write_spec(workdir / "lonely.yaml", lonely))
 
+    repo_root = workdir / "repo-source"
+    (repo_root / "cases").mkdir(parents=True)
+    (repo_root / "cases" / "questions.jsonl").write_text(
+        '{"case_id": "case-1", "prompt": "What is 6 times 7?", '
+        '"expected": {"answer": "42"}}\n',
+        encoding="utf-8",
+    )
+    repo_spec = base_spec()
+    repo_spec["name"] = "repo-source-spec"
+    repo_spec["repos"] = {"tiny": {"root": "repo-source"}}
+    repo_spec["source"] = {
+        "adapter": "evalharness.adapters.sources.repo:build",
+        "options": {"repo": "tiny", "cases": "cases/questions.jsonl"},
+    }
+    repo_id = _seed(capsys, write_spec(workdir / "repo-source.yaml", repo_spec))
+
     monkeypatch.setenv("EVALH_OPERATOR", "  Ken / FDE  ")
     operator_spec = base_spec()
     operator_spec["name"] = "operator-api-spec"
@@ -360,6 +376,7 @@ def provenance(
             "judge_a": judge_a,
             "judge_b": judge_b,
             "lonely": lonely_id,
+            "repo": repo_id,
             "operator": operator_id,
         },
     )
@@ -425,6 +442,33 @@ async def test_receipt_html_shows_hashes_operator_and_no_previous_run(
         assert "no previous run" in text.lower()
         assert "Price table" in text
         assert "Judge pins" in text
+
+
+async def test_receipt_records_the_repository_snapshot(
+    provenance: Console,
+) -> None:
+    run_id = provenance.runs["repo"]
+    async with _client(provenance.app) as client:
+        data = (await client.get(f"/api/runs/{run_id}/receipt")).json()
+        assert data["source_recorded"] is True
+        source = data["source"]
+        assert source["adapter"].endswith("sources.repo:build")
+        assert source["case_count"] == 1
+        assert source["cases"][0]["case_id"] == "case-1"
+        assert len(source["cases"][0]["prompt_sha256"]) == 64
+        repo = source["repos"][0]
+        assert repo["name"] == "tiny"
+        assert repo["root"] == "repo-source"
+        assert len(repo["digest"]) == 64
+        assert repo["files"] == 1
+        assert repo["bytes"] > 0
+        assert repo["commit"]
+
+        page = await client.get(f"/runs/{run_id}/receipt")
+        assert page.status_code == 200
+        assert "Repository snapshots" in page.text
+        assert repo["digest"][:12] in page.text
+        assert "repo-source" in page.text
 
 
 async def test_receipt_diff_lists_changed_categories_and_previous_link(

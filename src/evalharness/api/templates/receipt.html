@@ -14,7 +14,7 @@
   <div class="page-header-main">
     <p class="eyebrow">Provenance receipt</p>
     <h1>{{ receipt.spec_name or "(unnamed spec)" }}</h1>
-    <p class="lede">What this run actually executed: the spec snapshot and its hash, the harness revision, the candidate models, the judge configuration behind every scored metric, the price table, the seed, the operator and the gates.</p>
+    <p class="lede">What this run actually executed: the spec snapshot and its hash, the harness revision, the repositories the source read, the candidate models, the judge configuration behind every scored metric, the price table, the seed, the operator and the gates.</p>
     <p class="identity">
       <span class="mono">{{ receipt.run_id }}</span>
       {{ copy_button(receipt.run_id, "Copy run ID", "run ID") }}
@@ -51,6 +51,48 @@
     <div><dt>Started</dt><dd>{{ receipt.started_at|timestamp }}</dd></div>
     <div><dt>Finished</dt><dd>{% if receipt.finished_at %}{{ receipt.finished_at|timestamp }}{% else %}not finished{% endif %}</dd></div>
   </dl>
+</section>
+
+<section class="panel" aria-labelledby="source-heading">
+  <div class="panel-head">
+    <div>
+      <p class="eyebrow">Source</p>
+      <h2 id="source-heading">Repository snapshots</h2>
+      <p class="subtle">Each digest is the SHA-256 of the sorted file hashes the run read. A changed digest is not like-for-like, even when the spec hash is unchanged.</p>
+    </div>
+  </div>
+  {% if receipt.source_recorded %}
+  <dl class="facts">
+    <div><dt>Adapter</dt><dd class="mono">{{ receipt.source.adapter or "not recorded" }}</dd></div>
+    <div><dt>Cases</dt><dd>{{ receipt.source.case_count }}</dd></div>
+  </dl>
+  {% if receipt.source.repos %}
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Name</th><th>Root</th><th>Ref</th><th>Commit</th><th>Digest</th><th>Files</th><th>Bytes</th><th>Skipped</th><th>Dirty</th></tr></thead>
+      <tbody>
+        {% for repo in receipt.source.repos %}
+        <tr>
+          <td>{{ repo.name }}</td>
+          <td class="mono">{{ repo.root }}</td>
+          <td class="mono">{{ repo.ref or "not recorded" }}</td>
+          <td class="mono" title="{{ repo.commit or '' }}">{{ repo.commit[:12] if repo.commit else "not recorded" }}</td>
+          <td class="mono" title="{{ repo.digest }}">{{ repo.digest[:12] }}</td>
+          <td>{{ repo.files }}</td>
+          <td>{{ repo.bytes }}</td>
+          <td>{{ repo.skipped_binary }}</td>
+          <td>{{ "not recorded" if repo.dirty is none else ("yes" if repo.dirty else "no") }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="subtle">The source read no repositories; this run used inline cases.</p>
+  {% endif %}
+  {% else %}
+  <p class="subtle">The source snapshot was not recorded for this run.</p>
+  {% endif %}
 </section>
 
 <section class="panel" aria-labelledby="candidates-heading">

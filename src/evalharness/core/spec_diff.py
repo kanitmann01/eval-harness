@@ -11,10 +11,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
-CATEGORY_ORDER = ("cases", "candidates", "judges", "prices", "run", "gates")
+CATEGORY_ORDER = (
+    "source",
+    "cases",
+    "candidates",
+    "judges",
+    "prices",
+    "run",
+    "gates",
+)
 """The order categories appear in a diff, whatever order they were found in."""
 
 _CATEGORY_LABELS = {
+    "source": "source change",
     "cases": "case",
     "candidates": "candidate",
     "judges": "judge",
@@ -56,6 +65,9 @@ def diff_run_snapshots(
     b_spec: Mapping[str, Any],
     a_prices: Mapping[str, Any],
     b_prices: Mapping[str, Any],
+    *,
+    a_source: Mapping[str, Any] | None = None,
+    b_source: Mapping[str, Any] | None = None,
 ) -> SpecDiff:
     """Return the structured difference from snapshot A to snapshot B.
 
@@ -63,14 +75,19 @@ def diff_run_snapshots(
         a_spec, b_spec: the stored spec snapshots, as run records carry them.
         a_prices, b_prices: the stored price snapshots, either the version 2
             provider-nested shape or the older flat shape.
+        a_source, b_source: the stored source snapshots, which carry the
+            repository digests and the cases a non-inline source loaded.
 
     Missing keys are read as empty, so a snapshot written by an older harness
     still produces a diff rather than an error.
     """
     a = dict(a_spec or {})
     b = dict(b_spec or {})
+    source_a = dict(a_source or {})
+    source_b = dict(b_source or {})
     changes = [
-        *_case_changes(a, b),
+        *_source_changes(source_a, source_b, a, b),
+        *_case_changes(a, b, source_a, source_b),
         *_candidate_changes(a, b),
         *_judge_changes(a, b),
         *_price_changes(a_prices, b_prices),
@@ -153,17 +170,105 @@ def _text(value: Any) -> str:
     return str(value or "")
 
 
-def _case_changes(
-    a: Mapping[str, Any], b: Mapping[str, Any]
+def _source_changes(
+    a: Mapping[str, Any],
+    b: Mapping[str, Any],
+    a_spec: Mapping[str, Any],
+    b_spec: Mapping[str, Any],
 ) -> list[SpecChange]:
-    """Diff case ids and the prompt each case carries."""
-    before = _cases(a)
-    after = _cases(b)
+    """Diff the source adapter and every recorded repository digest.
+
+    Runs written before the source snapshot existed carry no adapter there, so
+    the spec snapshot is the fallback. Without it an old run would look like a
+    source change the moment it met a newer run.
+    """
+    changes: list[SpecChange] = []
+    old_adapter = _adapter(a, a_spec)
+    new_adapter = _adapter(b, b_spec)
+    if old_adapter != new_adapter:
+        changes.append(
+            _change(
+                "source",
+                "source.adapter",
+                old_adapter,
+                new_adapter,
+                f"source adapter: {old_adapter or '<none>'} -> "
+                f"{new_adapter or '<none>'}",
+            )
+        )
+    before = _named(a.get("repos"))
+    after = _named(b.get("repos"))
+    for name in sorted(set(before) | set(after)):
+        old = before.get(name)
+        new = after.get(name)
+        path = f"source.repos[{name}].digest"
+        if old is None:
+            changes.append(
+                _change(
+                    "source",
+                    path,
+                    None,
+                    _digest(new),
+                    f"repository {name} added",
+                )
+            )
+        elif new is None:
+            changes.append(
+                _change(
+                    "source",
+                    path,
+                    _digest(old),
+                    None,
+                    f"repository {name} removed",
+                )
+            )
+        elif _digest(old) != _digest(new):
+            changes.append(
+                _change(
+                    "source",
+                    path,
+                    _digest(old),
+                    _digest(new),
+                    f"repository {name} content changed",
+                )
+            )
+    return changes
+
+
+def _adapter(
+    source: Mapping[str, Any], spec: Mapping[str, Any]
+) -> str:
+    """Read the source adapter from its snapshot, falling back to the spec."""
+    adapter = _text(source.get("adapter"))
+    if adapter:
+        return adapter
+    return _text((spec.get("source") or {}).get("adapter"))
+
+
+def _digest(repo: Mapping[str, Any] | None) -> str:
+    """Read one repository digest, defaulting to an empty string."""
+    return _text((repo or {}).get("digest"))
+
+
+def _case_changes(
+    a: Mapping[str, Any],
+    b: Mapping[str, Any],
+    a_source: Mapping[str, Any],
+    b_source: Mapping[str, Any],
+) -> list[SpecChange]:
+    """Diff case ids and the prompt fingerprint each case carries."""
+    before = _cases(a, a_source)
+    after = _cases(b, b_source)
     changes: list[SpecChange] = []
     for case_id in sorted(set(before) | set(after)):
         old = before.get(case_id)
         new = after.get(case_id)
-        path = f"source.options.cases[{case_id}].prompt"
+        if old is None:
+            path = _case_path(b, case_id)
+        elif new is None:
+            path = _case_path(a, case_id)
+        else:
+            path = _case_path(b, case_id)
         if old is None:
             changes.append(
                 _change("cases", path, None, _prompt(new), f"case {case_id} added")
@@ -187,19 +292,42 @@ def _case_changes(
     return changes
 
 
-def _cases(spec: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
-    """Return the cases declared by the inline source, indexed by case id."""
+def _case_path(spec: Mapping[str, Any], case_id: str) -> str:
+    """Name the field a case diff read: inline options or the source snapshot."""
     source = spec.get("source") or {}
     options = source.get("options") or {}
-    return {
+    if options.get("cases"):
+        return f"source.options.cases[{case_id}].prompt"
+    return f"source.cases[{case_id}].prompt_sha256"
+
+
+def _cases(
+    spec: Mapping[str, Any], source_snapshot: Mapping[str, Any]
+) -> dict[str, Mapping[str, Any]]:
+    """Return the cases a run recorded, inline declarations first.
+
+    A source that loads from a repository stores only case ids and prompt
+    hashes, so those runs fall back to the source snapshot instead of
+    pretending the inline options held the cases.
+    """
+    source = spec.get("source") or {}
+    options = source.get("options") or {}
+    inline = {
         str(case.get("case_id")): case
         for case in options.get("cases") or []
+    }
+    if inline:
+        return inline
+    return {
+        str(case.get("case_id")): case
+        for case in source_snapshot.get("cases") or []
     }
 
 
 def _prompt(case: Mapping[str, Any] | None) -> str:
-    """Read one case prompt, defaulting to an empty string."""
-    return _text((case or {}).get("prompt"))
+    """Read one case prompt or its recorded fingerprint, defaulting to empty."""
+    item = case or {}
+    return _text(item.get("prompt") or item.get("prompt_sha256"))
 
 
 def _candidate_changes(

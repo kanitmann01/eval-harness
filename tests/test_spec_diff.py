@@ -55,6 +55,7 @@ def test_identical_and_missing_snapshots_have_no_changes() -> None:
     assert identical.total == 0
     assert identical.headline == "No differences between the two snapshots."
     assert identical.counts == {
+        "source": 0,
         "cases": 0,
         "candidates": 0,
         "judges": 0,
@@ -256,6 +257,7 @@ def test_categories_and_paths_have_one_stable_order() -> None:
     ]
     assert diff.total == 6
     assert diff.counts == {
+        "source": 0,
         "cases": 1,
         "candidates": 1,
         "judges": 1,
@@ -272,6 +274,7 @@ def test_spec_diff_data_is_json_ready() -> None:
         "headline": "1 change: 1 candidate.",
         "total": 1,
         "counts": {
+            "source": 0,
             "cases": 0,
             "candidates": 1,
             "judges": 0,
@@ -289,3 +292,70 @@ def test_spec_diff_data_is_json_ready() -> None:
             }
         ],
     }
+
+def test_a_missing_source_snapshot_falls_back_to_the_spec_adapter() -> None:
+    old = _spec()
+    new = _spec()
+    new["source"]["adapter"] = "repo-source"
+
+    diff = diff_run_snapshots(old, new, {}, {})
+
+    assert [change.path for change in diff.changes] == ["source.adapter"]
+    assert diff.changes[0].before == "inline"
+    assert diff.changes[0].after == "repo-source"
+    assert diff_run_snapshots(_spec(), _spec(), {}, {}).counts["source"] == 0
+
+
+def test_source_adapter_and_repository_digests_are_diffed() -> None:
+    a_source = {
+        "adapter": "inline",
+        "repos": [
+            {"name": "repo", "digest": "old"},
+            {"name": "gone", "digest": "gone"},
+        ],
+    }
+    b_source = {
+        "adapter": "repo-source",
+        "repos": [
+            {"name": "repo", "digest": "new"},
+            {"name": "added", "digest": "added"},
+        ],
+    }
+
+    diff = diff_run_snapshots(
+        _spec(), _spec(), {}, {}, a_source=a_source, b_source=b_source
+    )
+
+    assert [change.path for change in diff.changes] == [
+        "source.adapter",
+        "source.repos[added].digest",
+        "source.repos[gone].digest",
+        "source.repos[repo].digest",
+    ]
+    assert diff.changes[0].before == "inline"
+    assert diff.changes[0].after == "repo-source"
+    assert diff.changes[1].before is None
+    assert diff.changes[1].after == "added"
+    assert diff.changes[2].before == "gone"
+    assert diff.changes[2].after is None
+    assert diff.changes[3].before == "old"
+    assert diff.changes[3].after == "new"
+    assert diff.counts["source"] == 4
+
+
+def test_source_snapshot_cases_fallback_when_inline_options_are_absent() -> None:
+    a = _spec()
+    a["source"] = {"adapter": "repo-source", "options": {}}
+    b = _spec()
+    b["source"] = {"adapter": "repo-source", "options": {}}
+    a_source = {"cases": [{"case_id": "c1", "prompt_sha256": "old"}]}
+    b_source = {"cases": [{"case_id": "c1", "prompt_sha256": "new"}]}
+
+    diff = diff_run_snapshots(
+        a, b, {}, {}, a_source=a_source, b_source=b_source
+    )
+
+    assert diff.total == 1
+    assert diff.changes[0].path == "source.cases[c1].prompt_sha256"
+    assert diff.changes[0].before == "old"
+    assert diff.changes[0].after == "new"
