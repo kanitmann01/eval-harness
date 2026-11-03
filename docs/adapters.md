@@ -87,6 +87,8 @@ kind. A CI failure therefore points at the same sentence it always did.
 | `source/1` | load returns at least one case | an empty suite is a configuration error, not a run |
 | `source/2` | load returns Case instances | the planner gets core cases |
 | `source/3` | case ids are unique | cell ids stay deterministic and unambiguous |
+| `source/4` | two loads return the same cases | a source over a prepared snapshot is deterministic |
+| `source/5` | case metadata carries snapshot-relative paths only | no host path leaks into a case or cell |
 
 ### sink
 
@@ -154,8 +156,11 @@ custom options can ignore the hooks; the defaults are then used.
 The runner supplies the options each kind needs to be exercised in
 isolation: a source gets `cases`, a sink gets
 `artifacts_dir`, and every kind gets a scratch directory under
-`EVALH_HOME/conformance` (override with `workdir=`). The
-scratch directory is removed after the run. Identities are fixed:
+`EVALH_HOME/conformance` (override with `workdir=`). A factory may set
+`CONFORMANCE_SETUP`, a callable that receives the scratch directory and returns
+an options mapping plus prepared repositories, for example the snapshot the
+repo source needs. The scratch directory is removed after the run. Identities
+are fixed:
 `conformance-candidate`, `conformance-judge` and
 `conformance_metric`, plus the literal `source` and
 `sink` the spec uses.
@@ -183,6 +188,49 @@ To register an adapter:
 2. Add a `ManifestEntry` row with the dotted path and the kind.
 3. Run `python -m evalharness conformance --adapter <path> --kind <kind>`.
 4. Run `python -m pytest`. The manifest tests are the gate.
+
+## The repository source
+
+`evalharness.adapters.sources.repo:build` reads cases and fixture metadata from
+a repository snapshot declared under top-level `repos`:
+
+```yaml
+repos:
+  docs:
+    root: fixtures/docs
+
+source:
+  adapter: evalharness.adapters.sources.repo:build
+  options:
+    repo: docs
+    cases: cases/questions.jsonl
+    fixtures: fixtures
+```
+
+| Option | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `repo` | string | required | Name of a declared repository. |
+| `cases` | string | required | Snapshot-relative JSONL or YAML case file. |
+| `fixtures` | string or null | null | Snapshot-relative file or directory a case may reference. |
+| `case_limit` | integer >= 1 | 500 | Refuse a larger case file. |
+| `inline_fixtures` | boolean | false | Include small UTF-8 fixture text in each case. |
+| `inline_max_bytes` | integer >= 1 | 65536 | Largest fixture inlined per case. |
+
+A JSONL case file holds one JSON object per line; a YAML file holds a list of
+objects. Case ids must be unique. A case `metadata.fixtures` list names files
+below the configured fixture root, and the adapter resolves each to
+`{"path", "sha256", "bytes"}`, plus `text` when inlining is on and the file is
+UTF-8 and within the cap. Paths are snapshot-relative, never host paths, and a
+path outside the root is rejected, including one that escapes through a symlink.
+
+The conformance factory declares `CONFORMANCE_SETUP`: it creates a two-case
+repository and fixture under the scratch directory, snapshots it, and returns
+the options plus the prepared snapshots. That exercises the same load path a
+real run uses.
+
+Remote `url` repositories are declared by the spec but refused at snapshot
+time in 0.4.0a with `repos.<name>.url: remote repository snapshots are not
+available in 0.4.0a`. See [design-repo-context.md](design-repo-context.md).
 
 ## The HTTP candidate
 

@@ -79,6 +79,7 @@ silently ignored.
 | description | string | no | "" | Free text. |
 | seed | integer | no | 0 | Seeds cell ordering and is passed to every candidate. |
 | source | mapping | yes | none | Where the cases come from. |
+| repos | mapping name -> repository | no | {} | Local repositories a source may read. Each is snapshotted before the first cell. |
 | prompts | mapping string -> string | no | {} | Named prompt overrides. A candidate names one under options.prompt. |
 | contexts | mapping string -> list of chunks | no | {} | Named context sets. A candidate names one under options.context. |
 | credentials | list of credential declarations | no | [] | Logical credential names. Secrets come from the encrypted vault (docs/credentials.md). |
@@ -99,10 +100,62 @@ silently ignored.
 | --- | --- | --- | --- |
 | adapter | string | yes | Registered name or dotted path in module:attr form. |
 | options | mapping | no | Adapter-specific. The inline source reads options.cases. |
+| credential | string | no | A declared or stored credential name. Only valid when at least one repository declares an https url; reserved for the remote fetch that follows 0.4.0a. |
 
 A case has case_id (required), prompt (required), expected (optional mapping),
 rubric (optional string), tier (integer, default 1) and metadata (mapping).
 Duplicate case ids fail validation.
+
+## repos
+
+Declare a local repository when a source should read cases or fixtures from a
+snapshot rather than from inline values:
+
+```yaml
+repos:
+  docs:
+    root: fixtures/docs
+    include: ["**/*.md", "**/*.jsonl"]
+    exclude: ["drafts/"]
+    max_files: 500
+
+source:
+  adapter: evalharness.adapters.sources.repo:build
+  options:
+    repo: docs
+    cases: cases/questions.jsonl
+    fixtures: fixtures
+```
+
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| root | string | "." | Local path relative to the spec file. Must exist when the spec is validated. |
+| url | string or null | null | HTTPS repository URL. Declared for compatibility; 0.4.0a rejects remote fetching at snapshot time with an actionable error. |
+| ref | string or null | null | Git ref for a remote repository. Rejected with a local root. |
+| credential | string or null | null | Credential for a remote repository. Rejected with a local root. |
+| include | list of globs | ["**/*"] | Snapshot only matching paths. |
+| exclude | list of globs | [".git/", "node_modules/", ".venv/", "__pycache__/", "*.pyc"] | Skip matching paths. |
+| max_files | integer >= 1 | 2000 | Refuse a larger included set. |
+| max_file_bytes | integer >= 1 | 1000000 | Refuse one larger file. |
+| max_total_bytes | integer >= 1 | 20000000 | Refuse a larger included total. |
+| follow_symlinks | boolean | false | Follow symlinks that stay inside the root; escaping symlinks are refused and a directory cycle is walked once. |
+| binary | "skip" or "error" | "skip" | Skip NUL-byte files or fail on the first one. |
+
+Exactly one location is allowed: omit root and set url, or keep root and leave
+url unset. Names match [A-Za-z0-9][A-Za-z0-9._-]*. Globs are relative to the
+repository root and may not escape it: an absolute path, drive letter, home
+shortcut or ".." segment is a spec error naming the field. A root is relative
+to the spec file and rejects an absolute path, drive letter or home shortcut;
+".." is allowed so a spec can point at a sibling checkout, and the directory
+must exist when the spec is loaded.
+
+Before the first cell the harness copies every included file into
+$EVALH_HOME/repos/<digest>/tree and writes a manifest beside it. The digest is
+the SHA-256 of the sorted blob hash and path lines, so an unchanged tree reuses
+the same directory. Only snapshot-relative paths, hashes, sizes and modes enter
+the manifest; host paths and bytes never enter the database. The source receives
+the prepared tree through RunContext.repos. [design-repo-context.md](design-repo-context.md)
+records the wider 0.4 design.
 
 ## prompts and contexts
 

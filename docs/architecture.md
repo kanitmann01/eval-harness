@@ -30,7 +30,8 @@ src/evalharness/
     registry.py        name -> factory, dotted path resolution, test registration
     spec.py            YAML load, schema versioning, validation, price resolution
     planner.py         spec -> cells (candidate x case x replica), deterministic ids
-    context.py         RunContext: credential, cases, prompt variant, chunks, seed, budget
+    context.py         RunContext: credential, cases, prompt variant, chunks, repos, seed, budget
+    repo_snapshot.py   local repository snapshot, content digest, manifest, changed check
     cancel.py          cooperative cancellation token, checked between cells
     executor.py        bounded concurrency, retries, budget guard, cancel, resume
     scorer.py          metrics -> checks per cell, awaiting each metric
@@ -54,7 +55,7 @@ src/evalharness/
     candidates/        scripted stubs, the HTTP candidate, and the two provider candidates
     judges/            deterministic rule-based and scripted judges, plus the two provider judges
     metrics/           exact match, containment, citation support, judge pass, latency
-    sources/           inline, jsonl file
+    sources/           inline, jsonl file, prepared repository snapshot
     sinks/             json file
   config/
     prices.yaml        the shipped USD-per-million-token table, keyed by provider and model
@@ -121,7 +122,9 @@ a scorer, metric or cost regression fails the suite.
 - Cell id is deterministic: `sha1(candidate|case_id|replica)` truncated. Ordering is
   seeded, so a resumed run continues the same matrix.
 - Every state change appends to `events`; SSE replays from an event id.
-- A run records spec snapshot, resolved price snapshot, harness revision, seed, status.
+- A run records spec snapshot, resolved price snapshot, source snapshot, harness
+  revision, seed, status. The source snapshot names the source adapter, the case
+  count, and every repository digest, so a resume can refuse a changed tree.
 - A cell stores its cost split (`answer_cost_usd`, `judge_cost_usd`, `tool_cost_usd`)
   and the judge tokens it spent; `cost_usd` is always their sum. It also stores its
   candidate provider and the judge usage per judge provider, which a run rolls up into

@@ -200,6 +200,17 @@ credential for a judge is a spec error naming `judges[i].credential`, before any
 cell; the provider judge does not fail at request time. The full matrix is in
 [providers.md](providers.md).
 
+## Credentials for a repository source
+
+A repository declared with an https `url` will authenticate through
+`source.credential`. The name must be declared under `credentials:` or stored in
+the vault, and it must be usable; a disabled or unverified credential fails
+validation the same way a candidate credential does. A repository with a local
+root rejects its own `credential` field, and `source.credential` without at
+least one remote repository is a spec error naming `source.credential`. Remote
+fetching is not implemented in 0.4.0a, so the field validates but no request is
+made yet.
+
 ## Rotation
 
 Provider keys: a duplicate name is rejected, so rotate with `delete` then `add`, or add a

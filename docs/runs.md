@@ -70,7 +70,7 @@ concurrency 1 when the count matters.
 
 `evalh run SPEC --resume RUN_ID` continues an existing run:
 
-- The run is loaded with its spec snapshot, seed, prices and cells.
+- The run is loaded with its spec snapshot, source snapshot, seed, prices and cells.
 - A cell already `ok` in this run is skipped: not started, not charged again, its
   stored checks still count.
 - Every other cell (cancelled, error, never started) runs, into the same
@@ -91,6 +91,7 @@ Refused resumes, each a spec error (exit 2):
 | Run already finished `ok` | `--resume` | start a new run |
 | Spec seed differs from the run's seed | `seed` | restore the seed or start a new run |
 | Spec file sha differs from the snapshot sha | `spec` | restore the file or start a new run |
+| A repository digest differs from the run's source snapshot | `repos.<name>` | restore the tree or start a new run |
 
 `--override-budget USD` also works with `--resume`, which is how a run that
 aborted on budget continues: without it the guard trips again before the first
@@ -99,7 +100,10 @@ cell.
 A resume replays the current spec's matrix. The spec sha pins that matrix for the
 built-in sources (inline, and the JSONL file source); a source that reads data
 outside the spec must keep its case ids stable, or the "same aggregates"
-guarantee does not hold.
+guarantee does not hold. For a repository source the run records the digest of
+every prepared tree, and a resume re-prepares the tree and refuses when the
+digest changed. The case file is therefore pinned even though it is not part of
+the spec file.
 
 ## Exit codes
 

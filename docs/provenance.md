@@ -27,8 +27,9 @@ current run. There is no JSON diff route in this slice.
 The receipt JSON is the source of truth for the page, so a script and a reader
 see the same values. Its top-level keys are `run_id`, `spec_id`, `spec_name`,
 `status`, `spec_sha`, `harness_sha`, `operator`, `seed`, `started_at`,
-`finished_at`, `candidates`, `judge_pins`, `price_table`, `gates`,
-`previous`, `diff`, `drift`, `receipt_url`, `page_url` and `run_url`.
+`finished_at`, `candidates`, `judge_pins`, `price_table`, `source`,
+`source_recorded`, `gates`, `previous`, `diff`, `drift`, `receipt_url`,
+`page_url` and `run_url`.
 Each `*_recorded` companion key says whether a value came from storage or is
 honestly absent.
 
@@ -41,6 +42,7 @@ honestly absent.
 | Candidate models | The spec snapshot's `candidates` | Each candidate name, adapter and model. A candidate without a model reads `not recorded`. |
 | Judge pins | Stored checks, then the spec snapshot | The judge configuration behind every judge-scored metric. See [Judge pinning and drift](#judge-pinning-and-drift). |
 | Price table | `runs.prices_snapshot` | The fingerprint and every flattened rate. The fingerprint is the SHA-256 of the sorted, compact-flattened table, so the same rates always produce the same id. A version 2 snapshot nests rates by provider and flattens to `provider/model`; an older snapshot is already flat. |
+| Source snapshot | `runs.source_snapshot` | The source adapter, the case count, and for each repository its name, root, ref, git commit, content digest, file count, bytes, skipped-binary count and dirty flag. A run with no snapshot reads `not recorded`. |
 | Seed | `runs.seed` | The seed the run executed. |
 | Operator | `runs.operator` | Who asked for the run, or `not recorded`. |
 | Started, finished | `runs.started_at`, `runs.finished_at` | UTC timestamps. A run still in flight reads `not finished`. |
@@ -94,15 +96,16 @@ one-line summary. The categories and their paths are:
 
 | Category | Example path | What it covers |
 | --- | --- | --- |
-| `cases` | `source.options.cases[case-1].prompt` | Case prompts added, removed or changed, matched by `case_id`. |
+| `source` | `source.repos[docs].digest` | The source adapter and each repository digest added, removed or changed. |
+| `cases` | `source.options.cases[case-1].prompt` or `source.cases[case-1].prompt_sha256` | Case prompts added, removed or changed, matched by `case_id`. |
 | `candidates` | `candidates[cand].model` | Candidate adapter and model swaps, plus whole-candidate adds and removes. |
 | `judges` | `judges[j].options` | Judge adapter, model and option changes, and metric-to-judge assignment changes. |
 | `prices` | `prices[p/m].input` | Per-model rate changes in either price snapshot shape, plus added and removed price rows. |
 | `run` | `seed`, `replicas`, `budget_usd` | Seed, replica count, budget and gate arithmetic knobs. |
 | `gates` | `gates[exact_match].min` | Gates matched by metric and candidate: adds, removes and changed limits. |
 
-Ordering is stable: categories sort as cases, candidates, judges, prices, run,
-gates, and paths sort within each category. The headline is the total plus the
+Ordering is stable: categories sort as source, cases, candidates, judges, prices,
+run, gates, and paths sort within each category. The headline is the total plus the
 non-zero category counts, for example `3 changes: 3 cases.`.
 
 The diff page shows the spec diff first, because it answers what changed, and
