@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Iterable
+from urllib.parse import urlsplit
 
 import yaml
 from pydantic import ValidationError
@@ -140,6 +142,7 @@ def load_and_validate(
         stored_credentials=stored_credentials,
         credential_states=credential_states,
         require_verified_credentials=require_verified_credentials,
+        spec_dir=Path(path).parent,
     )
 
 
@@ -259,6 +262,201 @@ def _usable_credential(
         )
 
 
+def _validate_repos(
+    spec: Spec,
+    known_credentials: set[str],
+    states: dict[str, CredentialState],
+    *,
+    require_verified: bool,
+    spec_dir: Path | None,
+) -> None:
+    """Validate every repository declaration before a case is loaded.
+
+    The checks are deliberately split: shape is always checked, while the
+    existence of a local root is checked only when the spec file has a
+    directory. That lets the console validate a pasted spec without inventing
+    a working directory, and lets the snapshot step be the final authority.
+    """
+    for name, repo in spec.repos.items():
+        field = f"repos.{name}"
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", name):
+            raise SpecError(
+                field,
+                name,
+                "a repository name must start with a letter or digit and "
+                "contain only letters, digits, dots, underscores and hyphens",
+                "rename the repository under repos:",
+            )
+        if repo.url is not None:
+            _validate_repo_url(repo.url, field, spec_dir)
+        else:
+            _validate_repo_root(repo.root, field, spec_dir)
+        if repo.credential is not None and repo.url is None:
+            raise SpecError(
+                f"{field}.credential",
+                repo.credential,
+                "a credential can only authenticate a remote repository",
+                "remove credential or set url to an https repository URL",
+            )
+        if repo.ref is not None and repo.url is None:
+            raise SpecError(
+                f"{field}.ref",
+                repo.ref,
+                "a git ref only means something for a remote repository",
+                "remove ref or set url to an https repository URL",
+            )
+        if not repo.include:
+            raise SpecError(
+                f"{field}.include",
+                repo.include,
+                "include must name at least one glob",
+                'set include to ["**/*"] to snapshot every file',
+            )
+        for pattern in repo.include:
+            _validate_repo_glob(pattern, f"{field}.include", spec_dir)
+        for pattern in repo.exclude:
+            _validate_repo_glob(pattern, f"{field}.exclude", spec_dir)
+        _declared_credential(known_credentials, repo.credential, f"{field}.credential")
+        _usable_credential(
+            states,
+            repo.credential,
+            f"{field}.credential",
+            require_verified=require_verified,
+        )
+
+
+def _validate_repo_url(url: str, field: str, spec_dir: Path | None) -> None:
+    """Require an https URL with no embedded identity, query or fragment."""
+    del spec_dir
+    parts = urlsplit(url)
+    if parts.scheme != "https" or not parts.hostname:
+        raise SpecError(
+            f"{field}.url",
+            url,
+            "a repository URL must be https with a host",
+            "use https://host/owner/repo.git",
+        )
+    if parts.username is not None or parts.password is not None:
+        raise SpecError(
+            f"{field}.url",
+            url,
+            "a repository URL must not embed a username or password",
+            "remove the userinfo and declare credential: instead",
+        )
+    if parts.query or parts.fragment:
+        raise SpecError(
+            f"{field}.url",
+            url,
+            "a repository URL must not carry a query or fragment",
+            "remove the query and fragment",
+        )
+
+
+def _validate_repo_root(
+    root: str, field: str, spec_dir: Path | None
+) -> None:
+    """Require a relative, contained local root that exists when it can."""
+    if "\x00" in root:
+        raise SpecError(
+            f"{field}.root",
+            root,
+            "a repository root must not contain a NUL byte",
+            "use a normal relative path such as '.'",
+        )
+    if root.startswith("~"):
+        raise SpecError(
+            f"{field}.root",
+            root,
+            "a repository root must not use a home-directory shortcut",
+            "use a path relative to the spec file",
+        )
+    if PurePosixPath(root).is_absolute() or PureWindowsPath(root).is_absolute():
+        raise SpecError(
+            f"{field}.root",
+            root,
+            "a repository root must be relative to the spec file",
+            "use a path such as '.' or 'fixtures/repo'",
+        )
+    if PureWindowsPath(root).drive:
+        raise SpecError(
+            f"{field}.root",
+            root,
+            "a repository root must not carry a drive letter",
+            "use a path relative to the spec file",
+        )
+    if spec_dir is not None and not (spec_dir / root).is_dir():
+        raise SpecError(
+            f"{field}.root",
+            root,
+            "the repository root does not exist or is not a directory",
+            "fix the path or create the directory before loading the spec",
+        )
+
+
+def _validate_repo_glob(
+    pattern: str, field: str, spec_dir: Path | None
+) -> None:
+    """Reject a glob that could escape the repository tree."""
+    del spec_dir
+    normalized = pattern.replace("\\", "/")
+    parts = PurePosixPath(normalized).parts
+    if not pattern:
+        raise SpecError(
+            field,
+            pattern,
+            "a repository glob must not be empty",
+            'use a pattern such as "**/*.py"',
+        )
+    if (
+        normalized.startswith("/")
+        or normalized.startswith("~")
+        or ".." in parts
+        or PureWindowsPath(pattern).is_absolute()
+        or PureWindowsPath(pattern).drive
+    ):
+        raise SpecError(
+            field,
+            pattern,
+            "a repository glob must stay inside the repository",
+            'use a relative pattern such as "**/*.py"',
+        )
+
+
+def _validate_source_credential(
+    spec: Spec,
+    known_credentials: set[str],
+    states: dict[str, CredentialState],
+    *,
+    require_verified: bool,
+) -> None:
+    """Allow source.credential only when a remote repository needs it."""
+    name = spec.source.credential
+    if name is None:
+        return
+    if not any(repo.url is not None for repo in spec.repos.values()):
+        raise SpecError(
+            "source.credential",
+            name,
+            "a source credential only authenticates a remote repository",
+            "remove source.credential or declare a repository with an https url",
+        )
+    if name not in known_credentials:
+        choices = ", ".join(sorted(known_credentials)) or "none declared"
+        raise SpecError(
+            "source.credential",
+            name,
+            "unknown credential",
+            f"declare it under credentials:, add it with 'evalh credentials add', "
+            f"or use one of: {choices}",
+        )
+    _usable_credential(
+        states,
+        name,
+        "source.credential",
+        require_verified=require_verified,
+    )
+
+
 def _candidate_axes(
     spec: Spec,
     candidate: CandidateSpec,
@@ -348,6 +546,7 @@ def validate_spec(
     credential_states: Iterable[CredentialState] = (),
     require_verified_credentials: bool = False,
     default_prices: PriceTable | None = None,
+    spec_dir: Path | None = None,
 ) -> ResolvedSpec:
     """Validate every declarative reference before anything executes.
 
@@ -362,6 +561,11 @@ def validate_spec(
 
     `default_prices` is the shipped provider table. Tests pass one explicitly;
     production loads `config/prices.yaml` from the installed package.
+
+    `spec_dir` is the directory holding the spec file. A local repository root
+    is resolved against it and must exist; validation without a path (a pasted
+    spec in the console) still checks the root's shape, and the snapshot step
+    checks that it exists.
     """
     defaults = default_prices if default_prices is not None else load_default_prices()
     _unique(
@@ -400,6 +604,20 @@ def validate_spec(
             field,
             require_verified=require_verified_credentials,
         )
+
+    _validate_repos(
+        spec,
+        known_credentials,
+        states,
+        require_verified=require_verified_credentials,
+        spec_dir=spec_dir,
+    )
+    _validate_source_credential(
+        spec,
+        known_credentials,
+        states,
+        require_verified=require_verified_credentials,
+    )
 
     source = _build(
         spec.source.adapter,

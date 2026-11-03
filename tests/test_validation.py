@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import copy
 
+import pytest
+
 import tests.adapters  # noqa: F401 - importing registers the test adapters
 from evalharness.cli import main
 from tests.helpers import JSON_SINK, STUB_FIXED_PROMPT, base_spec, write_spec
@@ -310,6 +312,20 @@ def test_source_factory_must_load(evalh_home, workdir, capsys):
     assert "failed to load cases" in captured.err
 
 
+def test_source_spec_error_is_not_rewrapped(evalh_home, workdir, capsys):
+    spec = base_spec()
+    spec["source"]["adapter"] = "test:spec_error_source"
+    spec["source"]["options"] = {}
+    path = write_spec(workdir / "spec-error-source.yaml", spec)
+
+    code = main(["run", str(path)])
+
+    captured = capsys.readouterr()
+    assert code == 2
+    assert "source.options.cases" in captured.err
+    assert "not readable" in captured.err
+
+
 def test_source_returning_no_cases(evalh_home, workdir, capsys):
     spec = base_spec()
     spec["source"]["adapter"] = "test:empty_source"
@@ -401,4 +417,129 @@ def test_valid_custom_sink_declaration(evalh_home, workdir, capsys):
     spec = base_spec()
     spec["sink"] = {"adapter": JSON_SINK, "options": {"artifacts_dir": "ignored"}}
     path = write_spec(workdir / "sink.yaml", spec)
+    assert main(["validate", str(path)]) == 0
+
+def _repo_failure(evalh_home, workdir, capsys, repo, source_credential=None):
+    spec = base_spec()
+    spec["repos"] = {"tiny": repo}
+    if source_credential is not None:
+        spec["source"]["credential"] = source_credential
+    return _failure(evalh_home, workdir, capsys, spec)
+
+
+def test_repository_needs_exactly_one_location(evalh_home, workdir, capsys):
+    error = _repo_failure(
+        evalh_home, workdir, capsys, {"root": ".", "url": "https://example.com/x.git"}
+    )
+    assert "set exactly one of root or url" in error
+
+
+def test_repository_root_must_not_be_empty(evalh_home, workdir, capsys):
+    error = _repo_failure(evalh_home, workdir, capsys, {"root": ""})
+    assert "root must not be empty" in error
+
+
+def test_repository_names_are_restricted(evalh_home, workdir, capsys):
+    spec = base_spec()
+    spec["repos"] = {"bad name": {"root": "."}}
+    error = _failure(evalh_home, workdir, capsys, spec)
+    assert "repos.bad name" in error
+    assert "repository name" in error
+
+
+def test_repository_url_shape_is_validated(evalh_home, workdir, capsys):
+    for url, message in [
+        ("http://example.com/x.git", "must be https"),
+        ("https://user:pass@example.com/x.git", "must not embed"),
+        ("https://example.com/x.git?ref=main", "must not carry a query"),
+        ("https://example.com/x.git#main", "must not carry a query"),
+    ]:
+        error = _repo_failure(evalh_home, workdir, capsys, {"url": url})
+        assert message in error
+
+
+def test_repository_root_shape_is_validated(evalh_home, workdir, capsys):
+    for root, message in [
+        ("bad\x00path", "NUL byte"),
+        ("~/repo", "home-directory shortcut"),
+        ("/abs/repo", "must be relative"),
+        ("C:/repo", "must be relative"),
+        ("C:repo", "drive letter"),
+        ("missing", "does not exist"),
+    ]:
+        error = _repo_failure(evalh_home, workdir, capsys, {"root": root})
+        assert message in error
+
+
+def test_repository_include_must_not_be_empty(evalh_home, workdir, capsys):
+    error = _repo_failure(evalh_home, workdir, capsys, {"root": ".", "include": []})
+    assert "repos.tiny.include" in error
+    assert "at least one glob" in error
+
+
+@pytest.mark.parametrize(
+    "pattern",
+    ["", "/abs/*.py", "~/repo/*.py", "../outside/*.py", "C:/repo/*.py"],
+)
+def test_repository_globs_stay_inside_the_tree(
+    evalh_home, workdir, capsys, pattern
+):
+    error = _repo_failure(
+        evalh_home, workdir, capsys, {"root": ".", "exclude": [pattern]}
+    )
+    assert "repos.tiny.exclude" in error
+    assert "must stay inside" in error or "must not be empty" in error
+
+
+def test_an_invalid_include_glob_names_the_include_field(
+    evalh_home, workdir, capsys
+):
+    error = _repo_failure(
+        evalh_home, workdir, capsys, {"root": ".", "include": ["../outside/*.py"]}
+    )
+    assert "repos.tiny.include" in error
+    assert "must stay inside" in error
+
+
+def test_local_repository_rejects_remote_only_options(evalh_home, workdir, capsys):
+    error = _repo_failure(
+        evalh_home, workdir, capsys, {"root": ".", "credential": "stub"}
+    )
+    assert "repos.tiny.credential" in error
+    assert "only authenticate a remote repository" in error
+
+    error = _repo_failure(
+        evalh_home, workdir, capsys, {"root": ".", "ref": "main"}
+    )
+    assert "repos.tiny.ref" in error
+    assert "only means something for a remote repository" in error
+
+
+def test_source_credential_needs_a_remote_repository(evalh_home, workdir, capsys):
+    spec = base_spec()
+    spec["source"]["credential"] = "stub"
+    error = _failure(evalh_home, workdir, capsys, spec)
+    assert "source.credential" in error
+    assert "only authenticates a remote repository" in error
+
+
+def test_source_credential_must_be_declared(evalh_home, workdir, capsys):
+    error = _repo_failure(
+        evalh_home,
+        workdir,
+        capsys,
+        {"url": "https://example.com/x.git"},
+        source_credential="missing",
+    )
+    assert "source.credential" in error
+    assert "unknown credential" in error
+
+
+def test_remote_repository_with_a_source_credential_validates(
+    evalh_home, workdir, capsys
+):
+    spec = base_spec()
+    spec["repos"] = {"tiny": {"url": "https://example.com/x.git"}}
+    spec["source"]["credential"] = "stub"
+    path = write_spec(workdir / "remote.yaml", spec)
     assert main(["validate", str(path)]) == 0

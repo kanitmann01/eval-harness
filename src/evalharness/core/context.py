@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from evalharness.core.events import EventEmitter
 from evalharness.core.models import ContextChunk, CredentialSpec
 from evalharness.core.redaction import NoOpRedactor, Redactor
+from evalharness.core.repo_snapshot import RepoSnapshot
 
 
 class CredentialHandle(BaseModel):
@@ -99,6 +100,7 @@ class RunContext:
     replica: int = 0
     model: str = ""
     redactor: Redactor = field(default_factory=NoOpRedactor)
+    repos: Mapping[str, RepoSnapshot] = field(default_factory=dict)
 
     def artifact_metadata(self) -> dict[str, Any]:
         """Return a redaction-safe summary for candidate artifacts."""

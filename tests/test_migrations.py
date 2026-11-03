@@ -182,6 +182,36 @@ def test_migration_adds_a_missing_nullable_column(evalh_home, workdir):
         reopened.dispose()
 
 
+def test_a_version_7_run_reads_an_empty_source_snapshot(evalh_home, workdir):
+    url = _database_url(workdir, "version-7.db")
+    database = Database(url)
+    database.create_all()
+    repository = Repository(database)
+    repository.save_spec("spec-old", "old-spec", "yaml", "sha", utc_now())
+    repository.create_run(
+        RunRecord(
+            run_id="run-old",
+            spec_id="spec-old",
+            status="ok",
+            started_at=utc_now(),
+        )
+    )
+    with database.engine.begin() as connection:
+        connection.exec_driver_sql("ALTER TABLE runs DROP COLUMN source_snapshot")
+        connection.exec_driver_sql("DELETE FROM schema_version")
+        connection.exec_driver_sql("INSERT INTO schema_version (version) VALUES (7)")
+    database.dispose()
+
+    reopened = Database(url)
+    repository = Repository(reopened)
+    try:
+        run = repository.get_run("run-old")
+        assert run is not None
+        assert run.source_snapshot == {}
+    finally:
+        reopened.dispose()
+
+
 def test_migration_adds_the_budget_override_to_a_version_1_database(
     evalh_home, workdir
 ):

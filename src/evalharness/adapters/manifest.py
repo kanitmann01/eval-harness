@@ -92,6 +92,7 @@ without a stored credential; the auth shapes are covered by the tests.
 
 MANIFEST: tuple[ManifestEntry, ...] = (
     ManifestEntry("evalharness.adapters.sources.inline:build", "source"),
+    ManifestEntry("evalharness.adapters.sources.repo:build", "source"),
     ManifestEntry("evalharness.adapters.candidates.stub:build", "candidate"),
     ManifestEntry("evalharness.adapters.candidates.stub:build_slow", "candidate"),
     ManifestEntry(

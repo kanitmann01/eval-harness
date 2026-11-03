@@ -57,6 +57,12 @@ from evalharness.core.redaction import (
     Redactor,
     SecretRedactor,
 )
+from evalharness.core.repo_snapshot import (
+    RepoSnapshot,
+    changed_repos,
+    prepare_repos,
+    source_snapshot,
+)
 from evalharness.core.scorer import aggregate_cells, evaluate_gates
 from evalharness.core.spec import ResolvedSpec, load_and_validate
 from evalharness.core.vault import VaultCredentialStore, open_vault
@@ -76,6 +82,8 @@ class PreparedRun:
     cases: list[Case]
     cells: list[PlannedCell]
     estimate: CostEstimate
+    repos: dict[str, RepoSnapshot]
+    source_snapshot: dict[str, Any]
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,13 +147,26 @@ def load_run(
         spec_path,
         credential_states=stored_credential_states(settings),
     )
-    cases = _load_cases(resolved, run_id)
+    repos = prepare_repos(
+        resolved.spec,
+        base_dir=Path(spec_path).parent,
+        home=settings.home,
+    )
+    cases = _load_cases(resolved, run_id, repos=repos)
+    snapshot = source_snapshot(
+        resolved.spec.source.adapter,
+        repos,
+        cases,
+        resolved.spec.contexts,
+    )
     cells = expand(resolved, cases)
     return PreparedRun(
         resolved=resolved,
         cases=cases,
         cells=cells,
         estimate=_estimate(resolved, cells, None),
+        repos=repos,
+        source_snapshot=snapshot,
     )
 
 
@@ -195,6 +216,7 @@ def execute(
                 cells,
                 resume_run_id,
                 override_budget,
+                prepared.source_snapshot,
             )
         else:
             run = _launch_run(
@@ -204,6 +226,7 @@ def execute(
                 run_id,
                 cells,
                 override_budget,
+                prepared.source_snapshot,
             )
         if on_run_created is not None:
             on_run_created(run)
@@ -264,7 +287,12 @@ def execute(
         database.dispose()
 
 
-def _load_cases(resolved: ResolvedSpec, run_id: str) -> list[Case]:
+def _load_cases(
+    resolved: ResolvedSpec,
+    run_id: str,
+    *,
+    repos: dict[str, RepoSnapshot] | None = None,
+) -> list[Case]:
     """Load the spec's cases through its source, or raise an actionable error."""
     context = RunContext(
         run_id=run_id,
@@ -272,9 +300,12 @@ def _load_cases(resolved: ResolvedSpec, run_id: str) -> list[Case]:
         credential=None,
         events=EventEmitter(run_id),
         redactor=NoOpRedactor(),
+        repos=repos or {},
     )
     try:
         cases = list(resolved.source.load(resolved.spec.source, context))
+    except SpecError:
+        raise
     except Exception as exc:  # source adapters are external code
         raise SpecError(
             "source",
@@ -350,6 +381,7 @@ def _launch_run(
     run_id: str,
     cells: list[PlannedCell],
     override_budget: float | None,
+    snapshot: dict[str, Any],
 ) -> RunRecord:
     """Check the launch estimate, snapshot the spec and record the run.
 
@@ -385,6 +417,7 @@ def _launch_run(
         spec_name=resolved.spec.name,
         spec_snapshot=resolved.spec.model_dump(mode="json"),
         prices_snapshot=resolved.price_table.snapshot(),
+        source_snapshot=snapshot,
         harness_sha=harness_revision(),
         operator=os.environ.get("EVALH_OPERATOR", "").strip(),
         seed=resolved.spec.seed,
@@ -417,9 +450,10 @@ def _resume_run(
     cells: list[PlannedCell],
     run_id: str,
     override_budget: float | None,
+    snapshot: dict[str, Any],
 ) -> RunRecord:
     """Reopen an existing run in place, raising the cap when asked."""
-    run = _resume_target(repository, resolved, run_id)
+    run = _resume_target(repository, resolved, run_id, snapshot)
     if override_budget is not None:
         run = _record_override(
             repository, redactor, run, resolved, override_budget
@@ -439,6 +473,7 @@ def _resume_target(
     repository: Repository,
     resolved: ResolvedSpec,
     run_id: str,
+    snapshot: dict[str, Any],
 ) -> RunRecord:
     """Load a run and refuse to resume one that cannot be resumed faithfully."""
     run = repository.get_run(run_id)
@@ -472,6 +507,18 @@ def _resume_target(
             "the spec file sha does not match the snapshot sha "
             f"{stored_sha[:12] or '<missing>'} this run used",
             "restore the spec file or start a new run",
+        )
+    changed = changed_repos(
+        run.source_snapshot.get("repos", []),
+        snapshot.get("repos", []),
+    )
+    if changed:
+        name, _recorded, _current = changed[0]
+        raise SpecError(
+            f"repos.{name}",
+            name,
+            "the repository content changed since this run was launched",
+            "restore the tree or start a new run",
         )
     return run
 

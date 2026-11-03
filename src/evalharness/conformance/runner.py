@@ -22,6 +22,7 @@ from evalharness.conformance.suite import (
 )
 from evalharness.core.config import Settings
 from evalharness.core.registry import resolve
+from evalharness.core.repo_snapshot import RepoSnapshot
 
 _IDENTITIES: dict[str, str] = {
     CANDIDATE: "conformance-candidate",
@@ -96,6 +97,11 @@ def run_suite(
     factory = resolve(adapter_path)
     with _scratch(workdir) as scratch:
         merged = _default_options(kind, scratch)
+        repos: dict[str, RepoSnapshot] = {}
+        setup = getattr(factory, "CONFORMANCE_SETUP", None)
+        if setup is not None:
+            setup_options, repos = setup(scratch)
+            merged.update(setup_options)
         if options is not None:
             merged.update(dict(options))
         context = ConformanceContext(
@@ -105,6 +111,7 @@ def run_suite(
             options=merged,
             workdir=scratch,
             factory=factory,
+            repos=repos,
         )
         results = [run_case(case, context) for case in cases]
     return ConformanceReport(

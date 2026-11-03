@@ -395,6 +395,14 @@ def test_unexpected_adapter_crash_is_reported_as_the_clause(evalh_home):
     assert "RuntimeError" in result.detail
 
 
+def test_repository_source_passes_every_source_clause(evalh_home):
+    report = run_suite("evalharness.adapters.sources.repo:build", "source")
+
+    assert report.passed, [
+        (result.clause, result.detail) for result in report.results if not result.ok
+    ]
+
+
 def test_stub_candidate_passes_every_candidate_clause(evalh_home):
     report = run_suite(STUB, "candidate")
 

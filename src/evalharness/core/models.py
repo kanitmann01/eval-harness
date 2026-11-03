@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from evalharness.core.redaction import NoOpRedactor
 
@@ -178,6 +178,7 @@ class RunRecord(BaseModel):
     spec_name: str = ""
     spec_snapshot: dict[str, Any] = Field(default_factory=dict)
     prices_snapshot: dict[str, Any] = Field(default_factory=dict)
+    source_snapshot: dict[str, Any] = Field(default_factory=dict)
     harness_sha: str = ""
     operator: str = ""
     seed: int = 0
@@ -307,6 +308,48 @@ class ScoreContext(BaseModel):
     redactor: Any = Field(default_factory=NoOpRedactor)
 
 
+class RepoSpec(BaseModel):
+    """One repository a source may read cases and fixtures from.
+
+    There is exactly one location: a local root (relative to the spec's
+    directory) or an HTTPS URL. The URL branch is declared now so a spec keeps
+    its shape when remote fetching lands, but version 0.4.0a only snapshots a
+    local root. Caps and exclusions are part of the spec, so a run can never
+    silently read more of a tree than the spec allowed.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    root: str = "."
+    url: str | None = None
+    ref: str | None = None
+    credential: str | None = None
+    include: list[str] = Field(default_factory=lambda: ["**/*"])
+    exclude: list[str] = Field(
+        default_factory=lambda: [
+            ".git/",
+            "node_modules/",
+            ".venv/",
+            "__pycache__/",
+            "*.pyc",
+        ]
+    )
+    max_files: int = Field(default=2000, ge=1)
+    max_file_bytes: int = Field(default=1_000_000, ge=1)
+    max_total_bytes: int = Field(default=20_000_000, ge=1)
+    follow_symlinks: bool = False
+    binary: Literal["skip", "error"] = "skip"
+
+    @model_validator(mode="after")
+    def _one_location(self) -> RepoSpec:
+        """Reject a spec that names both a local root and a remote URL."""
+        if self.url is not None and "root" in self.model_fields_set:
+            raise ValueError("set exactly one of root or url, not both")
+        if self.url is None and not self.root:
+            raise ValueError("root must not be empty; use '.' for the spec directory")
+        return self
+
+
 class SourceSpec(BaseModel):
     """The source block of a spec: one adapter plus its options."""
 
@@ -314,6 +357,7 @@ class SourceSpec(BaseModel):
 
     adapter: str
     options: dict[str, Any] = Field(default_factory=dict)
+    credential: str | None = None
 
 
 class CandidateSpec(BaseModel):
@@ -423,6 +467,7 @@ class Spec(BaseModel):
     description: str = ""
     seed: int = 0
     source: SourceSpec
+    repos: dict[str, RepoSpec] = Field(default_factory=dict)
     prompts: dict[str, str] = Field(default_factory=dict)
     contexts: dict[str, list[ContextChunk]] = Field(default_factory=dict)
     credentials: list[CredentialSpec] = Field(default_factory=list)

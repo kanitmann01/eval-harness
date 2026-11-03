@@ -20,7 +20,7 @@ from sqlalchemy.engine import Connection, Engine
 from evalharness.errors import SchemaMigrationError
 from evalharness.storage.models import AggregateRow, Base
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 """The schema this build writes; bump it when a new migration is added.
 
 Version 2 adds the nullable runs.budget_override_usd column from issue #3.
@@ -29,7 +29,8 @@ and n columns from issue #8. Version 4 adds the nullable cells cost-split and
 judge-token columns from issue #7. Version 5 adds credentials.disabled from
 issue #13. Version 6 adds the nullable cells.provider and
 cells.judge_provider_usage columns from issue #17 plus the new provider_costs
-table. Version 7 adds the nullable runs.operator column. The nullable columns
+table. Version 7 adds the nullable runs.operator column. Version 8 adds the
+nullable runs.source_snapshot column. The nullable columns
 with no dedicated step need no hand-written migration: a database recorded
 below the current version goes through the generic nullable-column pass, which
 adds whatever the ORM maps and the database lacks, then records the current

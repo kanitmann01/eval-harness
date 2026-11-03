@@ -51,6 +51,7 @@ class RunRow(Base):
     )
     spec_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False)
     prices_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False)
+    source_snapshot: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     harness_sha: Mapped[str] = mapped_column(String(120), nullable=False)
     operator: Mapped[str | None] = mapped_column(String(200), nullable=True)
     seed: Mapped[int] = mapped_column(Integer, nullable=False)

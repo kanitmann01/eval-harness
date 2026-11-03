@@ -16,7 +16,7 @@ from evalharness.core.models import (
 )
 from evalharness.core.protocols import Capabilities
 from evalharness.core.registry import register
-from evalharness.errors import TransportError
+from evalharness.errors import SpecError, TransportError
 
 
 class FlakyCandidate:
@@ -220,6 +220,18 @@ class FailingSource:
         raise RuntimeError("source exploded")
 
 
+class SpecErrorSource:
+    """A source that raises an actionable SpecError while loading."""
+
+    def load(self, spec, ctx):
+        raise SpecError(
+            "source.options.cases",
+            "cases.jsonl",
+            "the case file is not readable",
+            "fix the file or its permissions",
+        )
+
+
 class EmptySource:
     """A source that returns no cases."""
 
@@ -285,6 +297,12 @@ def _empty_source(identity: str, options: Mapping[str, Any]) -> EmptySource:
     return EmptySource()
 
 
+def _spec_error_source(
+    identity: str, options: Mapping[str, Any]
+) -> SpecErrorSource:
+    return SpecErrorSource()
+
+
 def _boom(identity: str, options: Mapping[str, Any]) -> Any:
     raise RuntimeError("factory exploded")
 
@@ -302,5 +320,6 @@ register("test:judge", _judge)
 register("test:wrong_key_metric", _wrong_key)
 register("test:failing_source", _failing_source)
 register("test:empty_source", _empty_source)
+register("test:spec_error_source", _spec_error_source)
 register("test:boom_candidate", _boom)
 register("test:boom_sink", _boom)

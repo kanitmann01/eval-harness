@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
@@ -32,6 +32,7 @@ from evalharness.core.models import (
 )
 from evalharness.core.protocols import Capabilities
 from evalharness.core.registry import AdapterFactory
+from evalharness.core.repo_snapshot import RepoSnapshot
 from evalharness.errors import HarnessError, TransportError
 
 CANDIDATE = "candidate"
@@ -116,6 +117,7 @@ class ConformanceContext:
     options: Mapping[str, Any]
     workdir: Path
     factory: AdapterFactory
+    repos: Mapping[str, RepoSnapshot] = field(default_factory=dict)
 
     def build(self, extra_options: Mapping[str, Any] | None = None) -> Any:
         """Build a fresh adapter instance with clause-local options merged in."""
@@ -180,7 +182,11 @@ def _case() -> Case:
     )
 
 
-def _run_context(prompt_override: str | None = None) -> RunContext:
+def _run_context(
+    prompt_override: str | None = None,
+    *,
+    repos: Mapping[str, RepoSnapshot] | None = None,
+) -> RunContext:
     return RunContext(
         run_id=RUN_ID,
         seed=0,
@@ -191,6 +197,7 @@ def _run_context(prompt_override: str | None = None) -> RunContext:
         case_id=CASE_ID,
         replica=1,
         model="conformance-model",
+        repos=repos or {},
     )
 
 
@@ -559,7 +566,7 @@ def _metric_immutable(target: ConformanceContext) -> None:
 def _source_cases(target: ConformanceContext) -> list[Any]:
     source = target.build()
     spec = SourceSpec(adapter=target.adapter_path, options=dict(target.options))
-    return list(source.load(spec, _run_context()))
+    return list(source.load(spec, _run_context(repos=target.repos)))
 
 
 def _source_not_empty(target: ConformanceContext) -> None:
@@ -584,6 +591,61 @@ def _source_unique_ids(target: ConformanceContext) -> None:
         len(case_ids) == len(set(case_ids)),
         "unique case ids",
         repr(case_ids),
+    )
+
+
+def _source_repeatable(target: ConformanceContext) -> None:
+    first = [case.model_dump(mode="json") for case in _source_cases(target)]
+    second = [case.model_dump(mode="json") for case in _source_cases(target)]
+    _expect(first == second, "two loads to agree", "the loads differed")
+
+
+def _source_metadata_relative(target: ConformanceContext) -> None:
+    cases = _source_cases(target)
+    payload = json.dumps([case.metadata for case in cases], sort_keys=True)
+    host = str(target.workdir).replace("\\", "/")
+    _expect(
+        host not in payload,
+        "no absolute workdir in case metadata",
+        payload,
+    )
+    for case in cases:
+        for value in _metadata_paths(case.metadata):
+            _expect(
+                _is_relative_path(value),
+                "snapshot-relative fixture paths",
+                value,
+            )
+
+
+def _metadata_paths(value: Any, key: str = "") -> list[str]:
+    """Collect strings held by path-shaped metadata keys, at any depth."""
+    if isinstance(value, str):
+        path_key = "path" in key.lower() or key.lower() in {
+            "file",
+            "files",
+            "fixture",
+            "fixtures",
+        }
+        return [value] if path_key else []
+    if isinstance(value, list):
+        return [item for child in value for item in _metadata_paths(child, key)]
+    if isinstance(value, dict):
+        return [
+            item
+            for name, child in value.items()
+            for item in _metadata_paths(child, str(name))
+        ]
+    return []
+
+
+def _is_relative_path(value: str) -> bool:
+    """Return False for POSIX-absolute, drive-letter and UNC paths."""
+    normalized = value.replace("\\", "/")
+    return not (
+        normalized.startswith("/")
+        or value[1:3] in {":/", ":\\"}
+        or normalized.startswith("//")
     )
 
 
@@ -774,6 +836,18 @@ SOURCE_CASES: tuple[ConformanceCase, ...] = (
         SOURCE,
         "case ids are unique",
         _source_unique_ids,
+    ),
+    ConformanceCase(
+        clause(SOURCE, 4),
+        SOURCE,
+        "two loads return the same cases",
+        _source_repeatable,
+    ),
+    ConformanceCase(
+        clause(SOURCE, 5),
+        SOURCE,
+        "case metadata carries snapshot-relative paths only",
+        _source_metadata_relative,
     ),
 )
 
