@@ -535,6 +535,26 @@ def test_a_file_stat_error_is_actionable(
     assert "could not be read" in error.value.reason
 
 
+def test_a_file_link_check_error_is_actionable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "repo"
+    root.mkdir()
+    (root / "a.txt").write_text("alpha\n", encoding="utf-8")
+    real_is_symlink = Path.is_symlink
+
+    def is_symlink(self: Path) -> bool:
+        if self.name == "a.txt":
+            raise OSError("denied")
+        return real_is_symlink(self)
+
+    monkeypatch.setattr(Path, "is_symlink", is_symlink)
+    with pytest.raises(SpecError) as error:
+        snapshot_repo("tiny", _repo(root), base_dir=tmp_path, home=tmp_path / "home")
+    assert error.value.field == "repos.tiny.root"
+    assert "could not be read" in error.value.reason
+
+
 def test_a_file_read_error_is_actionable(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

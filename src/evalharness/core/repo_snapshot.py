@@ -333,6 +333,19 @@ def _repo_digests(
     }
 
 
+def _is_symlink(path: Path, name: str, relative: str) -> bool:
+    """Read the link bit, or name the file that could not be inspected."""
+    try:
+        return path.is_symlink()
+    except OSError as exc:
+        raise SpecError(
+            f"repos.{name}.root",
+            relative,
+            f"a repository file could not be read: {exc}",
+            "fix the file permissions or exclude the path",
+        ) from exc
+
+
 def _collect_files(
     root: Path,
     repo: RepoSpec,
@@ -359,7 +372,7 @@ def _collect_files(
             relative = path.relative_to(root).as_posix()
             if _matches(relative, excludes) or _matches(relative + "/", excludes):
                 continue
-            if path.is_symlink():
+            if _is_symlink(path, name, relative):
                 if not repo.follow_symlinks:
                     skipped.append({"path": relative, "reason": "symlink"})
                     continue
@@ -379,7 +392,7 @@ def _collect_files(
                 continue
             if not _matches(relative, repo.include):
                 continue
-            if path.is_symlink():
+            if _is_symlink(path, name, relative):
                 if not repo.follow_symlinks:
                     skipped.append({"path": relative, "reason": "symlink"})
                     continue

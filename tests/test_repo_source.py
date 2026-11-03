@@ -86,6 +86,30 @@ def test_load_resolves_cases_and_fixtures_from_the_snapshot(tmp_path: Path) -> N
     assert "text" not in fixtures[1]
 
 
+def test_a_case_path_that_escapes_the_snapshot_is_actionable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _, snapshot = _snapshot(tmp_path)
+    real_resolve = Path.resolve
+
+    def resolve(self: Path) -> Path:
+        if self.name == "questions.jsonl":
+            return tmp_path / "outside.jsonl"
+        return real_resolve(self)
+
+    monkeypatch.setattr(Path, "resolve", resolve)
+    source = build("source", _options())
+
+    with pytest.raises(SpecError) as error:
+        source.load(
+            SourceSpec(adapter="evalharness.adapters.sources.repo:build"),
+            _context(snapshot),
+        )
+
+    assert error.value.field == "source.options.cases"
+    assert "stay inside" in error.value.reason
+
+
 def test_load_without_a_snapshot_is_actionable() -> None:
     source = build("source", _options())
     with pytest.raises(SpecError) as error:
