@@ -6,7 +6,7 @@ import hashlib
 import re
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Any, Iterable
+from typing import Any, Iterable, cast
 from urllib.parse import urlsplit
 
 import yaml
@@ -15,6 +15,7 @@ from pydantic import ValidationError
 from evalharness.core.models import (
     CandidateSpec,
     ContextChunk,
+    ContextSpec,
     CredentialState,
     Price,
     Spec,
@@ -25,7 +26,13 @@ from evalharness.core.prices import (
     resolve_price,
     resolved_price_table,
 )
-from evalharness.core.protocols import Capabilities, Judge, Metric, Source
+from evalharness.core.protocols import (
+    Capabilities,
+    ContextSelector,
+    Judge,
+    Metric,
+    Source,
+)
 from evalharness.core.registry import AdapterFactory, resolve
 from evalharness.defaults import DEFAULT_SINK_ADAPTER
 from evalharness.errors import RegistryError, SpecError
@@ -56,6 +63,8 @@ class ResolvedSpec:
     sink_options: dict[str, Any]
     prompt_overrides: dict[str, str | None]
     chunks: dict[str, list[ContextChunk]]
+    candidate_contexts: dict[str, str | None]
+    context_selectors: dict[str, ContextSelector]
     warnings: list[str] = field(default_factory=list)
 
 
@@ -305,6 +314,8 @@ def _validate_repos(
                 "a git ref only means something for a remote repository",
                 "remove ref or set url to an https repository URL",
             )
+        if repo.ref is not None:
+            _validate_repo_ref(repo.ref, f"{field}.ref")
         if not repo.include:
             raise SpecError(
                 f"{field}.include",
@@ -349,6 +360,31 @@ def _validate_repo_url(url: str, field: str, spec_dir: Path | None) -> None:
             url,
             "a repository URL must not carry a query or fragment",
             "remove the query and fragment",
+        )
+
+
+def _validate_repo_ref(ref: str, field: str) -> None:
+    """Require a ref git accepts as a name, never as an option or a range."""
+    forbidden = set(" \t\r\n\x00~^:?*[\\")
+    reason = ""
+    if not ref:
+        reason = "a git ref must not be empty"
+    elif ref.startswith("-"):
+        reason = "a git ref must not start with a hyphen"
+    elif any(character in forbidden for character in ref):
+        reason = "a git ref must not contain whitespace, NUL or ~^:?*[\\"
+    elif ".." in ref or "@{" in ref:
+        reason = "a git ref must not contain '..' or '@{'"
+    elif ref.endswith(".") or ref.endswith("/") or ref.startswith("/"):
+        reason = "a git ref must not start or end with a slash or dot"
+    elif "//" in ref:
+        reason = "a git ref must not contain an empty path segment"
+    if reason:
+        raise SpecError(
+            field,
+            ref,
+            reason,
+            "use a branch or tag name such as 'main' or 'v1.2.3'",
         )
 
 
@@ -462,7 +498,7 @@ def _candidate_axes(
     candidate: CandidateSpec,
     capabilities: Capabilities,
     index: int,
-) -> tuple[str | None, list[ContextChunk]]:
+) -> tuple[str | None, list[ContextChunk], str | None]:
     options = candidate.options
     prompt_name = options.get("prompt")
     override: str | None = None
@@ -494,6 +530,7 @@ def _candidate_axes(
 
     context_name = options.get("context")
     chunks: list[ContextChunk] = []
+    selected: str | None = None
     if context_name is not None:
         field = f"candidates[{index}].options.context"
         if isinstance(context_name, str):
@@ -505,7 +542,11 @@ def _candidate_axes(
                     "unknown context",
                     f"declare contexts.{context_name} or use one of: {choices}",
                 )
-            chunks = list(spec.contexts[context_name])
+            declared = spec.contexts[context_name]
+            if isinstance(declared, ContextSpec):
+                selected = context_name
+            else:
+                chunks = list(declared)
         elif isinstance(context_name, dict) and isinstance(
             context_name.get("chunks"), list
         ):
@@ -535,7 +576,7 @@ def _candidate_axes(
                 "the candidate cannot accept context injection",
                 "remove options.context or use a candidate that supports injection",
             )
-    return override, chunks
+    return override, chunks, selected
 
 
 def validate_spec(
@@ -625,10 +666,29 @@ def validate_spec(
         spec.source.options,
         "source.adapter",
     )
+    context_selectors: dict[str, ContextSelector] = {}
+    for name, entry in spec.contexts.items():
+        if not isinstance(entry, ContextSpec):
+            continue
+        instance = _build(
+            entry.adapter,
+            name,
+            entry.options,
+            f"contexts.{name}.adapter",
+        )
+        if not callable(getattr(instance, "select", None)):
+            raise SpecError(
+                f"contexts.{name}.adapter",
+                entry.adapter,
+                "the context adapter did not expose select(case, ctx)",
+                "return an object with a select method that yields ContextChunk values",
+            )
+        context_selectors[name] = cast(ContextSelector, instance)
 
     candidate_factories: dict[str, AdapterFactory] = {}
     prompt_overrides: dict[str, str | None] = {}
     chunks_by_candidate: dict[str, list[ContextChunk]] = {}
+    candidate_contexts: dict[str, str | None] = {}
     candidate_prices: dict[str, Price] = {}
     candidate_providers: dict[str, str] = {}
     for index, candidate in enumerate(spec.candidates):
@@ -659,10 +719,13 @@ def validate_spec(
                 "add it with 'evalh credentials add' or set options.auth: none "
                 "when the endpoint holds its own key",
             )
-        override, chunks = _candidate_axes(spec, candidate, capabilities, index)
+        override, chunks, context = _candidate_axes(
+            spec, candidate, capabilities, index
+        )
         candidate_factories[candidate.name] = factory
         prompt_overrides[candidate.name] = override
         chunks_by_candidate[candidate.name] = chunks
+        candidate_contexts[candidate.name] = context
         candidate_providers[candidate.name] = capabilities.provider
         candidate_prices[candidate.name] = _require_price(
             spec, capabilities.provider, candidate.model, defaults
@@ -809,6 +872,8 @@ def validate_spec(
         sink_options=sink_options,
         prompt_overrides=prompt_overrides,
         chunks=chunks_by_candidate,
+        candidate_contexts=candidate_contexts,
+        context_selectors=context_selectors,
         warnings=warnings,
     )
 

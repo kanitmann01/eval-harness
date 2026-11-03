@@ -4,7 +4,7 @@ An adapter is trustworthy because it passes the same public suite as every
 other adapter. The suite is code, not a checklist: each clause is a test
 with a stable identifier, and a failure names the clause that broke.
 
-## The five contracts
+## The six contracts
 
 A factory takes two arguments, the identity the harness assigned and the
 adapter options mapping from the spec, and returns an object that
@@ -17,10 +17,12 @@ satisfies one protocol.
 | `metric` | the metric key | `key`, `async check(CellRecord, ScoreContext) -> list[Check]` |
 | `source` | the literal `source` | `load(SourceSpec, RunContext) -> Iterable[Case]` |
 | `sink` | the literal `sink` | `open_run(RunRecord)`, `record_cell(CellRecord, checks)`, `close_run(RunRecord)` |
+| `context` | the context name | `name`, `select(case, ctx) -> list[ContextChunk]` |
 
 A candidate returns an answer and usage, never a pass or fail. A metric
 turns a cell into checks. A judge is a metric's dependency. A source owns
-the case set. A sink owns artifacts outside the database.
+the case set. A sink owns artifacts outside the database. A context selector
+chooses the chunks one case receives.
 
 ### Metric.check is async
 
@@ -159,7 +161,8 @@ isolation: a source gets `cases`, a sink gets
 `EVALH_HOME/conformance` (override with `workdir=`). A factory may set
 `CONFORMANCE_SETUP`, a callable that receives the scratch directory and returns
 an options mapping plus prepared repositories, for example the snapshot the
-repo source needs. The scratch directory is removed after the run. Identities
+repo source needs. A context selector may return a third value, an artifacts
+root, when it reads a closed run. The scratch directory is removed after the run. Identities
 are fixed:
 `conformance-candidate`, `conformance-judge` and
 `conformance_metric`, plus the literal `source` and
@@ -228,9 +231,57 @@ repository and fixture under the scratch directory, snapshots it, and returns
 the options plus the prepared snapshots. That exercises the same load path a
 real run uses.
 
-Remote `url` repositories are declared by the spec but refused at snapshot
-time in 0.4.0a with `repos.<name>.url: remote repository snapshots are not
-available in 0.4.0a`. See [design-repo-context.md](design-repo-context.md).
+A remote `url` repository is fetched shallowly with git before the snapshot.
+The spec supplies an optional `ref` and `credential`; the credential secret is
+passed as an HTTP header in the git environment and redacted from errors. See
+[design-repo-context.md](design-repo-context.md).
+
+## The context selectors
+
+A context selector is a factory that returns an object with `name` and
+`select(case, ctx)`. The planner calls it once per candidate and case before
+replicas are expanded, so the same case always receives the same selection and
+the recorded variant carries the chunk ids, selector name and digest. A selector
+reads only `ctx.repos` (prepared snapshots) and `ctx.artifacts_root` (closed run
+artifacts), never a live working tree or the database.
+
+### repo_graph
+
+`evalharness.adapters.contexts.repo_graph:build` windows every eligible file in
+one prepared snapshot, ranks windows by lexical overlap with the case prompt,
+optionally adds a file-level PageRank over import and include edges, then expands
+around the seeds. Chunk ids are `repo:<repo>/<path>#L<start>-L<end>`.
+
+| Option | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `repo` | string | required | Declared repository name. |
+| `rank` | "lexical" or "pagerank" | "lexical" | Add graph rank to the lexical score. |
+| `seed_chunks` | integer 1..10 | 3 | Highest-scoring windows before expansion. |
+| `expand` | integer 0..10 | 2 | Adjacent and related-file hops. |
+| `chunk_lines` | integer 1..400 | 80 | Lines per window. |
+| `max_chunks` | integer 1..50 | 8 | Chunks returned. |
+| `max_bytes` | integer 1..2,000,000 | 24000 | UTF-8 bytes returned; an oversized chunk is skipped. |
+| `include_tests` | boolean | false | Include `tests/` and `test_*` files. |
+
+### artifact_graph
+
+`evalharness.adapters.contexts.artifact_graph:build` reads one closed run under
+`ctx.artifacts_root`, one answer chunk per non-empty cell answer, scored by
+lexical overlap with the case prompt plus a co-citation boost. Chunk ids are
+`run:<run_id>/<cell_id>#answer`. It refuses a running run and never reads the
+database.
+
+| Option | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `run` | string | required | Bare run id under the artifacts root. |
+| `max_chunks` | integer 1..50 | 6 | Answer chunks returned. |
+| `max_bytes` | integer 1..2,000,000 | 12000 | UTF-8 bytes returned. |
+| `exclude_candidate` | string or null | null | Skip that candidate's answers. |
+
+The conformance clauses are `context/1` returns ContextChunk records,
+`context/2` ids are unique and non-empty, `context/3` the same case and context
+repeat exactly, `context/4` the chunk and byte caps hold, and `context/5` the
+case is unchanged and no path escapes the prepared tree.
 
 ## The HTTP candidate
 

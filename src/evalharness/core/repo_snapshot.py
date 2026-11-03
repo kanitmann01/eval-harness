@@ -22,7 +22,8 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 from uuid import uuid4
 
-from evalharness.core.models import Case, RepoSpec, Spec
+from evalharness.core.models import Case, ContextSpec, RepoSpec, Spec
+from evalharness.core.repo_fetch import fetch_repo
 from evalharness.errors import SpecError
 
 DEFAULT_EXCLUDES: tuple[str, ...] = (
@@ -88,22 +89,36 @@ def prepare_repos(
     *,
     base_dir: Path,
     home: Path,
+    credentials: Mapping[str, str] | None = None,
 ) -> dict[str, RepoSnapshot]:
     """Snapshot every declared repository, or fail before any cell runs.
 
-    `base_dir` resolves a local root the same way the spec file does. Remote
-    URLs are validated by the spec but not fetched in 0.4.0a, so they fail here
-    with the version that will support them.
+    `base_dir` resolves a local root the same way the spec file does. A remote
+    URL is fetched shallowly into the cache first; `credentials` maps a
+    declared credential name to its secret and is never written down.
     """
     snapshots: dict[str, RepoSnapshot] = {}
     for name, repo in spec.repos.items():
         if repo.url is not None:
-            raise SpecError(
-                f"repos.{name}.url",
-                repo.url,
-                "remote repository snapshots are not available in 0.4.0a",
-                "clone the repository and set root to its local path",
+            if repo.credential is None and spec.source.credential is not None:
+                repo = repo.model_copy(
+                    update={"credential": spec.source.credential}
+                )
+            checkout = fetch_repo(
+                name,
+                repo,
+                home=home,
+                credentials=credentials,
             )
+            snapshots[name] = _snapshot_tree(
+                name,
+                repo,
+                checkout,
+                home,
+                url=repo.url,
+                recorded_root="",
+            )
+            continue
         snapshots[name] = snapshot_repo(
             name,
             repo,
@@ -129,14 +144,34 @@ def snapshot_repo(
             "the repository root does not exist or is not a directory",
             "fix the path or create the directory before loading the spec",
         )
+    return _snapshot_tree(
+        name,
+        repo,
+        root,
+        home,
+        url=None,
+        recorded_root=repo.root,
+    )
+
+
+def _snapshot_tree(
+    name: str,
+    repo: RepoSpec,
+    root: Path,
+    home: Path,
+    *,
+    url: str | None,
+    recorded_root: str,
+) -> RepoSnapshot:
+    """Copy one checkout into the content-addressed snapshot store."""
     files, skipped, total = _collect_files(root, repo, name)
     digest = _digest(files)
     tree = _store_tree(home, digest, root, files, skipped)
     commit, dirty = _git_metadata(root)
     return RepoSnapshot(
         name=name,
-        root=repo.root,
-        url=None,
+        root=recorded_root,
+        url=url,
         ref=repo.ref,
         commit=commit,
         digest=digest,
@@ -153,7 +188,7 @@ def source_snapshot(
     adapter: str,
     repos: Mapping[str, RepoSnapshot],
     cases: Sequence[Case],
-    contexts: Mapping[str, list[Any]] | None = None,
+    contexts: Mapping[str, list[Any] | ContextSpec] | None = None,
 ) -> dict[str, Any]:
     """Build the JSON-safe provenance snapshot stored on the run."""
     recorded_cases = [
@@ -165,13 +200,23 @@ def source_snapshot(
         for case in cases
     ]
     recorded_contexts = []
-    for name, chunks in sorted((contexts or {}).items()):
-        recorded_contexts.append(
-            {
-                "name": name,
-                "chunks": [getattr(chunk, "chunk_id", "") for chunk in chunks],
-            }
-        )
+    for name, entry in sorted((contexts or {}).items()):
+        if isinstance(entry, list):
+            recorded_contexts.append(
+                {
+                    "name": name,
+                    "chunks": [getattr(chunk, "chunk_id", "") for chunk in entry],
+                }
+            )
+        else:
+            recorded_contexts.append(
+                {
+                    "name": name,
+                    "adapter": entry.adapter,
+                    "options": dict(entry.options),
+                    "chunks": [],
+                }
+            )
     return {
         "adapter": adapter,
         "repos": [repos[name].metadata() for name in sorted(repos)],
@@ -179,6 +224,59 @@ def source_snapshot(
         "case_count": len(recorded_cases),
         "contexts": recorded_contexts,
     }
+
+
+SNAPSHOT_NAME = re.compile(r"^[0-9a-f]{64}$")
+"""Only content-addressed snapshot directories are prunable."""
+
+
+def list_snapshots(home: Path) -> list[Path]:
+    """Return every content-addressed snapshot directory, sorted by digest."""
+    root = home / "repos"
+    if not root.is_dir():
+        return []
+    return sorted(
+        path
+        for path in root.iterdir()
+        if path.is_dir() and SNAPSHOT_NAME.fullmatch(path.name)
+    )
+
+
+def prune_snapshots(
+    home: Path,
+    referenced: Iterable[str],
+    *,
+    dry_run: bool = False,
+) -> list[Path]:
+    """Remove snapshots no recorded run references, or list them on a dry run.
+
+    Deleting a referenced snapshot would break the cell evidence that names its
+    digest, so the caller passes every digest the database still points at.
+    """
+    keep = set(referenced)
+    removed: list[Path] = []
+    for path in list_snapshots(home):
+        if path.name in keep:
+            continue
+        removed.append(path)
+        if not dry_run:
+            shutil.rmtree(path)
+    return removed
+
+
+def referenced_digests(
+    snapshots: Iterable[Mapping[str, Any]],
+) -> set[str]:
+    """Collect the repository digests recorded in run source snapshots."""
+    digests: set[str] = set()
+    for snapshot in snapshots:
+        repos = snapshot.get("repos", [])
+        if not isinstance(repos, list):
+            continue
+        for repo in repos:
+            if isinstance(repo, Mapping) and isinstance(repo.get("digest"), str):
+                digests.add(repo["digest"])
+    return digests
 
 
 def changed_repos(

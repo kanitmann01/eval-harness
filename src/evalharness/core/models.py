@@ -5,7 +5,13 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from evalharness.core.redaction import NoOpRedactor
 
@@ -35,6 +41,21 @@ class ContextChunk(BaseModel):
 
     chunk_id: str
     text: str
+    path: str | None = None
+    start_line: int | None = Field(default=None, ge=1)
+    end_line: int | None = Field(default=None, ge=1)
+    blob_sha256: str | None = None
+    score: float | None = None
+    graph_nodes: list[str] = Field(default_factory=list)
+
+
+class ContextSpec(BaseModel):
+    """A dynamic context selector: one adapter plus its options."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    adapter: str
+    options: dict[str, Any] = Field(default_factory=dict)
 
 
 class CandidateOutput(BaseModel):
@@ -462,6 +483,24 @@ class Spec(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    @field_validator("contexts", mode="before")
+    @classmethod
+    def _context_entry_shape(cls, value: object) -> object:
+        """Name the entry when a mapping is missing its adapter.
+
+        Without this the union reports a generic list error, which tells an
+        operator nothing about the key they have to add.
+        """
+        if not isinstance(value, dict):
+            return value
+        for name, entry in value.items():
+            if isinstance(entry, dict) and not entry.get("adapter"):
+                raise ValueError(
+                    f"contexts.{name}.adapter is required when a context is a "
+                    "mapping; set adapter to a context selector name"
+                )
+        return value
+
     spec_version: int
     name: str
     description: str = ""
@@ -469,7 +508,9 @@ class Spec(BaseModel):
     source: SourceSpec
     repos: dict[str, RepoSpec] = Field(default_factory=dict)
     prompts: dict[str, str] = Field(default_factory=dict)
-    contexts: dict[str, list[ContextChunk]] = Field(default_factory=dict)
+    contexts: dict[str, list[ContextChunk] | ContextSpec] = Field(
+        default_factory=dict
+    )
     credentials: list[CredentialSpec] = Field(default_factory=list)
     candidates: list[CandidateSpec] = Field(min_length=1)
     replicas: int = Field(default=1, ge=1)

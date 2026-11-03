@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Iterable, Mapping, Protocol
 
 from pydantic import BaseModel, Field
@@ -101,6 +102,7 @@ class RunContext:
     model: str = ""
     redactor: Redactor = field(default_factory=NoOpRedactor)
     repos: Mapping[str, RepoSnapshot] = field(default_factory=dict)
+    artifacts_root: Path | None = None
 
     def artifact_metadata(self) -> dict[str, Any]:
         """Return a redaction-safe summary for candidate artifacts."""

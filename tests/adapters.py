@@ -11,6 +11,7 @@ from evalharness.core.models import (
     CandidateOutput,
     Case,
     Check,
+    ContextChunk,
     JudgeRequest,
     Verdict,
 )
@@ -232,6 +233,58 @@ class SpecErrorSource:
         )
 
 
+class FakeContextSelector:
+    """Select one deterministic chunk per case, so the planner can be observed."""
+
+    def __init__(self, name: str, delimiter: str = ":") -> None:
+        self.name = name
+        self.delimiter = delimiter
+
+    def select(self, case: Case, ctx: RunContext) -> list[ContextChunk]:
+        return [
+            ContextChunk(
+                chunk_id=f"fake{self.delimiter}{case.case_id}{self.delimiter}0",
+                text=case.prompt,
+                path="docs/fake.md",
+                start_line=1,
+                end_line=1,
+                graph_nodes=[f"case:{case.case_id}"],
+            )
+        ]
+
+
+class BrokenContextSelector:
+    """Expose no select method, for the validation error."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+
+class ExplodingContextSelector:
+    """Raise a non-SpecError, which the planner must wrap with the field."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def select(self, case: Case, ctx: RunContext) -> list[ContextChunk]:
+        raise RuntimeError("selector exploded")
+
+
+class SpecErrorContextSelector:
+    """Raise an actionable SpecError, which the planner must pass through."""
+
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def select(self, case: Case, ctx: RunContext) -> list[ContextChunk]:
+        raise SpecError(
+            "contexts.graph.options.repo",
+            "tiny",
+            "the repository was not snapshotted",
+            "declare it under repos:",
+        )
+
+
 class EmptySource:
     """A source that returns no cases."""
 
@@ -307,6 +360,30 @@ def _boom(identity: str, options: Mapping[str, Any]) -> Any:
     raise RuntimeError("factory exploded")
 
 
+def _fake_context(
+    identity: str, options: Mapping[str, Any]
+) -> FakeContextSelector:
+    return FakeContextSelector(identity, str(options.get("delimiter", ":")))
+
+
+def _broken_context(
+    identity: str, options: Mapping[str, Any]
+) -> BrokenContextSelector:
+    return BrokenContextSelector(identity)
+
+
+def _exploding_context(
+    identity: str, options: Mapping[str, Any]
+) -> ExplodingContextSelector:
+    return ExplodingContextSelector(identity)
+
+
+def _spec_error_context(
+    identity: str, options: Mapping[str, Any]
+) -> SpecErrorContextSelector:
+    return SpecErrorContextSelector(identity)
+
+
 register("test:flaky", _flaky)
 register("test:wrong", _wrong)
 register("test:exploding", _exploding)
@@ -323,3 +400,7 @@ register("test:empty_source", _empty_source)
 register("test:spec_error_source", _spec_error_source)
 register("test:boom_candidate", _boom)
 register("test:boom_sink", _boom)
+register("test:context_fake", _fake_context)
+register("test:context_broken", _broken_context)
+register("test:context_exploding", _exploding_context)
+register("test:context_spec_error", _spec_error_context)

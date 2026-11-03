@@ -202,14 +202,15 @@ cell; the provider judge does not fail at request time. The full matrix is in
 
 ## Credentials for a repository source
 
-A repository declared with an https `url` will authenticate through
-`source.credential`. The name must be declared under `credentials:` or stored in
-the vault, and it must be usable; a disabled or unverified credential fails
-validation the same way a candidate credential does. A repository with a local
-root rejects its own `credential` field, and `source.credential` without at
-least one remote repository is a spec error naming `source.credential`. Remote
-fetching is not implemented in 0.4.0a, so the field validates but no request is
-made yet.
+A repository declared with an https `url` authenticates with its own
+`credential`, or with `source.credential` when the repository names none. The
+name must be declared under `credentials:` or stored in the vault, and it must
+be usable; a disabled or unverified credential fails validation the same way a
+candidate credential does. A repository with a local root rejects its own
+`credential` field, and `source.credential` without at least one remote
+repository is a spec error naming `source.credential`. The secret is passed to
+git as an HTTP authorization header in the process environment and redacted from
+a fetch failure.
 
 ## Rotation
 

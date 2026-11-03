@@ -30,6 +30,10 @@ from evalharness.core.cost import (
 )
 from evalharness.core.models import Aggregate
 from evalharness.core.planner import per_candidate_counts
+from evalharness.core.repo_snapshot import (
+    prune_snapshots,
+    referenced_digests,
+)
 from evalharness.core.spec import ResolvedSpec, load_and_validate
 from evalharness.core.stats import required_sample_size
 from evalharness.core.vault import (
@@ -169,6 +173,21 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     conformance_parser.set_defaults(handler=_conformance)
 
+    repos_parser = commands.add_parser(
+        "repos",
+        help="inspect and prune content-addressed repository snapshots",
+    )
+    repo_commands = repos_parser.add_subparsers(dest="repos_command")
+    gc_parser = repo_commands.add_parser(
+        "gc", help="remove snapshots that no recorded run references"
+    )
+    gc_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="list what would be removed without deleting it",
+    )
+    gc_parser.set_defaults(handler=_repos)
+    repos_parser.set_defaults(handler=_repos, repos_parser=repos_parser)
     credentials_parser = commands.add_parser(
         "credentials",
         help="add, list, test and delete encrypted provider keys",
@@ -565,6 +584,36 @@ def _format_interval(low: float | None, high: float | None) -> str:
 def _format_time(value: datetime | None) -> str:
     """Format a stored timestamp for the CLI, or a dash when absent."""
     return value.isoformat(timespec="seconds") if value is not None else "-"
+
+
+def _repos(args: argparse.Namespace) -> int:
+    """Dispatch one repos subcommand against the snapshot store."""
+    if args.repos_command is None:
+        args.repos_parser.print_help()
+        return exit_codes.SUCCESS
+    settings = Settings.from_env()
+    database = Database(settings.database_url)
+    database.create_all()
+    repository = Repository(database)
+    try:
+        referenced = referenced_digests(
+            run.source_snapshot
+            for run in repository.list_runs()
+            if run.source_snapshot
+        )
+        removed = prune_snapshots(
+            settings.home, referenced, dry_run=args.dry_run
+        )
+    finally:
+        database.dispose()
+    if not removed:
+        print("no unreferenced repository snapshots")
+        return exit_codes.SUCCESS
+    verb = "would remove" if args.dry_run else "removed"
+    for path in removed:
+        print(f"{verb} snapshot {path.name}")
+    print(f"{verb} {len(removed)} snapshot(s)")
+    return exit_codes.SUCCESS
 
 
 def _credentials(args: argparse.Namespace) -> int:

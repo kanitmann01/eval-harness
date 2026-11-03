@@ -90,7 +90,16 @@ def test_run_smoke_end_to_end(evalh_home, workdir, capsys):
             "explained"
         )
         assert by_candidate["stub-explained"].variant["context"] == [
-            {"chunk_id": "policy-1", "text": "Answer as a bare number."}
+            {
+                "chunk_id": "policy-1",
+                "text": "Answer as a bare number.",
+                "path": None,
+                "start_line": None,
+                "end_line": None,
+                "blob_sha256": None,
+                "score": None,
+                "graph_nodes": [],
+            }
         ]
 
         aggregates = repository.list_aggregates(run_id)

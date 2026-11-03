@@ -12,6 +12,7 @@ from evalharness.core.models import (
     Case,
     CellRecord,
     Check,
+    ContextChunk,
     JudgeRequest,
     RunRecord,
     ScoreContext,
@@ -88,6 +89,20 @@ class Source(Protocol):
 
     def load(self, spec: SourceSpec, ctx: RunContext) -> Iterable[Case]:
         """Return the cases for this source's spec block."""
+        ...
+
+
+class ContextSelector(Protocol):
+    """A context selector chooses injected chunks for one case.
+
+    Selection is deterministic for a case and a run seed, reads only through
+    the ambient RunContext, and never authenticates a remote repository.
+    """
+
+    name: str
+
+    def select(self, case: Case, ctx: RunContext) -> list[ContextChunk]:
+        """Return the chunks this case should see, in prompt order."""
         ...
 
 

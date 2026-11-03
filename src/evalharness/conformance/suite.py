@@ -22,6 +22,7 @@ from evalharness.core.models import (
     Case,
     CellRecord,
     Check,
+    ContextChunk,
     JudgeRequest,
     JudgeSession,
     RunRecord,
@@ -50,7 +51,10 @@ SOURCE = "source"
 SINK = "sink"
 """The sink protocol kind."""
 
-KINDS: tuple[str, ...] = (CANDIDATE, JUDGE, METRIC, SOURCE, SINK)
+CONTEXT = "context"
+"""The context selector protocol kind."""
+
+KINDS: tuple[str, ...] = (CANDIDATE, JUDGE, METRIC, SOURCE, SINK, CONTEXT)
 """Every protocol the public suite covers."""
 
 OVERRIDE_SENTINEL = "CONFORMANCE-PROMPT-OVERRIDE"
@@ -118,6 +122,7 @@ class ConformanceContext:
     workdir: Path
     factory: AdapterFactory
     repos: Mapping[str, RepoSnapshot] = field(default_factory=dict)
+    artifacts_root: Path | None = None
 
     def build(self, extra_options: Mapping[str, Any] | None = None) -> Any:
         """Build a fresh adapter instance with clause-local options merged in."""
@@ -186,6 +191,7 @@ def _run_context(
     prompt_override: str | None = None,
     *,
     repos: Mapping[str, RepoSnapshot] | None = None,
+    artifacts_root: Path | None = None,
 ) -> RunContext:
     return RunContext(
         run_id=RUN_ID,
@@ -198,6 +204,7 @@ def _run_context(
         replica=1,
         model="conformance-model",
         repos=repos or {},
+        artifacts_root=artifacts_root,
     )
 
 
@@ -818,6 +825,81 @@ METRIC_CASES: tuple[ConformanceCase, ...] = (
     ),
 )
 
+def _context_select(
+    target: ConformanceContext,
+) -> tuple[list[ContextChunk], Case]:
+    """Build the selector, keep the case, and return what it selected."""
+    selector = target.build()
+    case = _case()
+    chunks = selector.select(
+        case,
+        _run_context(repos=target.repos, artifacts_root=target.artifacts_root),
+    )
+    return list(chunks), case
+
+
+def _context_chunks(target: ConformanceContext) -> None:
+    chunks, _ = _context_select(target)
+    _expect(isinstance(chunks, list), "a list of ContextChunk", type(chunks).__name__)
+    for chunk in chunks:
+        _expect(
+            isinstance(chunk, ContextChunk),
+            "ContextChunk instances",
+            type(chunk).__name__,
+        )
+
+
+def _context_ids(target: ConformanceContext) -> None:
+    chunks, _ = _context_select(target)
+    ids = [chunk.chunk_id for chunk in chunks]
+    _expect(all(ids), "every chunk id to be non-empty", repr(ids))
+    _expect(len(ids) == len(set(ids)), "unique chunk ids", repr(ids))
+
+
+def _context_repeatable(target: ConformanceContext) -> None:
+    first, _ = _context_select(target)
+    second, _ = _context_select(target)
+    _expect(
+        [chunk.model_dump(mode="json") for chunk in first]
+        == [chunk.model_dump(mode="json") for chunk in second],
+        "the same selection for the same case and seed",
+        "the two selections differed",
+    )
+
+
+def _context_caps(target: ConformanceContext) -> None:
+    chunks, _ = _context_select(target)
+    limit = target.options.get("max_chunks")
+    if isinstance(limit, int) and not isinstance(limit, bool):
+        _expect(
+            len(chunks) <= limit,
+            f"at most {limit} chunks",
+            str(len(chunks)),
+        )
+    budget = target.options.get("max_bytes")
+    if isinstance(budget, int) and not isinstance(budget, bool):
+        used = sum(len(chunk.text.encode("utf-8")) for chunk in chunks)
+        _expect(used <= budget, f"at most {budget} bytes", str(used))
+
+
+def _context_isolated(target: ConformanceContext) -> None:
+    chunks, case = _context_select(target)
+    _expect(
+        case.model_dump(mode="json") == _case().model_dump(mode="json"),
+        "the selector to leave the case unchanged",
+        "the case changed during select",
+    )
+    for chunk in chunks:
+        if chunk.path is None:
+            continue
+        path = chunk.path.replace("\\", "/")
+        _expect(
+            not path.startswith("/") and ".." not in path.split("/"),
+            "snapshot-relative chunk paths",
+            chunk.path,
+        )
+
+
 SOURCE_CASES: tuple[ConformanceCase, ...] = (
     ConformanceCase(
         clause(SOURCE, 1),
@@ -866,12 +948,46 @@ SINK_CASES: tuple[ConformanceCase, ...] = (
     ),
 )
 
+CONTEXT_CASES: tuple[ConformanceCase, ...] = (
+    ConformanceCase(
+        clause(CONTEXT, 1),
+        CONTEXT,
+        "select returns ContextChunk instances",
+        _context_chunks,
+    ),
+    ConformanceCase(
+        clause(CONTEXT, 2),
+        CONTEXT,
+        "chunk ids are unique and non-empty",
+        _context_ids,
+    ),
+    ConformanceCase(
+        clause(CONTEXT, 3),
+        CONTEXT,
+        "the same case and seed select the same chunks",
+        _context_repeatable,
+    ),
+    ConformanceCase(
+        clause(CONTEXT, 4),
+        CONTEXT,
+        "max_chunks and max_bytes are respected",
+        _context_caps,
+    ),
+    ConformanceCase(
+        clause(CONTEXT, 5),
+        CONTEXT,
+        "the case is unchanged and paths stay snapshot-relative",
+        _context_isolated,
+    ),
+)
+
 CASES: dict[str, tuple[ConformanceCase, ...]] = {
     CANDIDATE: CANDIDATE_CASES,
     JUDGE: JUDGE_CASES,
     METRIC: METRIC_CASES,
     SOURCE: SOURCE_CASES,
     SINK: SINK_CASES,
+    CONTEXT: CONTEXT_CASES,
 }
 """The complete public clause list, keyed by protocol kind."""
 

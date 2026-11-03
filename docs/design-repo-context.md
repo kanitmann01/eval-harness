@@ -1,7 +1,10 @@
 # Design: repo attach and graph-aware context (0.4 candidates)
 
-Status: proposed. Answers the two TODOs in [ux-flow.md](ux-flow.md)
-section 12. The spec remains the source of truth.
+Status: implemented in 0.4.0 (2026-11-03). Answers the two TODOs in
+[ux-flow.md](ux-flow.md) section 12. The spec remains the source of truth. The
+shipped surface is narrower than the full note: local and HTTPS snapshots,
+`ContextSelector`, `repo_graph`, `artifact_graph` and `evalh repos gc`. Remote
+retry-on-429 and the console attach control remain future work.
 
 ## 1. Problem and user stories
 

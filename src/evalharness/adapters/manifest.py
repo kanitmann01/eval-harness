@@ -127,6 +127,8 @@ MANIFEST: tuple[ManifestEntry, ...] = (
         {"judge": "conformance-judge"},
     ),
     ManifestEntry("evalharness.adapters.sinks.json_sink:build", "sink"),
+    ManifestEntry("evalharness.adapters.contexts.repo_graph:build", "context"),
+    ManifestEntry("evalharness.adapters.contexts.artifact_graph:build", "context"),
 )
 """Every first-party adapter the public suite must cover."""
 
@@ -136,6 +138,7 @@ _PACKAGE_KINDS: dict[str, str] = {
     "metrics": "metric",
     "sources": "source",
     "sinks": "sink",
+    "contexts": "context",
 }
 """Adapter subpackage -> the protocol kind every factory there implements."""
 

@@ -44,7 +44,7 @@ status through its own middleware and never logs the query, headers or bodies.
 | Page | Route | What it shows |
 | --- | --- | --- |
 | Runs | `GET /` | Status, spec name, candidates, cells ok, pass rate, cost, duration and start time, newest first. Query parameters `candidate=` and `metric=` narrow the list. |
-| Run detail | `GET /runs/{run_id}` | Candidate by case heatmap, aggregates with 95 percent Wilson intervals and pass@k / pass^k, gates, the spec graph and the selected cell. Add `?cell=<cell_id>` to select one. |
+| Run detail | `GET /runs/{run_id}` | Candidate by case heatmap, a context panel with the selector, digest and chunk ids each candidate received, aggregates with 95 percent Wilson intervals and pass@k / pass^k, gates, the spec graph and the selected cell. Add `?cell=<cell_id>` to select one. |
 | Cell detail | `GET /runs/{run_id}/cells/{cell_id}` | The same run detail page with that cell selected. |
 | Artifact | `GET /runs/{run_id}/cells/{cell_id}/artifact` | The stored `cell.json` for the cell. Add `?file=answer.txt` for the answer file. |
 | Specs | `GET /specs` | Every spec in the specs directory: name, candidates, cells, estimate, size, modified time, validation state and the Launch, Edit, YAML and Duplicate actions. `/comparisons` redirects here. |

@@ -23,6 +23,7 @@ import pytest
 import tests.adapters  # noqa: F401 - importing registers the test adapters
 from evalharness.api.app import create_app
 from evalharness.api.views import (
+    context_summary,
     heatmap,
     progress_summary,
     run_verdict,
@@ -132,6 +133,41 @@ def console(
         runs={"alpha": alpha_id, "beta": beta_id, "gamma": gamma_id},
     )
     database.dispose()
+
+
+def test_context_summary_reports_the_largest_group_for_one_digest() -> None:
+    first = CellRecord(
+        cell_id="one",
+        run_id="run",
+        candidate="c",
+        case_id="case-a",
+        replica=1,
+        variant={
+            "context_name": "graph",
+            "context_digest": "digest",
+            "context": [{"chunk_id": "a", "text": "one"}],
+        },
+    )
+    second = first.model_copy(
+        update={
+            "cell_id": "two",
+            "case_id": "case-b",
+            "variant": {
+                "context_name": "graph",
+                "context_digest": "digest",
+                "context": [
+                    {"chunk_id": "a", "text": "one"},
+                    {"chunk_id": "b", "text": "two"},
+                ],
+            },
+        }
+    )
+
+    summary = context_summary([first, second])
+
+    assert len(summary) == 1
+    assert summary[0]["chunk_count"] == 2
+    assert [item["chunk_id"] for item in summary[0]["chunks"]] == ["a"]
 
 
 async def test_run_list_shows_status_spec_cost_pass_rate_and_duration(

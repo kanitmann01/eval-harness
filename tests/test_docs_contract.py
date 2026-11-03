@@ -94,7 +94,7 @@ def test_changelog_version_and_date_match_the_package() -> None:
     match = CHANGELOG_HEADING.search(changelog)
     assert match is not None, "CHANGELOG.md has no '## [x.y.z] - YYYY-MM-DD' heading"
     assert match.group("version") == evalharness.__version__
-    assert match.group("date") == "2026-11-01"
+    assert match.group("date") == "2026-11-03"
 
 
 def test_changelog_consolidates_console_v2() -> None:
@@ -126,6 +126,21 @@ def test_changelog_consolidates_the_trust_release() -> None:
         "receipt",
         "calibration",
         "operator",
+    ):
+        assert phrase in changelog, f"CHANGELOG.md does not mention {phrase}"
+
+
+def test_changelog_consolidates_the_context_release() -> None:
+    """The 0.4.0 entry records snapshots, selectors, GC and the schema bump."""
+    changelog = _text(REPO / "CHANGELOG.md").lower()
+    for phrase in (
+        "repository",
+        "snapshot",
+        "contextselector",
+        "repo_graph",
+        "artifact_graph",
+        "repos gc",
+        "schema version 8",
     ):
         assert phrase in changelog, f"CHANGELOG.md does not mention {phrase}"
 

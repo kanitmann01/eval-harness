@@ -169,6 +169,55 @@ def run_detail_data(
     }
 
 
+def context_summary(cells: list[CellRecord]) -> list[dict[str, Any]]:
+    """Group the context each candidate actually received, for the run page.
+
+    Only the recorded variant is read, never the live selector, so the page
+    answers what the run used even after the adapter changes.
+    """
+    groups: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for cell in cells:
+        variant = cell.variant or {}
+        context_name = str(variant.get("context_name") or "inline")
+        digest = str(variant.get("context_digest") or "")
+        chunks = variant.get("context")
+        items = chunks if isinstance(chunks, list) else []
+        key = (cell.candidate, context_name, digest)
+        group = groups.get(key)
+        if group is None:
+            group = {
+                "candidate": cell.candidate,
+                "selector": context_name,
+                "digest": digest,
+                "chunk_count": len(items),
+                "bytes": sum(
+                    len(str(item.get("text", "")).encode("utf-8"))
+                    for item in items
+                    if isinstance(item, dict)
+                ),
+                "chunks": [
+                    {
+                        "chunk_id": str(item.get("chunk_id", "")),
+                        "path": item.get("path"),
+                        "start_line": item.get("start_line"),
+                        "end_line": item.get("end_line"),
+                        "score": item.get("score"),
+                        "graph_nodes": list(item.get("graph_nodes") or []),
+                    }
+                    for item in items[:8]
+                    if isinstance(item, dict)
+                ],
+                "more_chunks": max(0, len(items) - 8),
+            }
+            groups[key] = group
+        elif len(items) > group["chunk_count"]:
+            group["chunk_count"] = len(items)
+    return sorted(
+        groups.values(),
+        key=lambda row: (row["candidate"], row["selector"], row["digest"]),
+    )
+
+
 def cell_data(cell: CellRecord, checks: list[Check]) -> dict[str, Any]:
     """Return the JSON shape of one cell and every check behind it."""
     return {

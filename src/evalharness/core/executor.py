@@ -6,7 +6,7 @@ import asyncio
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Iterable, cast
+from typing import TYPE_CHECKING, Iterable, Mapping, cast
 
 from evalharness.core.cancel import CancellationToken
 from evalharness.core.context import CredentialStore, RunContext
@@ -18,6 +18,7 @@ from evalharness.core.models import (
     Case,
     CellRecord,
     Check,
+    ContextChunk,
     ProviderUsage,
     RunRecord,
     ScoreContext,
@@ -26,6 +27,7 @@ from evalharness.core.models import (
 from evalharness.core.planner import PlannedCell
 from evalharness.core.protocols import Candidate, Metric, Sink
 from evalharness.core.redaction import Redactor
+from evalharness.core.repo_snapshot import RepoSnapshot
 from evalharness.core.scorer import checks_for_cell
 from evalharness.errors import TransportError
 
@@ -94,6 +96,7 @@ async def execute_run(
     credentials: CredentialStore,
     redactor: Redactor,
     artifacts_root: Path,
+    repos: Mapping[str, RepoSnapshot] | None = None,
     cancel_token: CancellationToken | None = None,
     resumed: bool = False,
 ) -> ExecutionResult:
@@ -111,6 +114,7 @@ async def execute_run(
         credentials=credentials,
         redactor=redactor,
         artifacts_root=artifacts_root,
+        repos=repos or {},
         cancel_token=cancel_token or CancellationToken(),
         resumed=resumed,
     )
@@ -160,6 +164,7 @@ class _Execution:
         credentials: CredentialStore,
         redactor: Redactor,
         artifacts_root: Path,
+        repos: Mapping[str, RepoSnapshot],
         cancel_token: CancellationToken,
         resumed: bool,
     ) -> None:
@@ -170,6 +175,7 @@ class _Execution:
         self.credentials = credentials
         self.redactor = redactor
         self.artifacts_root = artifacts_root
+        self.repos = dict(repos)
         self.cancel_token = cancel_token
         self.resumed = resumed
         self.cases_by_id = {case.case_id: case for case in cases}
@@ -316,6 +322,12 @@ class _Execution:
             else max(0.0, self.run_record.budget_usd - self.spend_usd)
         )
         provider = self.resolved.candidate_providers.get(cell.candidate, "")
+        recorded_context = cell.variant.get("context")
+        chunks = (
+            [ContextChunk.model_validate(item) for item in recorded_context]
+            if isinstance(recorded_context, list)
+            else list(self.resolved.chunks[cell.candidate])
+        )
         ctx = RunContext(
             run_id=self.run_record.run_id,
             seed=self.run_record.seed,
@@ -323,13 +335,15 @@ class _Execution:
             events=self.emitter,
             prompt_variant=cast(str | None, cell.variant.get("prompt_variant")),
             prompt_override=cast(str | None, cell.variant.get("prompt_override")),
-            chunks=list(self.resolved.chunks[cell.candidate]),
+            chunks=chunks,
             budget_remaining_usd=budget_remaining,
             candidate=cell.candidate,
             case_id=cell.case.case_id,
             replica=cell.replica,
             model=candidate_spec.model,
             redactor=self.redactor,
+            repos=self.repos,
+            artifacts_root=self.artifacts_root,
         )
         self.emitter.emit(
             "cell_started",

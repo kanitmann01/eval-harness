@@ -25,7 +25,7 @@ src/evalharness/
   exit_codes.py        the automation contract: 0 success, 1 gate failure, 2 spec error, 3 budget abort
   errors.py            typed errors that carry a field name and a fix
   core/
-    protocols.py       Candidate, Judge, Metric, Source, Sink (typing.Protocol)
+    protocols.py       Candidate, Judge, Metric, Source, Sink, ContextSelector (typing.Protocol)
     models.py          pydantic records: Spec, Case, Cell, Check, Aggregate, Gate, Run
     registry.py        name -> factory, dotted path resolution, test registration
     spec.py            YAML load, schema versioning, validation, price resolution
@@ -69,7 +69,7 @@ src/evalharness/
     static/            one stylesheet, small vanilla JS
 ```
 
-## The five protocols
+## The six protocols
 
 ```python
 async def Candidate.run(case: Case, ctx: RunContext) -> CandidateOutput
@@ -77,14 +77,16 @@ async def Judge.verdict(request: JudgeRequest) -> Verdict
 async def Metric.check(cell: CellRecord, ctx: ScoreContext) -> list[Check]
 async def Source.load(spec: Spec, ctx: RunContext) -> list[Case]
 async def Sink.open_run(run: RunRecord) / record_cell(cell) / close_run(run)
+def ContextSelector.select(case: Case, ctx: RunContext) -> list[ContextChunk]
 ```
 
 - `CandidateOutput` carries answer, citations, tool calls, prompt and completion tokens,
   latency, queue wait, model, usage source (`provider` or `estimated`) and artifacts.
   A candidate never returns pass or fail.
 - `RunContext` carries everything ambient: resolved credential handle, prompt variant,
-  injected chunks, seed, remaining budget, event emitter. No adapter receives settings
-  and no adapter reads global configuration.
+  injected chunks, seed, remaining budget, event emitter, prepared repositories and the
+  artifacts root. No adapter receives settings and no adapter reads global
+  configuration.
 - `Metric.check` is async, so a judge-backed metric awaits the judge the spec wires to
   it. `ScoreContext` carries a fresh `JudgeSession` per declared judge plus the
   redactor; the session records judge tokens and cost on the cell that triggered it.
@@ -97,7 +99,8 @@ async def Sink.open_run(run: RunRecord) / record_cell(cell) / close_run(run)
 ## Seams
 
 1. **CLI run entry point** (`evalh run spec.yaml`). Most coverage lives here: planner,
-   executor, retries, resume, cancel, budget, scorer, stats, cost, storage, gates.
+   executor, retries, resume, cancel, budget, scorer, stats, cost, storage, gates,
+   repository snapshots and context selection.
 2. **HTTP API** (`create_app` + `httpx.ASGITransport`). Console read and write surfaces.
 3. **Adapter wire contracts**. One conformance suite per protocol; the HTTP candidate and
    the four provider adapters are exercised against a real local stub server, never a

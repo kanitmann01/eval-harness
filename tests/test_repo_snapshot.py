@@ -10,17 +10,87 @@ from pathlib import Path
 
 import pytest
 
+from evalharness.cli import main
 from evalharness.core import repo_snapshot as repo_module
 from evalharness.core.models import RepoSpec, SourceSpec, Spec
 from evalharness.core.repo_snapshot import (
     _matches,
     changed_repos,
+    list_snapshots,
     prepare_repos,
+    prune_snapshots,
+    referenced_digests,
     snapshot_repo,
     source_snapshot,
 )
 from evalharness.core.models import Case
 from evalharness.errors import SpecError
+
+
+def test_prune_snapshots_keeps_every_digest_a_run_references(
+    tmp_path: Path,
+) -> None:
+    referenced = "a" * 64
+    orphan = "b" * 64
+    (tmp_path / "repos" / referenced).mkdir(parents=True)
+    (tmp_path / "repos" / orphan).mkdir()
+
+    dry = prune_snapshots(tmp_path, {referenced}, dry_run=True)
+
+    assert [path.name for path in dry] == [orphan]
+    assert (tmp_path / "repos" / orphan).is_dir()
+    removed = prune_snapshots(tmp_path, {referenced})
+    assert [path.name for path in removed] == [orphan]
+    assert not (tmp_path / "repos" / orphan).exists()
+    assert (tmp_path / "repos" / referenced).is_dir()
+    assert list_snapshots(tmp_path) == [tmp_path / "repos" / referenced]
+
+
+def test_list_snapshots_ignores_remotes_and_a_missing_root(tmp_path: Path) -> None:
+    assert list_snapshots(tmp_path) == []
+    (tmp_path / "repos" / "remotes" / "abc").mkdir(parents=True)
+    assert list_snapshots(tmp_path) == []
+
+
+def test_referenced_digests_reads_only_repository_rows() -> None:
+    assert referenced_digests(
+        [
+            {"repos": [{"digest": "a" * 64}, {"digest": 7}]},
+            {"repos": "not a list"},
+            {},
+        ]
+    ) == {"a" * 64}
+
+
+def test_repos_gc_lists_then_removes_unreferenced_snapshots(
+    evalh_home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    digest = "c" * 64
+    snapshot = evalh_home / "repos" / digest / "tree"
+    snapshot.mkdir(parents=True)
+    remote = evalh_home / "repos" / "remotes" / "cache"
+    remote.mkdir(parents=True)
+
+    assert main(["repos", "gc", "--dry-run"]) == 0
+    listed = capsys.readouterr().out
+    assert f"would remove snapshot {digest}" in listed
+    assert snapshot.is_dir()
+
+    assert main(["repos", "gc"]) == 0
+    removed = capsys.readouterr().out
+    assert f"removed snapshot {digest}" in removed
+    assert not snapshot.exists()
+    assert remote.is_dir()
+
+    assert main(["repos", "gc"]) == 0
+    assert "no unreferenced repository snapshots" in capsys.readouterr().out
+
+
+def test_repos_without_a_subcommand_prints_help(
+    evalh_home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert main(["repos"]) == 0
+    assert "gc" in capsys.readouterr().out
 
 
 def _repo(root: Path, **overrides: object) -> RepoSpec:
@@ -99,15 +169,52 @@ def test_snapshot_is_content_addressed_and_records_only_relative_paths(
     assert (first.tree / "a.txt").read_text("utf-8") == "alpha\n"
 
 
-def test_prepare_repos_rejects_a_remote_url(tmp_path: Path) -> None:
+def test_prepare_repos_snapshots_a_fetched_remote_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    (checkout / "README.md").write_text("remote content\n", encoding="utf-8")
+    seen: dict[str, object] = {}
+
+    def fake_fetch(name, repo, *, home, credentials):
+        seen.update(name=name, url=repo.url, home=home, credentials=credentials)
+        return checkout
+
+    monkeypatch.setattr(repo_module, "fetch_repo", fake_fetch)
+    spec = _spec(str(tmp_path))
+    spec.repos["tiny"] = RepoSpec(
+        url="https://example.test/x.git", credential="github"
+    )
+
+    snapshots = prepare_repos(
+        spec,
+        base_dir=tmp_path,
+        home=tmp_path / "home",
+        credentials={"github": "s3cret"},
+    )
+
+    snapshot = snapshots["tiny"]
+    assert seen["credentials"] == {"github": "s3cret"}
+    assert snapshot.root == ""
+    assert snapshot.url == "https://example.test/x.git"
+    assert [item.path for item in snapshot.files] == ["README.md"]
+
+
+def test_prepare_repos_refuses_a_remote_url_without_its_secret(
+    tmp_path: Path,
+) -> None:
     spec = _spec("repo")
-    spec.repos["tiny"] = RepoSpec(url="https://example.com/a.git")
+    spec.repos["tiny"] = RepoSpec(
+        url="https://127.0.0.1:1/a.git",
+        credential="github",
+    )
 
     with pytest.raises(SpecError) as error:
         prepare_repos(spec, base_dir=tmp_path, home=tmp_path / "home")
 
-    assert error.value.field == "repos.tiny.url"
-    assert "0.4.0a" in error.value.reason
+    assert error.value.field == "repos.tiny.credential"
+    assert "secret is not available" in error.value.reason
 
 
 def test_prepare_repos_snapshots_each_local_root(tmp_path: Path) -> None:

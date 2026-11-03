@@ -318,12 +318,14 @@ Adapted from `skills/antislop-web/SKILL.md` Part C, with the stack mapped to pla
 
 ## 12. Out of scope, with TODOs
 
-- **Attaching a repo for the agent.** Not in this pass. TODO marker in the context step: the
-  card is described as "not yet supported" and links to no control. Implementation needs an
-  adapter that reads a working tree, and a decision about sandboxing.
-- **Knowledge graph as a first-class object.** This pass accepts a file and chunks it into a
-  `contexts` set. No graph queries, no embeddings, no vector store: no new dependency,
-  and `contexts` is already the spec mechanism. TODO: a graph-aware adapter after this.
+- **Attaching a repo for the agent.** Closed in 0.4.0: a spec declares a local or
+  HTTPS repository under `repos`, snapshots it content-addressed, and the repo source
+  reads cases and fixtures from that snapshot. No console upload control was added;
+  repositories are declared in the spec, which keeps the spec the source of truth.
+- **Knowledge graph as a first-class object.** Closed in 0.4.0 without a graph database
+  or embedding dependency: `repo_graph` ranks line windows over import edges and
+  `artifact_graph` reads answer co-citation from a closed run, both behind the
+  `ContextSelector` protocol. See [adapters.md](adapters.md#the-context-selectors).
 - **Teams, sharing, permissions.** Out of scope by decision.
 - **Editing cases offline.** Cases come from the source adapter; the wizard uploads or pastes.
 - **Live multi-run scheduling.** One run at a time, unchanged.

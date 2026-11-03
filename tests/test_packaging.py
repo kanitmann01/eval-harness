@@ -130,8 +130,7 @@ def test_env_example_holds_no_secret_default() -> None:
 
 def test_the_version_is_pinned_in_the_source_and_the_project_metadata() -> None:
     project = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"]
-    assert project["version"] == "0.3.0"
-    assert __version__ == project["version"]
+    assert project["version"] == __version__
 
 
 def test_the_licence_is_mit_for_the_project_contributors() -> None:

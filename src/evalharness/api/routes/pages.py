@@ -10,6 +10,7 @@ from evalharness.api.graph_views import run_graph
 from evalharness.api.views import (
     cell_error,
     citations_for,
+    context_summary,
     heatmap,
     progress_summary,
     run_list_stats,
@@ -113,6 +114,7 @@ def _detail_page(
             "columns": columns,
             "rows": rows,
             "graph": graph,
+            "contexts": context_summary(cells),
             "aggregates": repository.list_aggregates(run_id),
             "gates": gates,
             "events": repository.list_events(run_id),

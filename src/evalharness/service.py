@@ -47,6 +47,7 @@ from evalharness.core.models import (
     GateResult,
     ProviderCost,
     RunRecord,
+    Spec,
     utc_now,
 )
 from evalharness.core.planner import PlannedCell, expand, per_candidate_counts
@@ -131,6 +132,38 @@ def redactor_for(store: CredentialStore) -> SecretRedactor:
     return SecretRedactor(secrets)
 
 
+def _repo_credentials(spec: Spec, settings: Settings) -> dict[str, str]:
+    """Resolve only the secrets a declared remote repository needs.
+
+    A local-only spec never opens the vault, so the common path keeps working
+    without a master key. A missing key for a remote repo surfaces the vault's
+    own actionable error instead of a bare fetch failure.
+    """
+    names = sorted(
+        {
+            repo.credential
+            for repo in spec.repos.values()
+            if repo.credential is not None
+        }
+        | ({spec.source.credential} if spec.source.credential else set())
+    )
+    if not names:
+        return {}
+    vault = open_vault(settings)
+    database = Database(settings.database_url)
+    try:
+        database.create_all()
+        store = VaultCredentialStore(vault, Repository(database))
+        secrets: dict[str, str] = {}
+        for name in names:
+            handle = store.get(name)
+            if handle is not None and handle.secret:
+                secrets[name] = handle.secret
+        return secrets
+    finally:
+        database.dispose()
+
+
 def load_run(
     spec_path: str | Path,
     *,
@@ -151,6 +184,7 @@ def load_run(
         resolved.spec,
         base_dir=Path(spec_path).parent,
         home=settings.home,
+        credentials=_repo_credentials(resolved.spec, settings),
     )
     cases = _load_cases(resolved, run_id, repos=repos)
     snapshot = source_snapshot(
@@ -159,7 +193,13 @@ def load_run(
         cases,
         resolved.spec.contexts,
     )
-    cells = expand(resolved, cases)
+    cells = expand(
+        resolved,
+        cases,
+        repos=repos,
+        artifacts_root=settings.artifacts_dir,
+        run_id=run_id,
+    )
     return PreparedRun(
         resolved=resolved,
         cases=cases,
@@ -241,6 +281,7 @@ def execute(
                 credentials=store,
                 redactor=redactor,
                 artifacts_root=settings.artifacts_dir,
+                repos=prepared.repos,
                 cancel_token=cancel_token,
                 resumed=resume_run_id is not None,
             )

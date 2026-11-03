@@ -63,6 +63,72 @@ def test_a_repository_source_runs_and_records_its_snapshot(
         database.dispose()
 
 
+def test_a_remote_repository_fetches_with_its_stored_credential(
+    evalh_home, workdir, capsys, monkeypatch
+) -> None:
+    checkout = workdir / "checkout"
+    (checkout / "cases").mkdir(parents=True)
+    _write_cases(checkout, "What is 6 times 7?")
+    calls: dict[str, object] = {}
+
+    def fake_fetch(name, repo, *, home, credentials):
+        calls.update(
+            name=name, url=repo.url, credential=repo.credential, credentials=credentials
+        )
+        return checkout
+
+    monkeypatch.setattr("evalharness.core.repo_snapshot.fetch_repo", fake_fetch)
+    monkeypatch.setenv("GITHUB_TOKEN", "s3cret")
+    assert (
+        main(
+            [
+                "credentials",
+                "add",
+                "github",
+                "--provider",
+                "github",
+                "--secret-env",
+                "GITHUB_TOKEN",
+            ]
+        )
+        == 0
+    )
+    capsys.readouterr()
+
+    spec = base_spec()
+    spec["source"] = {
+        "adapter": REPO_SOURCE,
+        "options": {"repo": "tiny", "cases": "cases/questions.jsonl"},
+    }
+    spec["source"]["credential"] = "github"
+    spec["repos"] = {
+        "tiny": {
+            "url": "https://example.test/team/repo.git",
+            "ref": "main",
+        }
+    }
+    spec["credentials"].append({"name": "github", "provider": "github"})
+    spec["candidates"] = [spec["candidates"][0]]
+    spec["candidates"][0]["options"] = {}
+    path = write_spec(workdir / "remote.yaml", spec)
+
+    code = main(["run", str(path)])
+
+    captured = capsys.readouterr()
+    assert code == 0, captured.err
+    assert calls["credential"] == "github"
+    assert calls["credentials"] == {"github": "s3cret"}
+    run_id = run_id_from(captured.out)
+    database, repository = open_repository()
+    try:
+        source = repository.get_run(run_id).source_snapshot
+        assert source["repos"][0]["url"] == "https://example.test/team/repo.git"
+        assert source["repos"][0]["root"] == ""
+        assert source["repos"][0]["ref"] == "main"
+    finally:
+        database.dispose()
+
+
 def test_resume_refuses_a_changed_repository_tree(
     evalh_home, workdir, capsys
 ) -> None:

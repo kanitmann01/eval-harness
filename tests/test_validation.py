@@ -471,6 +471,44 @@ def test_repository_root_shape_is_validated(evalh_home, workdir, capsys):
         assert message in error
 
 
+@pytest.mark.parametrize(
+    "ref,message",
+    [
+        ("", "must not be empty"),
+        ("-main", "must not start with a hyphen"),
+        ("main branch", "must not contain whitespace"),
+        ("main..next", "must not contain '..'"),
+        ("main@{1}", "must not contain '..'"),
+        ("main.", "must not start or end with a slash or dot"),
+        ("main/", "must not start or end with a slash or dot"),
+        ("/main", "must not start or end with a slash or dot"),
+        ("feature//x", "must not contain an empty path segment"),
+    ],
+)
+def test_repository_ref_shape_is_validated(evalh_home, workdir, capsys, ref, message):
+    error = _repo_failure(
+        evalh_home, workdir, capsys, {"url": "https://example.com/x.git", "ref": ref}
+    )
+    assert "repos.tiny.ref" in error
+    assert message in error
+
+
+def test_a_valid_repository_ref_is_accepted(evalh_home, workdir, capsys):
+    spec = base_spec()
+    spec["repos"] = {
+        "tiny": {"url": "https://example.com/x.git", "ref": "v1.2.3"}
+    }
+    path = write_spec(workdir / "remote.yaml", spec)
+    assert main(["validate", str(path)]) == 0
+
+
+def test_contexts_must_be_a_mapping(evalh_home, workdir, capsys):
+    spec = base_spec()
+    spec["contexts"] = []
+    error = _failure(evalh_home, workdir, capsys, spec)
+    assert "contexts" in error
+
+
 def test_repository_include_must_not_be_empty(evalh_home, workdir, capsys):
     error = _repo_failure(evalh_home, workdir, capsys, {"root": ".", "include": []})
     assert "repos.tiny.include" in error

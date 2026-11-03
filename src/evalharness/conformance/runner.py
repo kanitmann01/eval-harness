@@ -11,6 +11,7 @@ from typing import Iterator, Mapping
 from evalharness.adapters.manifest import MANIFEST, conformance_options
 from evalharness.conformance.suite import (
     CANDIDATE,
+    CONTEXT,
     JUDGE,
     METRIC,
     SINK,
@@ -30,6 +31,7 @@ _IDENTITIES: dict[str, str] = {
     METRIC: "conformance_metric",
     SOURCE: "source",
     SINK: "sink",
+    CONTEXT: "context",
 }
 """The identity the suite passes to each kind's factory."""
 
@@ -68,6 +70,8 @@ def _default_options(kind: str, scratch: Path) -> dict[str, object]:
         }
     if kind == SINK:
         return {"artifacts_dir": str(scratch / "artifacts")}
+    if kind == CONTEXT:
+        return {"max_chunks": 6, "max_bytes": 12000}
     return {}
 
 
@@ -98,9 +102,14 @@ def run_suite(
     with _scratch(workdir) as scratch:
         merged = _default_options(kind, scratch)
         repos: dict[str, RepoSnapshot] = {}
+        artifacts_root: Path | None = None
         setup = getattr(factory, "CONFORMANCE_SETUP", None)
         if setup is not None:
-            setup_options, repos = setup(scratch)
+            setup_result = setup(scratch)
+            if len(setup_result) == 3:
+                setup_options, repos, artifacts_root = setup_result
+            else:
+                setup_options, repos = setup_result
             merged.update(setup_options)
         if options is not None:
             merged.update(dict(options))
@@ -112,6 +121,7 @@ def run_suite(
             workdir=scratch,
             factory=factory,
             repos=repos,
+            artifacts_root=artifacts_root,
         )
         results = [run_case(case, context) for case in cases]
     return ConformanceReport(

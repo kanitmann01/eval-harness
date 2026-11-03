@@ -199,6 +199,65 @@
   {% endif %}
 </section>
 
+<section class="panel" aria-labelledby="context-heading">
+  <div class="panel-head">
+    <div>
+      <h2 id="context-heading">Context</h2>
+      <p class="subtle">What each candidate actually received, read from the recorded cell variant. A digest changes when the selection changes; dynamic selectors are named, inline chunks read "inline".</p>
+    </div>
+  </div>
+  {% if contexts %}
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable context table">
+    <table>
+      <caption class="sr-only">Context selected per candidate</caption>
+      <thead>
+        <tr>
+          <th scope="col">Candidate</th>
+          <th scope="col">Selector</th>
+          <th scope="col">Digest</th>
+          <th scope="col">Chunks</th>
+          <th scope="col">Bytes</th>
+          <th scope="col">First chunks</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for group in contexts %}
+        <tr>
+          <th scope="row">{{ group.candidate }}</th>
+          <td>{{ group.selector }}</td>
+          <td class="mono" title="{{ group.digest }}">{{ group.digest[:12] if group.digest else "—" }}</td>
+          <td>{{ group.chunk_count }}</td>
+          <td>{{ group.bytes }}</td>
+          <td>
+            {% if group.chunks %}
+            <ul class="chunk-list">
+              {% for chunk in group.chunks %}
+              <li class="mono" title="{{ chunk.chunk_id }}">
+                {{ chunk.chunk_id }}
+                {% if chunk.path %}<span class="subtle">{{ chunk.path }}{% if chunk.start_line %}:{{ chunk.start_line }}-{{ chunk.end_line }}{% endif %}</span>{% endif %}
+                {% if chunk.score is not none %}<span class="subtle">score {{ "%.3f"|format(chunk.score) }}</span>{% endif %}
+              </li>
+              {% endfor %}
+            </ul>
+            {% if group.more_chunks %}<span class="subtle">{{ group.more_chunks }} more</span>{% endif %}
+            {% else %}
+            <span class="subtle">no chunks recorded</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <span class="empty-icon" aria-hidden="true">∅</span>
+    <h2>No context recorded</h2>
+    <p>This run has no recorded cell variants yet, so the console cannot show what a candidate received.</p>
+  </div>
+  {% endif %}
+</section>
+
 <section class="panel" aria-labelledby="aggregates-heading">
   <div class="panel-head">
     <div>

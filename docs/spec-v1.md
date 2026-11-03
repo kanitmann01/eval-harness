@@ -79,9 +79,9 @@ silently ignored.
 | description | string | no | "" | Free text. |
 | seed | integer | no | 0 | Seeds cell ordering and is passed to every candidate. |
 | source | mapping | yes | none | Where the cases come from. |
-| repos | mapping name -> repository | no | {} | Local repositories a source may read. Each is snapshotted before the first cell. |
+| repos | mapping name -> repository | no | {} | Local or HTTPS repositories a source may read. Each is snapshotted before the first cell. |
 | prompts | mapping string -> string | no | {} | Named prompt overrides. A candidate names one under options.prompt. |
-| contexts | mapping string -> list of chunks | no | {} | Named context sets. A candidate names one under options.context. |
+| contexts | mapping string -> list of chunks or selector | no | {} | Named context sets. A list is a fixed set; a mapping with adapter and options selects chunks per case. A candidate names one under options.context. |
 | credentials | list of credential declarations | no | [] | Logical credential names. Secrets come from the encrypted vault (docs/credentials.md). |
 | candidates | list of candidates | yes | none | At least one. |
 | replicas | integer >= 1 | no | 1 | Repeats per candidate x case. |
@@ -100,7 +100,7 @@ silently ignored.
 | --- | --- | --- | --- |
 | adapter | string | yes | Registered name or dotted path in module:attr form. |
 | options | mapping | no | Adapter-specific. The inline source reads options.cases. |
-| credential | string | no | A declared or stored credential name. Only valid when at least one repository declares an https url; reserved for the remote fetch that follows 0.4.0a. |
+| credential | string | no | A declared or stored credential name. Only valid when at least one repository declares an https url; used for the remote fetch. |
 
 A case has case_id (required), prompt (required), expected (optional mapping),
 rubric (optional string), tier (integer, default 1) and metadata (mapping).
@@ -130,9 +130,9 @@ source:
 | Field | Type | Default | Meaning |
 | --- | --- | --- | --- |
 | root | string | "." | Local path relative to the spec file. Must exist when the spec is validated. |
-| url | string or null | null | HTTPS repository URL. Declared for compatibility; 0.4.0a rejects remote fetching at snapshot time with an actionable error. |
-| ref | string or null | null | Git ref for a remote repository. Rejected with a local root. |
-| credential | string or null | null | Credential for a remote repository. Rejected with a local root. |
+| url | string or null | null | HTTPS repository URL. Fetched shallowly into `$EVALH_HOME/repos/remotes/` before the snapshot. |
+| ref | string or null | null | Branch or tag for a remote repository. Defaults to the remote HEAD. Rejected with a local root. |
+| credential | string or null | null | Credential used as an HTTP authorization header for a remote repository. Rejected with a local root. |
 | include | list of globs | ["**/*"] | Snapshot only matching paths. |
 | exclude | list of globs | [".git/", "node_modules/", ".venv/", "__pycache__/", "*.pyc"] | Skip matching paths. |
 | max_files | integer >= 1 | 2000 | Refuse a larger included set. |
@@ -149,22 +149,46 @@ to the spec file and rejects an absolute path, drive letter or home shortcut;
 ".." is allowed so a spec can point at a sibling checkout, and the directory
 must exist when the spec is loaded.
 
+A remote repository is fetched once per URL and ref into
+$EVALH_HOME/repos/remotes/<key>, shallow and detached at the fetched commit, then
+cleaned. The credential is passed to git as an HTTP authorization header in the
+process environment, never as an argument, and its secret is redacted from a
+failure message. A missing secret fails before any cell with
+`repos.<name>.credential`.
+
 Before the first cell the harness copies every included file into
 $EVALH_HOME/repos/<digest>/tree and writes a manifest beside it. The digest is
 the SHA-256 of the sorted blob hash and path lines, so an unchanged tree reuses
 the same directory. Only snapshot-relative paths, hashes, sizes and modes enter
 the manifest; host paths and bytes never enter the database. The source receives
-the prepared tree through RunContext.repos. [design-repo-context.md](design-repo-context.md)
-records the wider 0.4 design.
+the prepared tree through RunContext.repos. The run records the source snapshot,
+and a resume refuses a repository whose digest changed.
+
+Snapshots are never removed automatically. `evalh repos gc --dry-run` lists the
+digests no recorded run references; without the flag it removes exactly those.
 
 ## prompts and contexts
 
-A prompt is a named string. A context is a named list of chunks, each with
-chunk_id and text. They are core axes, not adapter flags: the planner puts the
-resolved text and chunks in RunContext and records them on every cell in the
-cell variant. A candidate that declares supports_prompt_override or
-supports_context_injection as false cannot be given that axis, and validation
-fails naming the candidate option.
+A prompt is a named string. A context is either a named list of chunks, each
+with chunk_id and text, or a named selector:
+
+~~~yaml
+contexts:
+  graph:
+    adapter: evalharness.adapters.contexts.repo_graph:build
+    options:
+      repo: docs
+      rank: pagerank
+      max_chunks: 8
+~~~
+
+A list is fixed for every case. A selector is called once per candidate and
+case with a RunContext carrying the prepared repositories and artifacts root, and
+returns the chunks for that case. Its name and options enter the source snapshot;
+each cell records the selected chunk ids, the selector name and a context digest.
+A selector failure names `contexts.<name>.adapter`; a candidate that declares
+supports_context_injection as false cannot be given the axis. The two shipped
+selectors are [repo_graph and artifact_graph](adapters.md#the-context-selectors).
 
 ## credentials
 
@@ -340,6 +364,8 @@ evalh run SPEC --db URL --artifacts DIR
 evalh run SPEC --override-budget USD   replace the spec budget for this run and record it
 evalh run SPEC --cancel-after N     cancel once N cells have completed, between cells
 evalh run SPEC --resume RUN_ID      continue an unfinished run into the same record
+
+evalh repos gc [--dry-run]          prune snapshots no recorded run references
 
 evalh credentials add NAME --provider P [--secret-stdin | --secret-env VAR]
 evalh credentials list

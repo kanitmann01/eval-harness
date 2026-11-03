@@ -5,6 +5,58 @@ All notable changes to this project are recorded here. The format follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html), and every release is
 compared against the spec of record in issue #1.
 
+## [0.4.0] - 2026-11-03
+
+The Context release: the code under test becomes a named, content-addressed input,
+and context is selected per case behind a sixth protocol.
+
+### Added
+
+- Local and HTTPS repository declarations under `repos`, with `root` or `url`,
+  optional `ref` and `credential`, include/exclude globs, caps, symlink and
+  binary policy. Remote fetches are shallow, detached, cleaned and authenticated
+  through the git environment; the secret is redacted from errors.
+- Content-addressed snapshots under `$EVALH_HOME/repos/<digest>` with a manifest,
+  digest reuse, and the repository source reading cases and fixtures from the
+  snapshot.
+- Run provenance for the source: adapter, repository rows (root, url, ref, commit,
+  digest, files, bytes, skipped, dirty), case prompt hashes and context metadata.
+  The receipt gains a Source panel and the run diff gains a source category.
+- Resume refuses a repository whose digest changed.
+- `ContextSelector` protocol and `contexts.<name>` mappings with `adapter` and
+  `options`. Selection runs once per candidate and case; the cell variant records
+  the chunk ids, selector name and digest.
+- `repo_graph` selector: lexical or PageRank ranking over a prepared snapshot,
+  seed and expansion controls, test-file filtering, chunk and byte caps.
+- `artifact_graph` selector: one answer chunk per closed-run cell, scored by
+  prompt overlap and co-citation, with candidate exclusion and caps.
+- Context conformance kind, clauses `context/1` to `context/5`, and manifest rows
+  for both selectors.
+- Run page Context panel with the selector, digest, chunk count, bytes and first
+  chunks each candidate received.
+- `evalh repos gc [--dry-run]` removes snapshots no recorded run references.
+- Database schema version 8 adds nullable `runs.source_snapshot`; a version 7
+  database migrates in place.
+
+### Changed
+
+- The public adapter surface is six contracts: Candidate, Judge, Metric, Source,
+  Sink and ContextSelector. The conformance runner can pass a selector its
+  artifacts root as well as prepared repositories.
+- A planned cell's `variant.context` now serializes the full `ContextChunk`
+  record (path, line range, blob hash, score, graph nodes), not only id and text.
+- Version 0.4.0 replaces 0.3.0.
+
+### Docs
+
+- [docs/spec-v1.md](docs/spec-v1.md) documents remote repositories, snapshots,
+  dynamic contexts and `repos gc`.
+- [docs/adapters.md](docs/adapters.md) documents the sixth contract and both
+  selectors.
+- [docs/design-repo-context.md](docs/design-repo-context.md) is marked implemented.
+- [docs/ux-flow.md](docs/ux-flow.md) closes the repo-attach and graph-context
+  TODOs.
+
 ## [0.3.0] - 2026-11-01
 
 The Trust release: the console explains whether a result is believable, not just

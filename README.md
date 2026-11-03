@@ -16,7 +16,8 @@ by case heatmap, per-cell evidence, the spec editor, a side-by-side compare view
 deltas, intervals and cost per correct answer, launch and cancel, one run per
 container at a time, and five Trust surfaces: a ranked decision view, a what-would-
 change-my-mind line, a sample-size planner, a spec diff, a run receipt and a judge
-calibration report.
+calibration report. 0.4 adds repository snapshots, per-case context selectors and a
+snapshot GC command.
 The spec of record is issue #1 in this repository.
 
 ## What it will be
@@ -29,10 +30,11 @@ Credentials are BYOK. One container per person, keys verified on demand, encrypt
 
 - `docs/design-adapter-harness.md` — the design note: layering, protocols, spec schema, credential and cost model, executor semantics, storage schema, migration phases.
 - `docs/spec-v1.md` — the spec schema as implemented, field by field.
-- `docs/adapters.md` — the five adapter contracts, clause numbering, the manifest and the conformance command.
+- `docs/adapters.md` — the six adapter contracts, clause numbering, the manifest and the conformance command.
 - `docs/judges.md` — the judge contract, reference judges, configuration hashing, cost attribution and two judges in one run.
 - `docs/credentials.md` — BYOK flow, master key lifecycle, what is stored, redaction guarantees, verification request.
 - `docs/console.md` — the page map, JSON API, SSE contract and how to serve a run in a browser.
+- `docs/design-repo-context.md` — the 0.4 design: repository snapshots and graph-aware context.
 - `docs/http-candidate.md` — the v1 wire contract for someone else's agent: request, response, auth, retries, error mapping, usage estimation.
 - `docs/providers.md` — the two provider families for candidates and judges: matrix, auth shapes, request and response mapping, the JSON verdict, the price table and per-provider cost attribution.
 - `contract/candidate-v1.schema.json` — the same contract as JSON Schema (append-compatible only).
@@ -408,6 +410,31 @@ above the metric table.
 Every run records `EVALH_OPERATOR` when it is set (the demo sets it to `demo`);
 without it the receipt says `not recorded`. Nothing about a credential, prompt or
 answer leaves the redactor.
+
+### Context and repositories
+
+0.4 makes the code under test an input the run can name and re-read.
+
+- **Repository snapshots.** Declare a local `root` or an HTTPS `url` with an
+  optional `ref` and `credential`. Before the first cell the harness copies the
+  included files into a content-addressed tree under `$EVALH_HOME/repos/<digest>`,
+  records the digest, commit, dirty flag and file counts on the run, and refuses a
+  resume whose tree changed. Remote fetches are shallow, detached and use the
+  credential only as an HTTP header in the git environment.
+- **Repository source.** `evalharness.adapters.sources.repo:build` reads cases and
+  fixtures from that snapshot, so a case file and the code it tests cannot drift
+  apart silently.
+- **Context selectors.** `contexts.<name>` accepts a fixed chunk list or a
+  selector with `adapter` and `options`. The planner calls it per candidate and
+  case; each cell records the chunk ids, selector and digest. The run page has a
+  Context panel with what each candidate actually received.
+- **`repo_graph`** windows a prepared snapshot, ranks by lexical overlap and an
+  optional import-edge PageRank, and expands around the seeds.
+  **`artifact_graph`** reads a closed run's answers and co-citations. Both are
+  behind the sixth protocol and the public conformance suite.
+- **Snapshot GC.** Snapshots are never deleted automatically.
+  `evalh repos gc --dry-run` lists the digests no run references; without the
+  flag it removes only those.
 
 ### Credentials
 
