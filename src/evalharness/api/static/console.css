@@ -213,7 +213,9 @@ code, .mono, samp {
 .skip-link {
   position: fixed;
   left: var(--space-4);
-  top: -4rem;
+  /* Parked one token above the viewport; focus reveals it with a compositor-only
+     transform instead of animating the layout property top. */
+  top: var(--space-3);
   z-index: 100;
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius);
@@ -221,9 +223,10 @@ code, .mono, samp {
   color: var(--accent-ink);
   font-weight: 650;
   box-shadow: var(--shadow-md);
-  transition: top 0.15s ease;
+  transform: translateY(calc(-100% - var(--space-7)));
+  transition: transform 0.15s ease;
 }
-.skip-link:focus { top: var(--space-3); }
+.skip-link:focus { transform: translateY(0); }
 
 .subtle { color: var(--muted); }
 .faint { color: var(--faint); }
@@ -1504,11 +1507,18 @@ kbd {
   overflow: hidden;
 }
 .progress-fill {
+  /* The fill is a span; inline boxes ignore width, height and transform, so it
+     must become a block layer before the track can show any fill at all. */
+  display: block;
   height: 100%;
-  width: 0;
+  width: 100%;
   border-radius: inherit;
   background: var(--accent);
-  transition: width 0.35s ease;
+  /* The server renders the initial ratio and the SSE handler updates the same
+     transform, so the fill never animates layout width. */
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.35s ease;
 }
 .progress-track.is-running .progress-fill {
   background: linear-gradient(90deg, var(--accent), var(--accent-hover));
@@ -2195,16 +2205,26 @@ kbd {
 }
 
 /* ----------------------------------------------------------- reduced motion */
+/* Targeted static states, not a global duration override: every looping
+   indicator keeps its colour, size and shape and simply stops moving. */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
+  .skip-link,
+  .progress-fill,
+  .heat-cell a,
+  .btn,
+  .button-link,
+  .button-primary,
+  .button-secondary {
+    transition: none;
   }
-  .live-dot { animation: none !important; }
+  .live-dot {
+    animation: none;
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .skeleton {
+    animation: none;
+    background: var(--surface-3);
+  }
 }
 
 /* ------------------------------------------------------------------- print */

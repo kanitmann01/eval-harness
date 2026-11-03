@@ -345,5 +345,10 @@ separate releases:
 6. **Evidence.** Screenshot matrix under `docs/evidence/*-after.jpg`, the 100% line coverage
    gate, and the offline demo.
 
-Known follow-ups, none blocking 0.2.0: targeted reduced-motion static states, skeleton rows for
-fetched table regions, and transform-based skip-link and progress-fill motion.
+The three 0.2.0 console follow-ups are closed. Reduced motion is targeted static
+states, not a global duration override; the skip link and progress fill animate
+transform only; and the runs list remains the only in-page fetch region that
+swaps a table, with its skeleton rows already shipped. The spec editor's
+validation fetch marks the form `aria-busy` and swaps panels rather than table
+rows, so it needs no skeleton. No other table region lacked a loading state, so
+none was added.

@@ -72,6 +72,50 @@ def _contrast(foreground: str, background: str) -> float:
     return (lighter + 0.05) / (darker + 0.05)
 
 
+MOTION_DECLARATION = re.compile(
+    r"(?<![-\w])((?:animation|transition)(?:-[a-z]+)?)\s*:"
+)
+MOTION_GROUP = {
+    "animation": "animation",
+    "animation-name": "animation",
+    "animation-duration": "animation",
+    "animation-timing-function": "animation",
+    "animation-iteration-count": "animation",
+    "animation-direction": "animation",
+    "animation-fill-mode": "animation",
+    "animation-play-state": "animation",
+    "transition": "transition",
+    "transition-property": "transition",
+    "transition-duration": "transition",
+    "transition-timing-function": "transition",
+}
+
+
+def _motion_sites(css: str) -> dict[str, set[str]]:
+    """Return selectors outside keyframes that declare animation or transition.
+
+    Delays are ignored: a delay alone cannot animate, and the shorthand or
+    name that does is the site the reduced-motion block must neutralise.
+    """
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.DOTALL)
+    sites: dict[str, set[str]] = {}
+    for match in re.finditer(r"([^{}]+)\{([^{}]*)\}", css):
+        selector = re.sub(r"\s+", " ", match.group(1)).strip()
+        if selector.startswith("@"):
+            continue
+        properties = {
+            MOTION_GROUP[found.group(1)]
+            for found in MOTION_DECLARATION.finditer(match.group(2))
+            if found.group(1) in MOTION_GROUP
+        }
+        if not properties:
+            continue
+        for part in selector.split(","):
+            name = re.sub(r"\s+", " ", part).strip()
+            sites.setdefault(name, set()).update(properties)
+    return sites
+
+
 def test_on_accent_muted_token_is_gone() -> None:
     assert "--on-accent-muted" not in _css()
 
@@ -185,6 +229,68 @@ def test_print_omits_actions_help_and_placeholders() -> None:
         assert selector in block, f"{selector} missing from print rules"
     assert ".heat-cell.empty," in block
     assert ".heat-cell.pending { visibility: hidden; }" in block
+
+
+def test_skip_link_reveals_with_a_transform_instead_of_top() -> None:
+    css = _css()
+    link = _block(css, ".skip-link {")
+    assert "top: var(--space-3);" in link
+    assert "transform: translateY(" in link
+    assert "transition: transform 0.15s ease;" in link
+    assert "transition: top" not in css
+    assert "transform: translateY(0);" in _block(css, ".skip-link:focus")
+
+
+def test_progress_fill_scales_the_layer_and_keeps_the_colours() -> None:
+    css = _css()
+    fill = _block(css, ".progress-fill {")
+    # An inline span ignores width, height and transform, so the block layer is
+    # what makes the track paint at all.
+    assert "display: block;" in fill
+    assert "width: 100%;" in fill
+    assert "transform: scaleX(0);" in fill
+    assert "transform-origin: left center;" in fill
+    assert "transition: transform 0.35s ease;" in fill
+    assert "transition: width" not in css
+    running = _block(css, ".progress-track.is-running .progress-fill {")
+    assert (
+        "background: linear-gradient(90deg, var(--accent), var(--accent-hover));"
+        in running
+    )
+    partial = _block(css, ".progress-track.is-partial .progress-fill {")
+    assert "background: var(--warn-ink);" in partial
+
+
+def test_reduced_motion_uses_targeted_static_states() -> None:
+    css = _css()
+    block = _block(css, "@media (prefers-reduced-motion: reduce)")
+    assert "0.01ms" not in block
+    assert "*::before" not in block
+    live = _block(block, ".live-dot")
+    assert "animation: none;" in live
+    assert "box-shadow: 0 0 0 3px var(--accent-soft);" in live
+    skeleton = _block(block, ".skeleton")
+    assert "animation: none;" in skeleton
+    assert "background: var(--surface-3);" in skeleton
+    assert "transition: none;" in _block(block, ".skip-link,")
+    assert "transition-duration" not in block
+
+
+def test_reduced_motion_block_covers_every_motion_site() -> None:
+    """A new animation cannot ship without a static state for reduced motion."""
+    css = _css()
+    marker = "@media (prefers-reduced-motion: reduce)"
+    reduced_body = _block(css, marker)
+    # Scan the whole sheet except the reduced block, not just its prefix, so a
+    # motion declaration appended after the block cannot escape the guard.
+    base = _motion_sites(css.replace(reduced_body, "", 1))
+    reduced = _motion_sites(reduced_body)
+    known = {".skip-link", ".progress-fill", ".live-dot", ".skeleton"}
+    assert known <= set(base), "the motion scan missed a known site"
+    for selector, properties in base.items():
+        assert selector in reduced, f"{selector} still moves under reduced motion"
+        missing = properties - reduced[selector]
+        assert not missing, f"{selector} still animates {missing}"
 
 
 def test_graph_variants_keep_their_own_box() -> None:

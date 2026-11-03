@@ -70,6 +70,15 @@ def test_money_is_formatted_server_side_not_by_either_script() -> None:
     assert '"budget exceeded · the run stopped at its cap"' in console_script
 
 
+def test_progress_fill_scales_with_transform_not_width() -> None:
+    script = _script()
+    assert (
+        'fill.style.transform = "scaleX(" + Math.min(1, done / total) + ")";'
+        in script
+    )
+    assert "fill.style.width" not in script
+
+
 def test_filter_submit_shows_skeleton_and_sets_aria_busy() -> None:
     script = _script()
     assert "data-loading-form" in script

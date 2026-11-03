@@ -212,7 +212,7 @@
       );
     }
     if (fill && total > 0) {
-      fill.style.width = Math.min(100, (done / total) * 100) + "%";
+      fill.style.transform = "scaleX(" + Math.min(1, done / total) + ")";
     }
     if (track) {
       track.setAttribute("aria-valuemax", String(total > 0 ? total : 1));

@@ -452,14 +452,28 @@ already carries it). The run verdict above still carries the overall rate.
 ```html
 <div class="progress-track" role="progressbar" aria-labelledby="progress-count"
      aria-valuemin="0" aria-valuemax="18" aria-valuenow="12">
-  <span class="progress-fill" style="width: 66.7%"></span>
+  <span class="progress-fill" style="transform: scaleX(0.67)"></span>
 </div>
 <p id="progress-count" class="progress-count" aria-live="polite">12 <small>of 18 cells</small></p>
 ```
 
-The live script updates `aria-valuenow`, the fill width and the text from the
-SSE stream. A running state is a pulsing dot **and** the word "running"; a
-replay is labelled "replay" or "complete".
+```css
+.progress-fill {
+  display: block;        /* the fill is a span; inline boxes ignore width, height and transform */
+  width: 100%;
+  height: 100%;
+  transform: scaleX(0.67);
+  transform-origin: left center;
+}
+```
+
+The server renders the initial ratio as `scaleX`: `0.67` for 12 of 18 cells,
+`0.0` at the first paint and `1.0` when complete. The live script updates
+`aria-valuenow`, the same transform and the text from the SSE stream. The fill
+is a block layer, so the track's 7px height and the full width actually apply,
+and it is scaled from its left edge; neither the first paint nor a stream update
+animates layout. A running state is a pulsing dot **and** the
+word "running"; a replay is labelled "replay" or "complete".
 
 ### Tooltip
 
@@ -924,6 +938,21 @@ Shipped in 0.2.0 on the runs list. The `.skeleton` primitive also serves pending
 heat cells; `console.js` listens for `data-loading-form`, hides the loaded rows
 and shows the skeleton body until the next page arrives.
 
+Every in-page fetch that swaps a table region was audited in 0.3.0. The runs
+list is the only such region, and it already shipped skeleton rows; the other
+tables are full navigations or server-side POST re-renders, where the browser
+shows the response instead of a partial page. The live heatmap is the only other
+table-adjacent region that changes without navigation, and it uses skeleton
+cells per pending cell. No table region was added, because none lacked a
+loading state.
+
+| Region | Fetch path | Loading state |
+| --- | --- | --- |
+| Runs list | filter GET submit, JS swaps `[data-loading-region]` | three skeleton rows, `aria-busy`, polite status |
+| Run detail heatmap | SSE appends cells | skeleton cell in each pending cell |
+| Spec editor | in-page validation POST to the validate route; `render()` swaps errors, estimate, warnings and status | form `aria-busy` while the check runs; no skeleton because it is not a table |
+| Spec list, compare, credentials, calibration tables | ordinary navigation or POST re-render | the browser waits on the response; no in-page swap |
+
 ```html
 <tr class="skeleton-row" aria-hidden="true">
   <td><span class="skeleton" style="width: 9rem"></span></td>
@@ -973,8 +1002,11 @@ Mechanics, in order of specificity:
   `[tabindex]` is what gives the table and heatmap scroll regions their ring.
 - Inputs replace the outline with a 3px `--accent-soft` halo and an accent
   border, which stays visible on a tinted callout.
-- The skip link is fixed at `top: -4rem` and moves to `top: var(--space-3)` on
-  focus, above the top bar: z-index 100 against the bar's 40.
+- The skip link is fixed at `top: var(--space-3)` and parked above the
+  viewport with a `translateY` transform; focus returns it to
+  `translateY(0)`, above the top bar: z-index 100 against the bar's 40. Only
+  the compositor property moves, and focus snaps it in place under reduced
+  motion.
 - Never write `outline: none` without an equivalent visible replacement, and
   never use a positive `tabindex`.
 
@@ -1043,8 +1075,8 @@ state is final.
 | --- | --- | --- | --- |
 | heat cell hover | transform, box-shadow | 100ms | keep; transform is compositor-only, the shadow is paint-only |
 | button hover | background, border, colour | 120ms | keep |
-| skip link | `top` | 150ms | legacy; replace with `transform` (future work) |
-| progress fill | `width` | 350ms | legacy; replace with `transform: scaleX` (future work) |
+| skip link | transform | 150ms | shipped; compositor-only reveal, instant under reduced motion |
+| progress fill | transform: scaleX | 350ms | shipped; block layer, compositor-only, layout width untouched |
 | skeleton shimmer | background-position | 1.5s loop | keep on a real pending cell, static under reduced motion |
 | live dot pulse | box-shadow | 1.8s loop | keep, static ring under reduced motion |
 | spec graph edge | none | - | static stroke; state is colour, not motion |
@@ -1052,32 +1084,48 @@ state is final.
 New motion is transform or opacity only, per the anti-slop rule. Colour,
 border-colour and box-shadow transitions already ship, they are paint-only and do
 not reflow, so they stay and are not extended. Animating `width`, `height`, `top`
-or `left` is not allowed; the two cases above are legacy and are still replaced
-as future work. No load reveals, no scroll-driven animation, no count-ups, no
-`will-change` left on an element, no animation on focus.
+or `left` is not allowed; the skip link and the progress fill were the last two
+cases and now animate transform only. No load reveals, no scroll-driven
+animation, no count-ups, no `will-change` left on an element. Focus has no
+keyframe animation; the skip link's 150ms transform reveal is the only focus
+transition, and it is instant under reduced motion.
 
-Content is visible at first paint. Nothing waits for JavaScript to become
-readable, and no element starts at `opacity: 0`.
+Content is visible at first paint. The progress fill is `display: block`, so the
+scaled layer has a real box to paint into. Nothing waits for JavaScript to
+become readable, and no element starts at `opacity: 0`.
 
-Reduced motion ships, coarsely. The stylesheet sets every animation and
-transition duration to 0.01ms, forces `scroll-behavior: auto` and removes the
-live-dot animation under `prefers-reduced-motion: reduce`. That stops the
-shimmer and the pulse without a flicker, but it is a global override, not the
-targeted static states below. The targeted block is the intended refinement:
+Reduced motion ships as targeted static states, not a global duration override.
+The shimmer and the pulse stop, keep their colour and shape, and every
+transition is instant, so nothing animates on focus and the first paint is
+already the final state:
 
 ```css
 @media (prefers-reduced-motion: reduce) {
-  .live-dot { animation: none; }
-  .skeleton { animation: none; background: var(--surface-3); }
-  .heat-cell a, .progress-fill { transition: none; }
-  .spec-graph .graph-edge.is-lit { transition: none; }
+  .skip-link,
+  .progress-fill,
+  .heat-cell a,
+  .btn,
+  .button-link,
+  .button-primary,
+  .button-secondary {
+    transition: none;
+  }
+  .live-dot {
+    animation: none;
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .skeleton {
+    animation: none;
+    background: var(--surface-3);
+  }
 }
 ```
 
-The refinement is targeted rather than a global kill: the shimmer and the pulse
-are replaced with static states that still carry the meaning, instead of being
-sped up into a flicker. That targeted block is future work; the coarse override
-above is what ships today.
+The live dot keeps its accent fill and gains a static ring, so "live" still
+reads without motion. A skeleton, including a pending heat cell, becomes a
+solid `--surface-3` block at the same size and radius. There is no flicker and
+no `!important` duration override; the progress fill and the skip link reveal
+appear instantly instead of transitioning.
 
 ## Accessibility checklist
 
@@ -1092,9 +1140,9 @@ above is what ships today.
   separate live region so it never steals focus.
 - Contrast targets AA in both schemes; the shipped pairs are measured in the
   table below and pass, `--faint` included as metadata only.
-- `prefers-reduced-motion` ships as a coarse override that stops the shimmer, the
-  pulse and every transition; the targeted static states are specified under
-  [Motion](#motion) and remain future work.
+- `prefers-reduced-motion` ships as targeted static states under
+  [Motion](#motion): the shimmer and pulse stop, the dot keeps a static ring,
+  skeletons keep their block, and every transition is instant.
 - Focus is visible on every control, including an invalid input
   (see [Focus ring](#focus-ring)).
 - Phone targets are 44 x 44 at 375px (see [Tap targets](#tap-targets);

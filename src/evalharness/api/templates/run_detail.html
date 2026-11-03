@@ -412,7 +412,7 @@
     <span class="subtle" id="progress-note">{{ progress.note }}</span>
   </div>
   <div class="progress-track {{ 'is-running' if progress.state == 'running' else ('is-partial' if progress.state == 'partial' else '') }}" id="progress-track" role="progressbar" aria-labelledby="progress-count" aria-valuemin="0" aria-valuemax="{{ progress.total if progress.total else 1 }}" aria-valuenow="{{ progress.done }}">
-    <span class="progress-fill" id="progress-fill" style="width: {{ progress.percent }}%"></span>
+    <span class="progress-fill" id="progress-fill" style="transform: scaleX({{ progress.percent / 100 }})"></span>
   </div>
   <ol class="event-log" id="event-log" aria-live="polite">
     <li class="subtle" id="event-placeholder">Waiting for the event stream…</li>
