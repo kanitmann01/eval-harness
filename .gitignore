@@ -14,6 +14,7 @@ build/
 artifacts/
 .pytest_cache/
 .ruff_cache/
+graphify-out/
 tmp/
 .demo/
 .test-work/
