@@ -16,7 +16,7 @@ from evalharness.api.graph_views import (
     spec_graph,
     thumbnail,
 )
-from evalharness.api.spec_projection import project_spec
+from evalharness.core.spec_projection import project_spec
 from evalharness.api.views import run_thumbnails
 from evalharness.core.models import CellRecord, GateResult, RunRecord, Spec
 from evalharness.storage.repository import RunSummary

@@ -30,12 +30,12 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from evalharness.api.spec_projection import (
+from evalharness.core.models import CellRecord, GateResult, RunRecord, Spec
+from evalharness.core.spec_projection import (
     ProjectedGate,
     SpecProjection,
     projection_for,
 )
-from evalharness.core.models import CellRecord, GateResult, RunRecord, Spec
 
 _STATE_BY_TONE = {
     "neutral": "pending",
@@ -368,7 +368,7 @@ def _build_graph(
     short: bool = False,
 ) -> SpecGraph:
     """Assemble the columns, boxes, wires and aria sentence for one graph."""
-    case_ids = list(spec.cases)
+    case_ids = [case.id for case in spec.cases]
     candidates = [
         (
             candidate.name,

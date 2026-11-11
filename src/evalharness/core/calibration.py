@@ -8,11 +8,13 @@ is ignored rather than counted against the run.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Protocol
+from typing import Protocol
 
 from evalharness.core.models import CellRecord, Check, RunRecord
+from evalharness.core.spec_projection import ProjectedJudge, project_document
 from evalharness.core.stats import proportion, wilson_interval
 
 
@@ -159,13 +161,14 @@ def _review_rows(
     ordered_cells = sorted(
         cells, key=lambda item: (item.candidate, item.case_id, item.cell_id)
     )
+    judged = project_document(run.spec_snapshot or {}).judged_metrics
     for cell in ordered_cells:
         checks = sorted(
             checks_by_cell.get(cell.cell_id, []), key=lambda item: item.metric
         )
         for check in checks:
             judge_name, judge_model = _judge_identity(
-                run.spec_snapshot, check.metric, check.judge_config_hash
+                judged, check.metric, check.judge_config_hash
             )
             rows.append(
                 CalibrationCheck(
@@ -186,7 +189,7 @@ def _review_rows(
 
 
 def _judge_identity(
-    snapshot: dict[str, Any],
+    judged: Mapping[str, ProjectedJudge],
     metric: str,
     config_hash: str | None,
 ) -> tuple[str | None, str | None]:
@@ -198,19 +201,10 @@ def _judge_identity(
     """
     if config_hash is None:
         return None, None
-    for item in snapshot.get("metrics") or []:
-        if not isinstance(item, dict) or item.get("key") != metric:
-            continue
-        options = item.get("options")
-        judge = options.get("judge") if isinstance(options, dict) else None
-        if not isinstance(judge, str) or not judge:
-            return None, None
-        for declared in snapshot.get("judges") or []:
-            if isinstance(declared, dict) and declared.get("name") == judge:
-                model = declared.get("model")
-                return judge, str(model) if model else None
-        return judge, None
-    return None, None
+    judge = judged.get(metric)
+    if judge is None:
+        return None, None
+    return judge.name, judge.model
 
 
 def _judge_breakdown(

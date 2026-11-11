@@ -17,10 +17,10 @@ from pathlib import Path
 from typing import Any
 
 from evalharness.api.credential_views import CredentialChoice, credential_choices
-from evalharness.api.spec_projection import project_spec
 from evalharness.api.spec_store import SpecFile, SpecStore
 from evalharness.api.templating import format_usd, format_usd_exact
 from evalharness.core.spec import ResolvedSpec
+from evalharness.core.spec_projection import project_spec
 from evalharness.errors import SpecError
 from evalharness.service import SpecCheck, SpecEstimate, check_spec_document
 from evalharness.storage.repository import Repository

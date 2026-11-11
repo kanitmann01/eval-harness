@@ -29,6 +29,7 @@ src/evalharness/
     models.py          pydantic records: Spec, Case, Cell, Check, Aggregate, Gate, Run
     registry.py        name -> factory, dotted path resolution, test registration
     spec.py            YAML load, schema versioning, validation, price resolution
+    spec_projection.py typed, tolerant projection of a spec or run snapshot every reader shares
     planner.py         spec -> cells (candidate x case x replica), deterministic ids
     context.py         RunContext: credential, cases, prompt variant, chunks, repos, seed, budget
     repo_snapshot.py   local repository snapshot, content digest, manifest, changed check

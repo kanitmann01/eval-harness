@@ -14,6 +14,7 @@ from difflib import SequenceMatcher
 from typing import Any
 
 from evalharness.core.models import CellRecord, Check
+from evalharness.core.spec_projection import project_document
 from evalharness.read_model import RunRead
 
 
@@ -123,8 +124,22 @@ def build_trace(read: RunRead) -> TracePage:
     (or no candidates), the stored cells are the fallback order.
     """
     snapshot = read.run.spec_snapshot or {}
-    snapshot_cases = _snapshot_cases(snapshot)
-    snapshot_candidates, snapshot_models = _snapshot_candidates(snapshot)
+    projection = project_document(snapshot)
+    # Only entries the snapshot actually declared set the order; invented
+    # labels are for rendering shape, and a column must never be invented.
+    snapshot_cases = [
+        (case.id, case.prompt) for case in projection.cases if case.declared
+    ]
+    declared_candidates = [
+        candidate
+        for candidate in projection.candidates
+        if candidate.declared and candidate.model
+    ]
+    snapshot_candidates = [candidate.name for candidate in declared_candidates]
+    snapshot_models = {
+        candidate.name: candidate.model or ""
+        for candidate in declared_candidates
+    }
     cells_by_key: dict[tuple[str, str], list[CellRecord]] = {}
     for cell in read.cells:
         cells_by_key.setdefault((cell.case_id, cell.candidate), []).append(cell)
@@ -281,42 +296,6 @@ def _trace_cell(
         ),
         artifact_url=f"/runs/{cell.run_id}/cells/{cell.cell_id}/artifact",
     )
-
-
-def _snapshot_cases(snapshot: dict[str, Any]) -> list[tuple[str, str]]:
-    """Return the case ids and prompts declared by the snapshot, in order."""
-    cases: list[tuple[str, str]] = []
-    source = snapshot.get("source")
-    options = source.get("options") if isinstance(source, dict) else None
-    raw_cases = options.get("cases") if isinstance(options, dict) else None
-    if not isinstance(raw_cases, list):
-        return cases
-    for raw in raw_cases:
-        if not isinstance(raw, dict) or not raw.get("case_id"):
-            continue
-        cases.append((str(raw["case_id"]), str(raw.get("prompt", ""))))
-    return cases
-
-
-def _snapshot_candidates(
-    snapshot: dict[str, Any],
-) -> tuple[list[str], dict[str, str]]:
-    """Return the candidate names and models declared by the snapshot."""
-    names: list[str] = []
-    models: dict[str, str] = {}
-    raw_candidates = snapshot.get("candidates")
-    if not isinstance(raw_candidates, list):
-        return names, models
-    for raw in raw_candidates:
-        if not isinstance(raw, dict) or not raw.get("name"):
-            continue
-        name = str(raw["name"])
-        model = raw.get("model")
-        if not isinstance(model, str) or not model:
-            continue
-        names.append(name)
-        models[name] = model
-    return names, models
 
 
 def _word_diff(left: str, right: str) -> tuple[tuple[str, str], ...]:

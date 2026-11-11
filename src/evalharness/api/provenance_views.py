@@ -24,7 +24,14 @@ from evalharness.core.spec_diff import (
     diff_run_snapshots,
     spec_diff_data,
 )
-from evalharness.read_model import RunRead, load_run_read, run_diff_data
+from evalharness.core.spec_projection import ProjectedCandidate, project_document
+from evalharness.read_model import (
+    RunRead,
+    drift_data,
+    load_run_read,
+    run_diff_data,
+    run_display_name,
+)
 from evalharness.storage.repository import Repository
 
 
@@ -79,7 +86,7 @@ def receipt_data(repository: Repository, run_id: str) -> dict[str, Any]:
         "finished_at": run.finished_at,
         "candidates": [
             _candidate_data(candidate)
-            for candidate in run.spec_snapshot.get("candidates") or []
+            for candidate in project_document(run.spec_snapshot).candidates
         ],
         "source": run.source_snapshot or {},
         "source_recorded": bool(run.source_snapshot),
@@ -103,7 +110,7 @@ def receipt_data(repository: Repository, run_id: str) -> dict[str, Any]:
             _previous_data(previous) if previous is not None else None
         ),
         "diff": spec_diff_data(diff) if diff is not None else None,
-        "drift": [_drift_data(drift) for drift in drifts],
+        "drift": [drift_data(drift) for drift in drifts],
         "receipt_url": f"/api/runs/{run.run_id}/receipt",
         "page_url": f"/runs/{run.run_id}/receipt",
         "run_url": f"/runs/{run.run_id}",
@@ -144,8 +151,8 @@ def _require_read(repository: Repository, run_id: str) -> RunRead:
 
 
 def _run_name(run: RunRecord) -> str:
-    """Return the run's spec name, falling back to the stored snapshot."""
-    return run.spec_name or str((run.spec_snapshot or {}).get("name") or "")
+    """Return the run's display name, shared with every other surface."""
+    return run_display_name(run)
 
 
 def _previous_run(
@@ -172,12 +179,12 @@ def _previous_run(
     )
 
 
-def _candidate_data(candidate: Mapping[str, Any]) -> dict[str, Any]:
+def _candidate_data(candidate: ProjectedCandidate) -> dict[str, Any]:
     """Return one candidate's recorded name, adapter and model."""
-    model = str(candidate.get("model") or "")
+    model = candidate.model or ""
     return {
-        "name": str(candidate.get("name") or ""),
-        "adapter": str(candidate.get("adapter") or ""),
+        "name": candidate.name,
+        "adapter": candidate.adapter or "",
         "model": model,
         "model_recorded": bool(model),
     }
@@ -196,18 +203,6 @@ def _pin_data(pin: JudgePin) -> dict[str, Any]:
         "config_hash": pin.config_hash,
         "source": pin.source,
         "last_used_at": pin.last_used_at,
-    }
-
-
-def _drift_data(drift: JudgeDrift) -> dict[str, Any]:
-    """Return one judge drift as a JSON-ready mapping."""
-    return {
-        "kind": drift.kind,
-        "judge": drift.judge,
-        "metrics": list(drift.metrics),
-        "hashes": list(drift.hashes),
-        "runs": list(drift.runs),
-        "reason": drift.reason,
     }
 
 

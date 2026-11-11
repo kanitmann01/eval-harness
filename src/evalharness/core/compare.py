@@ -20,6 +20,7 @@ from typing import Any, Iterable, Mapping
 from evalharness.core.judges import judge_config_hash
 from evalharness.core.models import CellRecord, Check, JudgeSpec, RunRecord
 from evalharness.core.prices import price_table_identity
+from evalharness.core.spec_projection import ProjectedJudge, project_document
 from evalharness.core.stats import (
     delta_or_none,
     difference_interval,
@@ -228,14 +229,8 @@ def _metric_names(
     return list(
         dict.fromkeys(
             [
-                *(
-                    str(item.get("key"))
-                    for item in run_a.spec_snapshot.get("metrics", [])
-                ),
-                *(
-                    str(item.get("key"))
-                    for item in run_b.spec_snapshot.get("metrics", [])
-                ),
+                *project_document(run_a.spec_snapshot).metrics,
+                *project_document(run_b.spec_snapshot).metrics,
                 *(
                     check.metric
                     for cells, checks in ((cells_a, checks_a), (cells_b, checks_b))
@@ -263,7 +258,7 @@ def _side(
     cost = sum(float(cell.cost_usd) for cell in cells)
     return CompareSide(
         run_id=run.run_id,
-        spec_name=str(run.spec_snapshot.get("name", "")),
+        spec_name=project_document(run.spec_snapshot).name,
         status=run.status,
         candidate=candidate,
         cost_usd=cost,
@@ -386,7 +381,9 @@ def _judge_identity(
     snapshot with the scorer's own configuration hash, so a stored hash and a
     derived hash for the same declaration are directly comparable.
     """
-    name, adapter, model, options = _judge_config(spec, metric)
+    name, adapter, model, options = _judge_config(
+        project_document(spec).judged_metrics, metric
+    )
     snapshot_hash = (
         judge_config_hash(
             JudgeSpec(
@@ -408,36 +405,14 @@ def _judge_identity(
 
 
 def _judge_config(
-    spec: Mapping[str, Any],
+    judged: Mapping[str, ProjectedJudge],
     metric: str,
 ) -> tuple[str | None, str | None, str | None, dict[str, Any]]:
     """Return the judge name, adapter, model and options a metric names."""
-    metric_spec = next(
-        (
-            item
-            for item in spec.get("metrics", [])
-            if item.get("key") == metric
-        ),
-        {},
-    )
-    options = metric_spec.get("options") or {}
-    judge_name = options.get("judge")
-    if not judge_name:
+    judge = judged.get(metric)
+    if judge is None:
         return None, None, None, {}
-    judge_spec = next(
-        (
-            item
-            for item in spec.get("judges", [])
-            if item.get("name") == judge_name
-        ),
-        {},
-    )
-    return (
-        str(judge_name),
-        judge_spec.get("adapter"),
-        judge_spec.get("model"),
-        dict(judge_spec.get("options") or {}),
-    )
+    return judge.name, judge.adapter, judge.model, dict(judge.options)
 
 
 def _one_sided_cases(

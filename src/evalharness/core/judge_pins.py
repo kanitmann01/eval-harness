@@ -17,6 +17,7 @@ from typing import Any, Iterable, Mapping
 
 from evalharness.core.judges import judge_config_hash
 from evalharness.core.models import Check, JudgeSpec, RunRecord
+from evalharness.core.spec_projection import project_document
 
 WITHIN_RUN = "within_run"
 """One metric carried more than one judge configuration inside one run."""
@@ -166,39 +167,10 @@ def _declared_judges(
     spec: Mapping[str, Any],
 ) -> dict[str, tuple[str, str | None, str | None, dict[str, Any]]]:
     """Return the judge declaration each judged metric names."""
-    judges = _named(spec.get("judges"))
-    declared: dict[
-        str, tuple[str, str | None, str | None, dict[str, Any]]
-    ] = {}
-    for metric in spec.get("metrics") or []:
-        key = _text(metric.get("key"))
-        options = dict(metric.get("options") or {})
-        judge_name = options.get("judge")
-        if not key or not judge_name:
-            continue
-        judge = judges.get(str(judge_name), {})
-        declared[key] = (
-            str(judge_name),
-            _optional_text(judge.get("adapter")),
-            _optional_text(judge.get("model")),
-            dict(judge.get("options") or {}),
-        )
-    return declared
-
-
-def _named(items: Any) -> dict[str, Mapping[str, Any]]:
-    """Index a snapshot list by its name field."""
-    return {str(item.get("name")): item for item in items or []}
-
-
-def _text(value: Any) -> str:
-    """Read a snapshot value as text, mapping absence to an empty string."""
-    return str(value or "")
-
-
-def _optional_text(value: Any) -> str | None:
-    """Read a snapshot value as optional text."""
-    return None if value is None else str(value)
+    return {
+        metric: (judge.name, judge.adapter, judge.model, dict(judge.options))
+        for metric, judge in project_document(spec).judged_metrics.items()
+    }
 
 
 def _options_digest(options: Mapping[str, Any]) -> str:

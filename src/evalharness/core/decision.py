@@ -17,6 +17,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 
 from evalharness.core.models import CellRecord, Check, RunRecord
+from evalharness.core.spec_projection import project_document
 from evalharness.core.stats import percentile, proportion, wilson_interval
 
 
@@ -209,12 +210,7 @@ def _rank_key(
 
 def _primary_metrics(run: RunRecord, checks: Sequence[Check]) -> tuple[str, ...]:
     """Return the spec's declared metric keys, or the observed ones."""
-    declared: list[str] = []
-    metrics = run.spec_snapshot.get("metrics", [])
-    if isinstance(metrics, list):
-        for item in metrics:
-            if isinstance(item, dict) and isinstance(item.get("key"), str):
-                declared.append(item["key"])
+    declared = project_document(run.spec_snapshot or {}).metrics
     if declared:
-        return tuple(sorted(dict.fromkeys(declared)))
+        return tuple(sorted(set(declared)))
     return tuple(sorted({check.metric for check in checks}))
