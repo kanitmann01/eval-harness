@@ -60,7 +60,11 @@ from evalharness.core.repo_snapshot import (
     source_snapshot,
 )
 from evalharness.core.scorer import aggregate_cells, evaluate_gates
-from evalharness.core.spec import ResolvedSpec, load_and_validate
+from evalharness.core.spec import (
+    ResolvedSpec,
+    load_and_validate,
+    validate_yaml_text,
+)
 from evalharness.core.vault import VaultCredentialStore, open_vault
 from evalharness.credential_service import credential_states
 from evalharness.errors import SpecError
@@ -95,6 +99,41 @@ class RunOutcome:
     provider_costs: list[ProviderCost]
     exit_code: int
     reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class SpecEstimate:
+    """What a surface shows before a save or launch: cells per candidate and cost."""
+
+    cells: int
+    cells_per_candidate: dict[str, int]
+    cost_usd: float
+    prompt_tokens: int
+    completion_tokens: int
+    median_prompt_tokens: int
+    median_completion_tokens: int
+    observed: bool
+
+
+@dataclass(frozen=True, slots=True)
+class SpecCheck:
+    """The outcome of validating and estimating one spec document.
+
+    A spec is valid only when it parses, passes semantic validation and its
+    source yields at least one case, because those are the conditions under
+    which a launch of the same document would proceed.
+    """
+
+    resolved: ResolvedSpec | None
+    errors: tuple[SpecError, ...]
+    warnings: tuple[str, ...]
+    cases: int
+    estimate: SpecEstimate | None
+
+    @property
+    def valid(self) -> bool:
+        """Return whether the document validated and planned without errors."""
+        return self.resolved is not None and not self.errors
 
 
 def stored_credentials(settings: Settings) -> list[CredentialRecord]:
@@ -202,6 +241,66 @@ def load_run(
         estimate=_estimate(resolved, cells, None),
         repos=repos,
         source_snapshot=snapshot,
+    )
+
+
+def check_spec_document(
+    text: str,
+    *,
+    repository: Repository,
+    run_id: str = "spec-check",
+    require_verified_credentials: bool = False,
+) -> SpecCheck:
+    """Validate YAML text, load its cases and estimate its cells, collecting errors.
+
+    This is the one estimate pipeline behind the editor's Check, the wizard's
+    rail, the launch picker and ``evalh run --dry-run``, so every surface shows
+    the same numbers and the same field-named errors.
+
+    Parameters:
+        run_id: the placeholder identity a source's event emitter uses; no run
+            is created.
+        require_verified_credentials: refuse a document naming a credential
+            with no passing test; the console passes True because the browser
+            is where a key is chosen.
+    """
+    records = repository.list_credentials()
+    try:
+        resolved = validate_yaml_text(
+            text,
+            credential_states=credential_states(records),
+            require_verified_credentials=require_verified_credentials,
+        )
+    except SpecError as exc:
+        return SpecCheck(
+            resolved=None,
+            errors=(exc,),
+            warnings=(),
+            cases=0,
+            estimate=None,
+        )
+    warnings = tuple(resolved.warnings)
+    try:
+        cases = _load_cases(resolved, run_id)
+        estimate = _document_estimate(
+            resolved,
+            cases,
+            _observed_medians(repository, resolved),
+        )
+    except SpecError as exc:
+        return SpecCheck(
+            resolved=resolved,
+            errors=(exc,),
+            warnings=warnings,
+            cases=0,
+            estimate=None,
+        )
+    return SpecCheck(
+        resolved=resolved,
+        errors=(),
+        warnings=warnings,
+        cases=len(cases),
+        estimate=estimate,
     )
 
 
@@ -365,10 +464,7 @@ def _estimate(
     medians: tuple[int, int] | None,
 ) -> CostEstimate:
     """Estimate run cost, using observed medians when a comparable run exists."""
-    prompt, completion = medians or (
-        DEFAULT_MEDIAN_PROMPT_TOKENS,
-        DEFAULT_MEDIAN_COMPLETION_TOKENS,
-    )
+    prompt, completion = _median_tokens(medians)
     return estimate_cost(
         resolved.spec,
         resolved.candidate_prices,
@@ -376,6 +472,53 @@ def _estimate(
         median_prompt_tokens=prompt,
         median_completion_tokens=completion,
     )
+
+
+def _document_estimate(
+    resolved: ResolvedSpec,
+    cases: list[Case],
+    medians: tuple[int, int] | None,
+) -> SpecEstimate:
+    """Expand a document's planned cells and price them for a pre-save surface."""
+    prompt, completion = _median_tokens(medians)
+    cells = expand(resolved, cases)
+    counts = per_candidate_counts(cells)
+    cost = estimate_cost(
+        resolved.spec,
+        resolved.candidate_prices,
+        counts,
+        median_prompt_tokens=prompt,
+        median_completion_tokens=completion,
+    )
+    return SpecEstimate(
+        cells=cost.cells,
+        cells_per_candidate=counts,
+        cost_usd=cost.cost_usd,
+        prompt_tokens=cost.prompt_tokens,
+        completion_tokens=cost.completion_tokens,
+        median_prompt_tokens=prompt,
+        median_completion_tokens=completion,
+        observed=medians is not None,
+    )
+
+
+def _median_tokens(medians: tuple[int, int] | None) -> tuple[int, int]:
+    """Return the observed medians, or the shipped fallback pair."""
+    return medians or (
+        DEFAULT_MEDIAN_PROMPT_TOKENS,
+        DEFAULT_MEDIAN_COMPLETION_TOKENS,
+    )
+
+
+def _observed_medians(
+    repository: Repository,
+    resolved: ResolvedSpec,
+) -> tuple[int, int] | None:
+    """Return the medians an earlier run of this exact spec measured, if any."""
+    earlier = repository.latest_run_for_spec(resolved.sha)
+    if earlier is None:
+        return None
+    return observed_medians(repository.list_cells(earlier.run_id))
 
 
 def _build_sink(resolved: ResolvedSpec, settings: Settings) -> Sink:
@@ -424,10 +567,7 @@ def _launch_run(
     The estimate uses the medians an earlier run of the same spec measured, so
     the cap is compared with what this spec actually spends, not a guess.
     """
-    earlier = repository.latest_run_for_spec(resolved.sha)
-    medians = None
-    if earlier is not None:
-        medians = observed_medians(repository.list_cells(earlier.run_id))
+    medians = _observed_medians(repository, resolved)
     estimate = _estimate(resolved, cells, medians)
     spec_budget = resolved.spec.budget_usd
     cap = override_budget if override_budget is not None else spec_budget
@@ -611,6 +751,9 @@ def _run_reason(run: RunRecord, cancelled_reason: str) -> str:
 __all__ = [
     "PreparedRun",
     "RunOutcome",
+    "SpecCheck",
+    "SpecEstimate",
+    "check_spec_document",
     "execute",
     "load_run",
     "redactor_for",

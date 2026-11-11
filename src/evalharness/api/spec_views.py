@@ -1,10 +1,10 @@
-"""Read models for the spec editor: validation, estimates and view shapes.
+"""Read models for the spec editor: the check policy, list rows and view shapes.
 
-The browser and the CLI share one validator: :func:`check_document` calls
-:func:`evalharness.core.spec.validate_yaml_text`, the same loader
-`evalh validate` uses, so a field error reads identically in both places. The
-estimate is built from the planner and the cost table, using the medians an
-earlier run of the same spec measured when one exists.
+The estimate pipeline itself lives in :mod:`evalharness.service`
+(:func:`evalharness.service.check_spec_document`), the same loader and
+medians ritual ``evalh run --dry-run`` uses, so the editor's numbers and
+field-named errors cannot drift from the launch path. This module adds the
+editor's stricter credential rule and shapes the results for HTML and JSON.
 """
 
 from __future__ import annotations
@@ -20,50 +20,10 @@ from evalharness.api.credential_views import CredentialChoice, credential_choice
 from evalharness.api.spec_projection import project_spec
 from evalharness.api.spec_store import SpecFile, SpecStore
 from evalharness.api.templating import format_usd, format_usd_exact
-from evalharness.core.context import RunContext
-from evalharness.core.cost import (
-    DEFAULT_MEDIAN_COMPLETION_TOKENS,
-    DEFAULT_MEDIAN_PROMPT_TOKENS,
-    estimate_cost,
-    observed_medians,
-)
-from evalharness.core.events import EventEmitter
-from evalharness.core.models import Case
-from evalharness.core.planner import expand, per_candidate_counts
-from evalharness.core.spec import ResolvedSpec, validate_yaml_text
-from evalharness.credential_service import credential_states
+from evalharness.core.spec import ResolvedSpec
 from evalharness.errors import SpecError
+from evalharness.service import SpecCheck, SpecEstimate, check_spec_document
 from evalharness.storage.repository import Repository
-
-
-@dataclass(frozen=True, slots=True)
-class SpecEstimate:
-    """What the editor shows before a save: cells per candidate and cost."""
-
-    cells: int
-    cells_per_candidate: dict[str, int]
-    cost_usd: float
-    prompt_tokens: int
-    completion_tokens: int
-    median_prompt_tokens: int
-    median_completion_tokens: int
-    observed: bool
-
-
-@dataclass(frozen=True, slots=True)
-class SpecCheck:
-    """The outcome of validating and estimating one spec document."""
-
-    resolved: ResolvedSpec | None
-    errors: tuple[SpecError, ...]
-    warnings: tuple[str, ...]
-    cases: int
-    estimate: SpecEstimate | None
-
-    @property
-    def valid(self) -> bool:
-        """Return whether the document validated and planned without errors."""
-        return self.resolved is not None and not self.errors
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,47 +47,17 @@ _CHECK_CACHE_LOCK = threading.Lock()
 
 
 def check_document(text: str, repository: Repository) -> SpecCheck:
-    """Validate YAML text with the CLI's validator and estimate its cells.
+    """Validate YAML text with the launch pipeline and estimate its cells.
 
-    A spec is valid only when it parses, passes semantic validation and its
-    source yields at least one case, because those are the conditions under
-    which the CLI would accept the same document. The editor also passes the
-    vault's credential states and requires a verified credential, so a
-    disabled or never-tested key cannot be selected here.
+    The editor is stricter than a launch: a named credential must carry a
+    passing test before it can be selected here, so the check runs with the
+    verified-credential requirement the raw editor and wizard share.
     """
-    records = repository.list_credentials()
-    try:
-        resolved = validate_yaml_text(
-            text,
-            credential_states=credential_states(records),
-            require_verified_credentials=True,
-        )
-    except SpecError as exc:
-        return SpecCheck(
-            resolved=None,
-            errors=(exc,),
-            warnings=(),
-            cases=0,
-            estimate=None,
-        )
-    warnings = tuple(resolved.warnings)
-    try:
-        cases = _load_cases(resolved)
-        estimate = _estimate(resolved, cases, _medians(repository, resolved))
-    except SpecError as exc:
-        return SpecCheck(
-            resolved=resolved,
-            errors=(exc,),
-            warnings=warnings,
-            cases=0,
-            estimate=None,
-        )
-    return SpecCheck(
-        resolved=resolved,
-        errors=(),
-        warnings=warnings,
-        cases=len(cases),
-        estimate=estimate,
+    return check_spec_document(
+        text,
+        repository=repository,
+        run_id="spec-editor",
+        require_verified_credentials=True,
     )
 
 
@@ -296,70 +226,22 @@ def file_data(file: SpecFile, text: str, check: SpecCheck) -> dict[str, Any]:
     return payload
 
 
-def _load_cases(resolved: ResolvedSpec) -> list[Case]:
-    """Load the spec's cases once so the editor can count the cells they plan."""
-    context = RunContext(
-        run_id="spec-editor",
-        seed=resolved.spec.seed,
-        credential=None,
-        events=EventEmitter("spec-editor"),
-    )
-    try:
-        cases = list(resolved.source.load(resolved.spec.source, context))
-    except Exception as exc:  # source adapters are external code
-        raise SpecError(
-            "source",
-            resolved.spec.source.adapter,
-            f"the source failed to load cases: {exc}",
-            "fix the source options",
-        ) from exc
-    if not cases:
-        raise SpecError(
-            "source",
-            resolved.spec.source.adapter,
-            "the source returned no cases",
-            "add at least one case",
-        )
-    return cases
-
-
-def _estimate(
-    resolved: ResolvedSpec,
-    cases: list[Case],
-    medians: tuple[int, int] | None,
-) -> SpecEstimate:
-    """Expand the planned cells and price them at the fallback or observed medians."""
-    prompt, completion = medians or (
-        DEFAULT_MEDIAN_PROMPT_TOKENS,
-        DEFAULT_MEDIAN_COMPLETION_TOKENS,
-    )
-    cells = expand(resolved, cases)
-    counts = per_candidate_counts(cells)
-    cost = estimate_cost(
-        resolved.spec,
-        resolved.candidate_prices,
-        counts,
-        median_prompt_tokens=prompt,
-        median_completion_tokens=completion,
-    )
-    return SpecEstimate(
-        cells=cost.cells,
-        cells_per_candidate=counts,
-        cost_usd=cost.cost_usd,
-        prompt_tokens=cost.prompt_tokens,
-        completion_tokens=cost.completion_tokens,
-        median_prompt_tokens=prompt,
-        median_completion_tokens=completion,
-        observed=medians is not None,
-    )
-
-
-def _medians(
-    repository: Repository,
-    resolved: ResolvedSpec,
-) -> tuple[int, int] | None:
-    """Return the medians an earlier run of this exact spec measured, if any."""
-    earlier = repository.latest_run_for_spec(resolved.sha)
-    if earlier is None:
-        return None
-    return observed_medians(repository.list_cells(earlier.run_id))
+# SpecCheck and SpecEstimate moved to evalharness.service, the module every
+# estimate consumer shares. Re-exported here so the view modules and tests
+# that shaped them keep one import site.
+__all__ = [
+    "SpecCheck",
+    "SpecEstimate",
+    "check_document",
+    "check_data",
+    "editor_credentials",
+    "error_body",
+    "error_data",
+    "estimate_data",
+    "field_value",
+    "file_data",
+    "list_rows",
+    "row_data",
+    "row_for",
+    "summary_data",
+]
