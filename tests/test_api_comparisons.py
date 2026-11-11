@@ -256,6 +256,55 @@ async def test_the_step_strip_explains_every_step(wizard: Console) -> None:
             assert description in page.text
 
 
+async def test_step_one_lists_the_worked_examples(wizard: Console) -> None:
+    """Step 1 offers the bundled demos as starting points."""
+    async with _client(wizard.app) as client:
+        page = await client.get("/comparisons/new/1")
+        assert page.status_code == 200
+        assert 'name="template"' in page.text
+        assert 'value="template"' in page.text
+        assert "Apply example" in page.text
+        for title in ("Prompt choice", "Context grounding"):
+            assert title in page.text
+
+
+async def test_applying_an_example_loads_its_draft(wizard: Console) -> None:
+    """Apply replaces the blank draft with the demo's spec, editable."""
+    async with _client(wizard.app) as client:
+        page = await client.post(
+            "/comparisons/new/1",
+            data={
+                "form_step": "1",
+                "draft": "",
+                "action": "template",
+                "template": "prompt-choice",
+            },
+        )
+        assert page.status_code == 200
+        _shell(page.text, 1)
+        assert 'value="demo-prompt-choice"' in page.text
+        # The demo's case and prompt rows render as editable step 1 fields.
+        assert 'value="case-1"' in page.text
+        assert "What is 6 times 7?" in page.text
+
+
+async def test_an_unknown_example_keeps_the_blank_draft(wizard: Console) -> None:
+    """An unknown template name falls back to the blank draft, never an error."""
+    async with _client(wizard.app) as client:
+        page = await client.post(
+            "/comparisons/new/1",
+            data={
+                "form_step": "1",
+                "draft": "",
+                "action": "template",
+                "template": "not-a-demo",
+            },
+        )
+        assert page.status_code == 200
+        _shell(page.text, 1)
+        assert 'value="comparison"' in page.text
+
+
 async def test_the_estimate_rail_calls_its_numbers_estimates(wizard: Console) -> None:
     """The rail says the medians and the cost are estimates, not a quote."""
     async with _client(wizard.app) as client:

@@ -706,8 +706,9 @@ def validate_spec(
                 candidate.credential,
                 f"candidate {candidate.name!r} needs a credential resolved "
                 "from the vault, but none is stored under that name",
-                "add it with 'evalh credentials add' or set options.auth: none "
-                "when the endpoint holds its own key",
+                "add it on the console Credentials page (/credentials) or with "
+                "'evalh credentials add', or set options.auth: none when the "
+                "endpoint holds its own key",
             )
         override, chunks, context = _candidate_axes(
             spec, candidate, capabilities, index
@@ -778,8 +779,9 @@ def validate_spec(
                 judge_spec.credential,
                 f"judge {judge_spec.name!r} needs a credential resolved from "
                 "the vault, but none is stored under that name",
-                "add it with 'evalh credentials add' or use a judge that needs "
-                "no credential",
+                "add it on the console Credentials page (/credentials) or with "
+                "'evalh credentials add', or use a judge that needs no "
+                "credential",
             )
         judge_providers[judge_spec.name] = capabilities.provider
         if judge_spec.model is not None:

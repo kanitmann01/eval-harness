@@ -120,8 +120,11 @@
   <div class="empty-actions"><a class="btn btn-secondary" href="{{ url_for('run_list') }}">Clear filters</a></div>
   {% else %}
   <h2>No runs yet</h2>
-  <p>Start one from a terminal with <code>evalh run spec.yaml</code>, or pick a saved spec on the Launch page.</p>
-  <div class="empty-actions"><a class="btn btn-primary" href="{{ url_for('launch_page') }}">Launch a run</a></div>
+  <p>Run a scripted demo first: it needs no key, no spec and no terminal, and lands on a finished run. Or build your own comparison in four steps.</p>
+  <div class="empty-actions">
+    <a class="btn btn-primary" href="{{ url_for('demo_list') }}">Run a demo</a>
+    <a class="btn btn-secondary" href="{{ url_for('comparison_new') }}">New comparison</a>
+  </div>
   {% endif %}
 </div>
 {% endif %}

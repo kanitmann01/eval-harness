@@ -47,7 +47,7 @@
     <div class="panel-head">
       <div>
         <h2 id="launch-heading">Spec and budget</h2>
-        <p class="subtle">Specs are read from <code title="{{ specs_root }}">{{ specs_root|shortpath }}</code>. A launch is refused before anything executes when the estimate is over the cap.</p>
+        <p class="subtle">Specs are read from the specs directory (<code title="{{ specs_root }}">{{ specs_root|shortpath }}</code>). A launch is refused before anything executes when the estimate is over the cap.</p>
       </div>
     </div>
     <form class="launch-form" method="post" action="{{ url_for('launch_submit') }}">
@@ -62,7 +62,7 @@
         <p class="field-hint" id="spec-hint">The picker preselects a spec that validates: smoke.yaml when the directory has one, otherwise the first valid file. A file marked (invalid) stays selectable so its error can be read, but launch refuses it until the file is fixed. Changing the spec updates the estimate when JavaScript is on; without it, press Show estimate.</p>
         {% else %}
         <input id="spec" name="spec" type="text" value="{{ selected }}" placeholder="my-spec.yaml" aria-describedby="spec-hint">
-        <p class="field-hint" id="spec-hint">No specs were found in <code title="{{ specs_root }}">{{ specs_root|shortpath }}</code>. Write a YAML spec there, or type its path relative to that directory. Set <code>EVALH_SPECS_DIR</code> to point the console at another directory.</p>
+        <p class="field-hint" id="spec-hint">No specs were found in the specs directory (<code title="{{ specs_root }}">{{ specs_root|shortpath }}</code>). Write a YAML spec there, or type its path relative to that directory. Set <code>EVALH_SPECS_DIR</code> to point the console at another directory.</p>
         {% endif %}
       </div>
 

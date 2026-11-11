@@ -37,6 +37,7 @@ from evalharness.api.routes.pages import _not_found
 from evalharness.api.spec_store import SpecFile, SpecStore, spec_stem
 from evalharness.api.spec_views import check_document, editor_credentials
 from evalharness.core.config import Settings
+from evalharness.demos.catalog import bundled_text, find_demo
 from evalharness.errors import SpecError
 from evalharness.storage.repository import Repository
 
@@ -247,6 +248,14 @@ async def comparison_submit(
         else index
     )
     verb, kind, target_index = parse_action(fields.get("action", "continue"))
+    if verb == "template":
+        # A preset replaces the whole draft, so the operator starts from a
+        # working example instead of a blank slate; step 1 re-renders with it.
+        merged = _template_document(fields.get("template", "")) or default_draft()
+        merged_draft = draft_text(merged)
+        check = check_document(merged_draft, repository)
+        page = build_page(1, merged, merged_draft, check, credentials)
+        return render(request, "comparisons_new.html", {"page": page})
     merged = merge_step(document, owner, fields)
     merged_draft = draft_text(merged)
     if draft_error:
@@ -315,6 +324,15 @@ def _step_index(step: str) -> int | None:
     """Return the step number for a URL segment, or None when it is invalid."""
     number = int(step) if step.isdigit() else 0
     return number if 1 <= number <= 4 else None
+
+
+def _template_document(template: str) -> dict[str, Any] | None:
+    """Return a bundled demo spec as a draft document, or None when unknown."""
+    scenario = find_demo(template.strip())
+    if scenario is None:
+        return None
+    document, _error = parse_draft(bundled_text(scenario))
+    return document
 
 
 async def _form_fields(request: Request) -> dict[str, str]:

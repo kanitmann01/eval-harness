@@ -429,7 +429,7 @@ async def test_unknown_and_incomplete_comparisons_are_actionable_404s(
         )
         assert unknown_page.status_code == 404
         assert "does not exist" in unknown_page.text
-        assert "evalh run spec.yaml" in unknown_page.text
+        assert "run a demo from demos" in unknown_page.text.lower()
 
         unknown_api = await client.get(
             "/api/compare", params={"a": run_a, "b": "missing"}
@@ -499,7 +499,7 @@ async def test_compare_with_no_runs_explains_how_to_start(
             page = await client.get("/compare")
             assert page.status_code == 200
             assert "No runs yet" in page.text
-            assert "evalh run spec.yaml" in page.text
+            assert "run a demo from demos" in page.text.lower()
             api = await client.get("/api/compare")
             assert api.status_code == 404
             assert "needs two run ids" in api.json()["detail"]

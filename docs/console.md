@@ -166,6 +166,12 @@ value. There is one primary action per step (`Continue`, then `Create
 comparison`) plus Back and Cancel. Editing fields without JavaScript still
 works because every step is a normal form POST.
 
+Step 1 also offers **Start from a worked example**: a select listing the
+bundled demos from `/demos`, whose Apply loads that demo's spec into the
+draft as a starting point. The whole example stays editable, the wizard
+writes it under whatever name the operator gives, and an unknown choice
+falls back to the blank draft.
+
 ### Structured edit form
 
 `GET /comparisons/{name}/edit` renders the whole spec on one page in four

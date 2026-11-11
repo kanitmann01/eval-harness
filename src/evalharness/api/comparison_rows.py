@@ -31,6 +31,7 @@ from evalharness.api.credential_views import CredentialChoice, provider_options
 from evalharness.api.graph_views import SpecGraph, rail_graph
 from evalharness.api.spec_store import SLUG_PATTERN
 from evalharness.api.spec_views import SpecCheck, field_value
+from evalharness.demos.catalog import DEMOS
 from evalharness.errors import SpecError
 
 
@@ -234,6 +235,7 @@ class WizardChoices:
     contexts: tuple[Choice, ...]
     metric_keys: tuple[Choice, ...]
     gate_metrics: tuple[Choice, ...]
+    templates: tuple[Choice, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -462,6 +464,7 @@ def build_choices(
         contexts=(Choice("none", "none"), *context_names),
         metric_keys=(Choice("", "Choose a metric"), *metrics),
         gate_metrics=(Choice("", "Choose a metric"), *(metrics + judge_metrics)),
+        templates=tuple(Choice(demo.slug, demo.title) for demo in DEMOS),
     )
 
 
@@ -867,9 +870,41 @@ def _adapter_choices(kind: str) -> tuple[Choice, ...]:
 
 
 def _adapter_label(adapter: str) -> str:
+    """Name an adapter the way a first-time operator can read.
+
+    A first-party adapter is labelled by what it does, with its short module
+    path beside it for the power user; anything else keeps the raw dotted
+    path so the registry stays honest about what is registered.
+    """
     module, _, factory = adapter.partition(":")
-    short = module.removeprefix("evalharness.adapters.").replace(".", " / ")
-    return f"{short} ({factory})"
+    short = module.removeprefix("evalharness.adapters.")
+    plain = _PLAIN_ADAPTER_LABELS.get(f"{short}:{factory}")
+    if plain is not None:
+        return f"{plain} ({short.replace('.', '/')})"
+    return f"{short.replace('.', ' / ')} ({factory})"
+
+
+_PLAIN_ADAPTER_LABELS: dict[str, str] = {
+    "sources.inline:build": "Inline cases, pasted in the spec",
+    "sources.repo:build": "Cases from a repository snapshot",
+    "candidates.stub:build": "Stub candidate, offline and deterministic",
+    "candidates.stub:build_failing": "Stub that always fails",
+    "candidates.stub:build_fixed_prompt": "Stub that echoes the fixed prompt",
+    "candidates.stub:build_slow": "Slow stub, for latency runs",
+    "candidates.http:build": "HTTP endpoint speaking the v1 contract",
+    "candidates.openai_compat:build": "OpenAI-compatible provider, needs a key",
+    "candidates.anthropic:build": "Anthropic provider, needs a key",
+    "metrics.exact_match:build": "Exact match against the expected answer",
+    "metrics.contains:build": "Answer contains the expected text",
+    "metrics.citation_support:build": "Citations support the answer",
+    "metrics.judge_pass:build": "A judge's pass or fail verdict",
+    "judges.rule_based:build": "Rule-based judge, deterministic",
+    "judges.scripted:build": "Scripted judge, fixed verdicts",
+    "judges.openai_compat:build": "Provider judge, OpenAI-compatible",
+    "judges.anthropic:build": "Provider judge, Anthropic",
+    "contexts.repo_graph:build": "Repository graph, ranks code windows",
+    "contexts.artifact_graph:build": "Artifact graph, co-cited context",
+}
 
 
 def _candidate_row(number: int, candidate: Mapping[str, Any]) -> CandidateRow:

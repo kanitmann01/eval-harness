@@ -362,7 +362,8 @@ candidates the page offers a word-level diff.
 ### Wizard, structured edit and raw YAML
 
 New specs start in the wizard at `/comparisons/new`: four stateless steps (what to
-vary, add context, choose candidates, cost and rules). Each step re-validates a
+vary, add context, choose candidates, cost and rules). Step 1 can start from a
+blank draft or from any bundled demo as a worked example. Each step re-validates a
 hidden draft, nothing is written until step 4, and the finished spec lands in the
 specs directory and returns to `/specs`.
 

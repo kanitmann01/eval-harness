@@ -146,7 +146,7 @@ def _load_reads(
         if read is None:
             raise CompareError(
                 f"run {run_id} does not exist; open / for the list of runs, or "
-                "start one with 'evalh run spec.yaml'"
+                "run a demo from Demos to record one"
             )
         reads[run_id] = read
     return reads
@@ -367,8 +367,8 @@ def _empty_message(runs: Sequence[RunSummary]) -> str:
             "?run=<run id>&candidate_a=<name>&candidate_b=<name>."
         )
     return (
-        "No runs yet. Start one from a terminal with 'evalh run spec.yaml', then "
-        "reload this page to compare it with another run."
+        "No runs yet. Run a demo from Demos, or build a comparison with the "
+        "wizard and launch it; two runs are needed before they can be compared."
     )
 
 

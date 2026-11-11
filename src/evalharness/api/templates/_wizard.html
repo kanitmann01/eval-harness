@@ -98,6 +98,19 @@
         {{ text_input("seed", "seed", values.seed, errors.get("seed"), label="Seed (optional)", kind="number", extra='step="1" inputmode="numeric"', hint="Reused when an adapter samples. Leave it empty for no seed.") }}
       </div>
       {{ text_area("description", "description", values.description, errors.get("description"), label="Description (optional)", rows=2, hint="One line a reader sees beside the spec.") }}
+      {% if choices.templates %}
+      <div class="field">
+        <label for="template">Start from a worked example</label>
+        <select id="template" name="template" aria-describedby="template-hint">
+          <option value="">Blank comparison</option>
+          {% for choice in choices.templates %}
+          <option value="{{ choice.value }}">{{ choice.label }}</option>
+          {% endfor %}
+        </select>
+        <p class="field-hint" id="template-hint">Apply loads that example's cases, candidates and rules into this draft; every field stays editable. Blank keeps the values above.</p>
+        <div class="form-actions"><button type="submit" name="action" value="template" class="btn btn-secondary btn-sm">Apply example</button></div>
+      </div>
+      {% endif %}
       {{ select_input("source_adapter", "source_adapter", values.source_adapter, choices.source_adapters, errors.get("source_adapter"), label="Case source", hint="Where the cases come from. The inline source reads the rows below.") }}
 
       <h3>Cases</h3>
@@ -242,7 +255,7 @@
 {% set values = page.values %}
 {% set errors = page.errors %}
 {% set choices = page.choices %}
-      {{ text_input("budget_usd", "budget_usd", values.budget, errors.get("budget_usd"), label="Budget cap (USD, optional)", kind="number", extra='min="0" step="0.01" inputmode="decimal"', hint="A hard cap on projected spend. A run stops with exit code 3 when the next cell would cross it.") }}
+      {{ text_input("budget_usd", "budget_usd", values.budget, errors.get("budget_usd"), label="Budget cap (USD, optional)", kind="number", extra='min="0" step="0.01" inputmode="decimal"', hint="A hard cap on projected spend. The run stops before the next cell would cross it.") }}
 
       <h3>Metrics</h3>
       <p class="subtle">The key is the identifier gates and reports use. Judge rows below add a judge_pass metric of their own.</p>
@@ -284,7 +297,7 @@
       <div class="form-actions">{{ add_button("judge", "Add judge") }}</div>
 
       <h3>Gates</h3>
-      <p class="subtle">A gate turns the run into exit code 1 when the metric crosses the threshold. at least writes min; at most writes max.</p>
+      <p class="subtle">A gate marks the run failed when the metric crosses the threshold: at least writes min; at most writes max.</p>
       <div class="table-wrap" tabindex="0" role="region" aria-label="Gates in this comparison">
         <table class="matrix">
           <caption class="sr-only">Gates in this comparison</caption>
@@ -371,7 +384,7 @@
       {% if page.estimate.over_budget %}
       <div class="callout callout-warn" role="alert">
         <span class="callout-icon" aria-hidden="true">!</span>
-        <div><span class="callout-title">Over the cap.</span> The estimate exceeds the budget; the run would stop with exit code 3.</div>
+        <div><span class="callout-title">Over the cap.</span> The estimate exceeds the budget; the run would stop as soon as spending reaches the cap.</div>
       </div>
       {% endif %}
     </section>

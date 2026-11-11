@@ -35,6 +35,10 @@
     <a class="btn btn-ghost" href="{{ url_for('run_trace', run_id=run.run_id) }}">Trace</a>
     <a class="btn btn-ghost" href="{{ url_for('run_calibration', run_id=run.run_id) }}">Calibration</a>
     <a class="btn btn-ghost" href="{{ url_for('compare') }}?a={{ run.run_id }}" title="Compare this run as side A">Compare</a>
+    {% if run.spec_name %}
+    <a class="btn btn-ghost" href="{{ url_for('comparison_edit', name=run.spec_name) }}">Edit spec</a>
+    <a class="btn btn-ghost" href="{{ url_for('launch_page') }}?spec={{ run.spec_name|urlencode }}" title="Launch a new run of the same spec">Run again</a>
+    {% endif %}
     <a class="btn btn-ghost" href="{{ url_for('run_list') }}">All runs</a>
   </div>
 </div>

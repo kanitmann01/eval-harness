@@ -575,6 +575,12 @@ def test_empty_console_renders_an_empty_state(evalh_home: Path) -> None:
             response = await client.get("/")
             assert response.status_code == 200
             assert "No runs yet" in response.text
+            # The first-run path works in a browser: run a demo, or build a
+            # comparison. No terminal knowledge is required to start.
+            assert "/demos" in response.text
+            assert "Run a demo" in response.text
+            assert "/comparisons/new" in response.text
+            assert "evalh run" not in response.text
             assert (await client.get("/api/runs")).json() == []
 
     try:

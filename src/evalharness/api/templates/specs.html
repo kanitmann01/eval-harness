@@ -17,7 +17,7 @@
 {% if saved %}
 <div class="callout callout-ok" role="status">
   <span class="callout-icon" aria-hidden="true">✓</span>
-  <div><span class="callout-title">Saved {{ saved }}.yaml.</span> A run started from this file uses exactly this text.</div>
+  <div><span class="callout-title">Saved {{ saved }}.yaml.</span> A run started from this file uses exactly this text. <a href="{{ url_for('launch_page') }}?spec={{ saved|urlencode }}">Launch {{ saved }} now</a>.</div>
 </div>
 {% endif %}
 
@@ -106,7 +106,7 @@
 <div class="empty-state">
   <span class="empty-icon" aria-hidden="true">∅</span>
   <h2>No spec files yet</h2>
-  <p>The directory holds <strong>0 specs</strong> right now. Put a YAML spec in <code title="{{ specs_dir }}">{{ specs_dir|shortpath }}</code> and reload this page, build one with the <a href="{{ url_for('comparison_new') }}">new comparison wizard</a>, or write it through <code>PUT /api/specs/&lt;name&gt;</code>. Nothing is stored in the database: the directory is the state.</p>
+  <p>The directory holds <strong>0 specs</strong> right now. Build one with the <a href="{{ url_for('comparison_new') }}">new comparison wizard</a>, or copy a YAML file into <code title="{{ specs_dir }}">{{ specs_dir|shortpath }}</code> and reload this page. Nothing is stored in the database: the directory is the state.</p>
 </div>
 {% endif %}
 {% endblock %}
