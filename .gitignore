@@ -27,3 +27,6 @@ pytest-cache-files-*/
 .env.live.test
 .evalh-live/
 .evalh-live-test/
+
+.~lock.*#
+blog/render/lo_profile/

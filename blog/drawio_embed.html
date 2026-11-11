@@ -1,0 +1,17 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>html,body{margin:0;padding:0}iframe{width:1280px;height:860px;border:0}</style></head>
+<body>
+<iframe id="e" src="https://embed.diagrams.net/?embed=1&proto=json&spin=1&chrome=0&ui=min&libraries=1"></iframe>
+<script>
+window.__msgs=[]; window.__ready=false; window.__loaded=false; window.__exportData=null;
+window.addEventListener('message', function(ev){
+  var d=ev.data; if(typeof d==='string'){ try{ d=JSON.parse(d); }catch(e){} } window.__msgs.push(d);
+  if(d && d.event==='init'){ window.__ready=true; if(window.__xml){ window.__load(window.__xml); } }
+  if(d && d.event==='load'){ window.__loaded=true; }
+  if(d && d.event==='export'){ window.__exportData=d.data; }
+});
+window.__load=function(xml){ window.__xml=xml; var f=document.getElementById('e'); f.contentWindow.postMessage(JSON.stringify({action:'load',xml:xml,autosave:1}),'*'); };
+window.__exportSvg=function(){ var f=document.getElementById('e'); f.contentWindow.postMessage(JSON.stringify({action:'export',format:'svg',xml:window.__xml,border:20,background:'#ffffff'}),'*'); };
+window.__export=function(){ var f=document.getElementById('e'); f.contentWindow.postMessage(JSON.stringify({action:'export',format:'png',scale:2,border:20,background:'#ffffff'}),'*'); };
+</script>
+</body></html>
