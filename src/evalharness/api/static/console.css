@@ -494,6 +494,9 @@ button:disabled {
 }
 .inline-form { display: inline; margin: 0; }
 .actions-cell { display: flex; flex-wrap: wrap; gap: var(--space-1); justify-content: flex-end; }
+.review-actions { display: flex; flex-wrap: wrap; gap: var(--space-1); align-items: center; justify-content: flex-end; }
+.review-actions select { width: 6rem; }
+.review-actions input[type="text"] { width: 10rem; }
 
 /* ------------------------------------------------------ chips and statuses */
 .status,
@@ -1140,6 +1143,9 @@ kbd {
 .heatmap .case-head {
   width: 3.1rem;
   min-width: 3.1rem;
+  max-width: 3.1rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
   padding: 8px 2px;
   color: var(--muted);
   font-family: var(--font-mono);
@@ -1665,8 +1671,9 @@ kbd {
   color: var(--muted);
   font-size: var(--text-xs);
   line-height: 1.45;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 .compare-metrics { table-layout: fixed; }
 .compare-metrics .metric-name {
@@ -1784,7 +1791,7 @@ kbd {
   margin-top: var(--space-3);
 }
 .editor-actions .editor-note { margin-left: auto; color: var(--muted); font-size: var(--text-xs); }
-.editor-rail { position: sticky; top: 72px; display: grid; gap: var(--space-4); }
+.editor-rail { position: sticky; top: 72px; max-height: calc(100dvh - 88px); overflow: auto; display: grid; gap: var(--space-4); }
 .estimate-card {
   padding: var(--space-4);
   background: var(--surface);
@@ -1977,10 +1984,10 @@ kbd {
 .step-link { display: flex; gap: 6px; align-items: baseline; width: 100%; padding: 9px 10px; border: 0; background: none; color: var(--ink-2); font: inherit; font-size: var(--text-sm); font-weight: 550; text-align: left; cursor: default; }
 .step.is-current .step-link { color: var(--ink); font-weight: 650; }
 .step.is-done .step-link { color: var(--ink-2); cursor: pointer; }
-.step.is-done .step-link:hover { color: var(--accent-ink); }
-.step.is-todo .step-link { color: var(--faint); }
+.step.is-done .step-link:hover { color: var(--accent); background: var(--surface-2); }
+.step.is-todo .step-link { color: var(--muted); }
 .step-number { color: var(--muted); font-size: var(--text-xs); }
-.wizard-rail { position: sticky; top: 72px; display: grid; gap: var(--space-4); }
+.wizard-rail { position: sticky; top: 72px; max-height: calc(100dvh - 88px); overflow: auto; display: grid; gap: var(--space-4); }
 .wizard-rail .estimate-hero { position: static; }
 .edit-form .wizard-body { display: grid; gap: var(--space-4); }
 .rail-nav { display: grid; gap: var(--space-1); padding: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); }
@@ -2162,6 +2169,7 @@ kbd {
 
 @media (max-width: 520px) {
   .col-sm { display: none; }
+  .heatmap-wrap { margin: 0 calc(-1 * var(--space-3)); padding: 0 var(--space-3); }
   .validation-reason { display: none; }
   th, td { padding: 8px var(--space-2); }
   table { font-size: var(--text-sm); }
@@ -2174,6 +2182,7 @@ kbd {
   .action-label { display: none; }
   .heatmap .row-head { width: 8rem; max-width: 8rem; }
   .runs, .aggregates { min-width: 0; }
+  .step-help { display: none; }
   .compare-metrics th[scope="row"] { overflow-wrap: normal; word-break: normal; }
 }
 
@@ -2398,6 +2407,7 @@ kbd {
   margin-top: var(--space-4);
   align-items: start;
 }
+.trace-chips .chip { white-space: normal; overflow-wrap: anywhere; max-width: 100%; }
 .trace-column {
   min-width: 0;
   border: 1px solid var(--line);

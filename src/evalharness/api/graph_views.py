@@ -54,6 +54,9 @@ _COLUMN_WIDTH_RATIO = 0.16
 _COLUMN_GAP_RATIO = 0.04
 _MARGIN_RATIO = 0.02
 _NODE_HEIGHT = 36.0
+
+_LABEL_CHAR_UNITS = 6.5
+"""Width of one 11px semibold label character, for column truncation."""
 _NODE_GAP = 8.0
 _NODE_TOP = 34.0
 _NODE_BOTTOM = 12.0
@@ -84,6 +87,7 @@ class GraphNode:
     key: str
     column: str
     label: str
+    text: str
     detail: str
     tone: str
     x: float
@@ -258,6 +262,7 @@ def thumbnail(
             key=node.key,
             column=node.column,
             label=node.label,
+            text=node.text,
             detail=node.detail,
             tone=node.tone,
             x=node.x * scale_x,
@@ -301,6 +306,7 @@ def compact_graph(graph: SpecGraph) -> SpecGraph:
                 key=node.key,
                 column=node.column,
                 label=node.label,
+                text=_display_text(node.label, by_column[node.column].w),
                 detail=node.detail,
                 tone=node.tone,
                 x=by_column[node.column].x,
@@ -587,6 +593,7 @@ def _node(
         key=key,
         column=column,
         label=label,
+        text=_display_text(label, column_view.w),
         detail=detail,
         tone=tone,
         x=column_view.x,
@@ -594,6 +601,19 @@ def _node(
         w=column_view.w,
         h=_NODE_HEIGHT,
     )
+
+
+def _display_text(label: str, width: float) -> str:
+    """Truncate a node label to its column box; the title keeps the full name.
+
+    A long model or candidate name drawn at full length crosses the gutter
+    into the next column's boxes and wires, which the design system forbids;
+    the macro's <title> still carries the whole name.
+    """
+    max_chars = max(4, int((width - 16) / _LABEL_CHAR_UNITS))
+    if len(label) <= max_chars:
+        return label
+    return label[: max_chars - 1] + "…"
 
 
 def _columns(width: float, *, short: bool = False) -> tuple[GraphColumn, ...]:

@@ -29,14 +29,17 @@ CHART_HEIGHT = 280.0
 MARGIN_LEFT = 64.0
 """Left gutter that holds the cost per correct check tick labels."""
 
-MARGIN_RIGHT = 20.0
-"""Right gutter so a point at a 100 percent pass rate keeps its label."""
+MARGIN_RIGHT = 24.0
+"""Right gutter of the plot; labels flip to text-anchor end near it."""
 
 MARGIN_TOP = 24.0
 """Top gutter that holds the vertical axis title."""
 
 MARGIN_BOTTOM = 44.0
 """Bottom gutter that holds the pass rate ticks and axis title."""
+
+LABEL_FLIP_UNITS = 96.0
+"""A label whose point sits within this of the right edge flips to anchor end."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,6 +82,8 @@ class ChartPoint:
     candidate: str
     cx: float
     cy: float
+    label_x: float
+    label_anchor: str
     pass_rate_label: str
     cost_label: str
     on_frontier: bool
@@ -269,20 +274,25 @@ def _chart(report: DecisionReport) -> ParetoChart | None:
     plot_right = CHART_WIDTH - MARGIN_RIGHT
     plot_top = MARGIN_TOP
     plot_bottom = CHART_HEIGHT - MARGIN_BOTTOM
-    chart_points = tuple(
-        ChartPoint(
+    def _placed(item: CandidateDecision) -> ChartPoint:
+        """Place one candidate, flipping its label when it nears the right edge."""
+        cx = plot_left + (item.pass_rate or 0.0) * (plot_right - plot_left)
+        flip = cx > plot_right - LABEL_FLIP_UNITS
+        return ChartPoint(
             candidate=item.candidate,
-            cx=plot_left + (item.pass_rate or 0.0) * (plot_right - plot_left),
+            cx=cx,
             cy=plot_bottom
             - ((item.cost_per_correct or 0.0) - low)
             / (high - low)
             * (plot_bottom - plot_top),
+            label_x=cx - 8 if flip else cx + 8,
+            label_anchor="end" if flip else "start",
             pass_rate_label=_pct(item.pass_rate or 0.0),
             cost_label=format_usd(item.cost_per_correct),
             on_frontier=item.on_pareto_frontier,
         )
-        for item in points
-    )
+
+    chart_points = tuple(_placed(item) for item in points)
     return ParetoChart(
         width=CHART_WIDTH,
         height=CHART_HEIGHT,

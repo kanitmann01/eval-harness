@@ -44,7 +44,7 @@
   </p>
   <p><strong>{{ diff.headline }}</strong></p>
   {% if diff.changes %}
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable table">
     <table>
       <thead><tr><th>Category</th><th>Path</th><th>Before</th><th>After</th><th>Change</th></tr></thead>
       <tbody>
@@ -97,7 +97,7 @@
       <h2 id="sides-heading">Run facts</h2>
     </div>
   </div>
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Scrollable table">
     <table>
       <thead><tr><th>Side</th><th>Run</th><th>Status</th><th>Seed</th><th>Operator</th><th>Started</th><th>Finished</th></tr></thead>
       <tbody>

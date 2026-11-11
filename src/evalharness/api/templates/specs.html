@@ -59,7 +59,7 @@
         <th scope="col" class="num col-lg">Size</th>
         <th scope="col" class="num col-lg">Modified</th>
         <th scope="col">Validation</th>
-        <th scope="col" class="col-sm">Actions</th>
+        <th scope="col">Actions</th>
       </tr>
     </thead>
     <tbody>
@@ -87,7 +87,7 @@
           <span class="validation-reason" title="{{ full_reason }}">{{ short_reason }}{% if short_reason != full_reason %}…{% endif %}</span>
           {% endif %}
         </td>
-        <td class="actions col-sm">
+        <td class="actions">
           <div class="actions-cell">
             <a class="btn btn-ghost btn-sm" href="{{ url_for('launch_page') }}?spec={{ row.name|urlencode }}">Launch</a>
             <a class="btn btn-secondary btn-sm" href="{{ url_for('comparison_edit', name=row.name) }}">Edit</a>

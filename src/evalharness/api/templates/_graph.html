@@ -22,7 +22,7 @@
     <title>{{ node.label }}</title>
     <rect x="{{ node.x }}" y="{{ node.y }}" width="{{ node.w }}" height="{{ node.h }}" rx="{% if thumb %}1{% else %}2{% endif %}"></rect>
     {%- if not compact and not thumb %}
-    <text class="sg-label" x="{{ node.x }}" y="{{ node.y }}" transform="translate(8 16)">{{ node.label }}</text>
+    <text class="sg-label" x="{{ node.x }}" y="{{ node.y }}" transform="translate(8 16)">{{ node.text }}</text>
     <text class="sg-detail" x="{{ node.x }}" y="{{ node.y }}" transform="translate(8 30)">{{ node.detail }}</text>
     {%- endif %}
   </g>

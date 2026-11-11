@@ -67,7 +67,7 @@
     <div><dt>Cases</dt><dd>{{ receipt.source.case_count }}</dd></div>
   </dl>
   {% if receipt.source.repos %}
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Source repositories">
     <table>
       <thead><tr><th>Name</th><th>Root</th><th>Ref</th><th>Commit</th><th>Digest</th><th>Files</th><th>Bytes</th><th>Skipped</th><th>Dirty</th></tr></thead>
       <tbody>
@@ -103,7 +103,7 @@
     </div>
   </div>
   {% if receipt.candidates %}
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Candidates">
     <table>
       <thead><tr><th>Name</th><th>Adapter</th><th>Model</th></tr></thead>
       <tbody>
@@ -131,7 +131,7 @@
     </div>
   </div>
   {% if receipt.judge_pins %}
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Judge pins">
     <table>
       <thead><tr><th>Metric</th><th>Judge</th><th>Adapter</th><th>Model</th><th>Options</th><th>Config hash</th><th>Source</th></tr></thead>
       <tbody>
@@ -174,7 +174,7 @@
     <span class="mono">{{ receipt.price_table.id }}</span>
     {{ copy_button(receipt.price_table.id, "Copy price table id", "price table id") }}
   </p>
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Price table rates">
     <table>
       <thead><tr><th>Model</th><th>Rates</th></tr></thead>
       <tbody>
@@ -200,7 +200,7 @@
     </div>
   </div>
   {% if receipt.gates %}
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Gates">
     <table>
       <thead><tr><th>Name</th><th>Metric</th><th>Result</th><th>Comparison</th><th>Threshold</th><th>Observed</th><th>n</th></tr></thead>
       <tbody>
@@ -243,7 +243,7 @@
   {% if receipt.diff %}
   <p><strong>{{ receipt.diff.headline }}</strong></p>
   {% if receipt.diff.changes %}
-  <div class="table-wrap">
+  <div class="table-wrap" tabindex="0" role="region" aria-label="Changes against the previous run">
     <table>
       <thead><tr><th>Category</th><th>Path</th><th>Change</th></tr></thead>
       <tbody>

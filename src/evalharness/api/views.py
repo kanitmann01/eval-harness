@@ -483,17 +483,27 @@ def run_thumbnails(runs: list[RunSummary]) -> dict[str, SpecGraph]:
 
 
 def _heatmap_columns(cells: list[CellRecord]) -> list[HeatmapColumn]:
-    """Return one column per case and replica pair, in stable order."""
+    """Return one column per case and replica pair, in stable order.
+
+    The head shows at most six characters of the case id because the column
+    is 3.1rem wide by contract; the th title carries the full id and replica.
+    """
     pairs = sorted({(cell.case_id, cell.replica) for cell in cells})
     return [
         HeatmapColumn(
             key=f"{case_id}:{replica}",
-            label=case_id if replica == 1 else f"{case_id} · r{replica}",
+            label=_case_head(case_id, replica),
             case_id=case_id,
             replica=replica,
         )
         for case_id, replica in pairs
     ]
+
+
+def _case_head(case_id: str, replica: int) -> str:
+    """Return the short column head for one case and replica."""
+    head = case_id if len(case_id) <= 6 else f"{case_id[:5]}…"
+    return head if replica == 1 else f"{head}·r{replica}"
 
 
 def _heatmap_cell(

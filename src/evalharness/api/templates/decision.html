@@ -49,17 +49,17 @@
     <tbody>
       {% for row in candidates %}
       <tr data-candidate="{{ row.candidate }}">
-        <td class="num">{{ row.rank }}</td>
-        <td><div class="table-title">{{ row.candidate }}</div></td>
-        <td>{{ row.checks_label }}</td>
-        <td>
+        <td class="num" data-label="Rank">{{ row.rank }}</td>
+        <td data-label="Candidate"><div class="table-title">{{ row.candidate }}</div></td>
+        <td data-label="Checks">{{ row.checks_label }}</td>
+        <td data-label="Pass rate">
           <span class="metric-value">{{ row.pass_rate_label }}</span>
           <span class="metric-sub">95% interval {{ row.interval_label }}</span>
         </td>
-        <td class="num"><span class="metric-value">{{ row.cost_label }}</span></td>
-        <td class="num">{{ row.latency_label }}</td>
-        <td>{{ row.cells_label }}</td>
-        <td><span class="chip chip-{{ row.tone }}"><span aria-hidden="true">{{ row.glyph }}</span> {{ row.dominance_label }}</span></td>
+        <td class="num" data-label="Cost per correct"><span class="metric-value">{{ row.cost_label }}</span></td>
+        <td class="num" data-label="p50 / p95 latency">{{ row.latency_label }}</td>
+        <td data-label="Cells">{{ row.cells_label }}</td>
+        <td data-label="Dominance"><span class="chip chip-{{ row.tone }}"><span aria-hidden="true">{{ row.glyph }}</span> {{ row.dominance_label }}</span></td>
       </tr>
       {% endfor %}
     </tbody>
@@ -93,7 +93,7 @@
       <text x="{{ chart.plot_left }}" y="14" font-size="12" fill="currentColor">{{ chart.y_axis_label }}</text>
       {% for point in chart.points %}
       <circle cx="{{ point.cx }}" cy="{{ point.cy }}" r="5" data-frontier="{{ 'true' if point.on_frontier else 'false' }}"{% if point.on_frontier %} fill="currentColor"{% else %} fill="none" stroke="currentColor" stroke-opacity="0.55"{% endif %}></circle>
-      <text x="{{ point.cx + 8 }}" y="{{ point.cy + 4 }}" font-size="12" fill="currentColor"{% if not point.on_frontier %} fill-opacity="0.65"{% endif %}>{{ point.candidate }}</text>
+      <text x="{{ point.label_x }}" y="{{ point.cy + 4 }}" text-anchor="{{ point.label_anchor }}" font-size="12" fill="currentColor"{% if not point.on_frontier %} fill-opacity="0.65"{% endif %}>{{ point.candidate }}</text>
       {% endfor %}
     </svg>
   </div>

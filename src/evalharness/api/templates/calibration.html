@@ -144,7 +144,7 @@
             {% endif %}
           </td>
           <td>
-            <div class="actions-cell">
+            <div class="review-actions">
               <form method="post" action="{{ url_for('calibration_label_save', run_id=run.run_id) }}" class="inline-form">
                 <input type="hidden" name="cell_id" value="{{ check.cell_id }}">
                 <input type="hidden" name="metric" value="{{ check.metric }}">

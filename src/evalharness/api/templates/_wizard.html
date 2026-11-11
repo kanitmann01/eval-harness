@@ -102,7 +102,7 @@
 
       <h3>Cases</h3>
       <p class="subtle">One row per prompt. The case id is what results and reports name the case by.</p>
-      <div class="table-wrap">
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Cases in this comparison">
         <table class="matrix">
           <caption class="sr-only">Cases in this comparison</caption>
           <thead>
@@ -139,7 +139,7 @@
 {% set choices = page.choices %}
       <h3>Prompts</h3>
       <p class="subtle">A prompt is a candidate's instructions. A candidate names one by its key on the next step.</p>
-      <div class="table-wrap">
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Prompts in this comparison">
         <table class="matrix">
           <caption class="sr-only">Prompts in this comparison</caption>
           <thead><tr><th scope="col">Name</th><th scope="col">Text</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
@@ -158,7 +158,7 @@
 
       <h3>Contexts</h3>
       <p class="subtle">Reference text a candidate may cite. A blank line starts a new chunk.</p>
-      <div class="table-wrap">
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Contexts in this comparison">
         <table class="matrix">
           <caption class="sr-only">Contexts in this comparison</caption>
           <thead><tr><th scope="col">Name</th><th scope="col">Text</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
@@ -177,7 +177,7 @@
 
       <h3>Credential declarations</h3>
       <p class="subtle">Names the spec references. The secret itself lives in the credential store, never in the spec.</p>
-      <div class="table-wrap">
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Credential declarations in this comparison">
         <table class="matrix">
           <caption class="sr-only">Credential declarations in this comparison</caption>
           <thead><tr><th scope="col">Name</th><th scope="col">Provider</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
@@ -206,7 +206,7 @@
 
       <h3>Candidates</h3>
       <p class="subtle">Each row is one adapter and model combination. A credential and a prompt are optional; none is a valid choice.</p>
-      <div class="table-wrap">
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Candidates in this comparison">
         <table class="matrix">
           <caption class="sr-only">Candidates in this comparison</caption>
           <thead>
@@ -246,7 +246,7 @@
 
       <h3>Metrics</h3>
       <p class="subtle">The key is the identifier gates and reports use. Judge rows below add a judge_pass metric of their own.</p>
-      <div class="table-wrap">
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Metrics in this comparison">
         <table class="matrix">
           <caption class="sr-only">Metrics in this comparison</caption>
           <thead><tr><th scope="col">Key</th><th scope="col">Adapter</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
@@ -265,7 +265,7 @@
 
       <h3>Judges</h3>
       <p class="subtle">Each judge adds a judge_pass metric under its metric key. The rubric lines become the scripted judge's claims; a model is optional for that judge.</p>
-      <div class="table-wrap">
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Judges in this comparison">
         <table class="matrix">
           <caption class="sr-only">Judges in this comparison</caption>
           <thead><tr><th scope="col">Metric</th><th scope="col">Model</th><th scope="col">Rubric</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
@@ -285,7 +285,7 @@
 
       <h3>Gates</h3>
       <p class="subtle">A gate turns the run into exit code 1 when the metric crosses the threshold. at least writes min; at most writes max.</p>
-      <div class="table-wrap">
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Gates in this comparison">
         <table class="matrix">
           <caption class="sr-only">Gates in this comparison</caption>
           <thead><tr><th scope="col">Metric</th><th scope="col">Op</th><th scope="col">Threshold</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>
@@ -313,7 +313,7 @@
 
       <h3>Prices</h3>
       <p class="subtle">The schema needs a price for every candidate and judge model. provider_prices is optional and left untouched here; add one in the raw spec when a provider needs a separate table.</p>
-      <div class="table-wrap">
+      <div class="table-wrap" tabindex="0" role="region" aria-label="Prices in this comparison">
         <table class="matrix">
           <caption class="sr-only">Prices in this comparison</caption>
           <thead><tr><th scope="col">Model</th><th scope="col">Input / 1M</th><th scope="col">Output / 1M</th><th scope="col"><span class="sr-only">Remove</span></th></tr></thead>

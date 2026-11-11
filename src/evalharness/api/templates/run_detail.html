@@ -82,12 +82,12 @@
       {% endif %}
     </div>
     <div class="verdict-stat">
-      <span class="stat-label">Cells {{ help_tip("help-cells", "cells", "ok cells out of planned cells. Recorded includes cells with a failed check or a candidate error.") }}</span>
+      <span class="stat-label">Cells {{ help_tip("help-cells", "cells", "ok cells out of planned cells. Recorded includes cells with a failed check or a candidate error.", align="end") }}</span>
       <span class="stat-value">{{ run.n_ok }}/{{ run.n_cells }}</span>
       <span class="stat-detail">ok · {{ verdict.cells_errored }} errored · {{ verdict.cells_recorded }} recorded</span>
     </div>
     <div class="verdict-stat">
-      <span class="stat-label">Gates {{ help_tip("help-gates", "gates", "Passed gates out of declared gates. A run can finish ok and still fail a gate.") }}</span>
+      <span class="stat-label">Gates {{ help_tip("help-gates", "gates", "Passed gates out of declared gates. A run can finish ok and still fail a gate.", align="end") }}</span>
       <span class="stat-value">{{ verdict.gates_passed }}/{{ verdict.gates_total }}</span>
       <span class="stat-detail">
         {% if verdict.gates_total %}
