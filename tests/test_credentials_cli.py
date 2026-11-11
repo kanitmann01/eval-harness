@@ -309,6 +309,7 @@ def test_header_and_no_auth_providers(
         for key, value in verify_stub.requests[-1]["headers"].items()
     }
     assert headers["x-api-key"] == "sk-ant"
+    assert headers["anthropic-version"] == "2023-06-01"
     assert "authorization" not in headers
 
     _add(

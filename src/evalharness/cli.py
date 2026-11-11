@@ -28,6 +28,7 @@ from evalharness.core.cost import (
     DEFAULT_MEDIAN_COMPLETION_TOKENS,
     DEFAULT_MEDIAN_PROMPT_TOKENS,
 )
+from evalharness.core.credential_names import unknown_credential
 from evalharness.core.models import Aggregate
 from evalharness.core.planner import per_candidate_counts
 from evalharness.core.repo_snapshot import (
@@ -754,12 +755,7 @@ def _credentials_delete(
 ) -> int:
     """Delete one credential after confirmation."""
     if repository.get_credential(args.name) is None:
-        raise SpecError(
-            f"credentials.{args.name}",
-            args.name,
-            "unknown credential",
-            "list the stored credentials with 'evalh credentials list'",
-        )
+        raise unknown_credential(args.name)
     if not args.yes:
         print(f"delete credential {args.name}? [y/N] ", end="", flush=True)
         answer = sys.stdin.readline().strip().lower()

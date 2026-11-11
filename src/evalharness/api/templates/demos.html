@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% from "_macros.html" import callout with context %}
+{% block title %}Demos &middot; evalharness console{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Breadcrumb">
+  <a href="{{ url_for('run_list') }}">Runs</a>
+  <span class="separator" aria-hidden="true">/</span>
+  <span>Demos</span>
+</nav>
+
+<div class="page-header">
+  <div class="page-header-main">
+    <p class="eyebrow">Demo library</p>
+    <h1>See the engine before you write a spec</h1>
+    <p class="lede">
+      Four scripted walkthroughs. Each one copies a real spec, runs it through
+      the same planner, executor, scorer and gate path as any other run, and
+      opens the trace. Nothing here calls a provider.
+    </p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-ghost" href="{{ url_for('spec_list') }}">All specs</a>
+  </div>
+</div>
+
+{% call callout("info", "Offline walkthrough", "i") %}
+  The bundled specs use the stub candidate. A demo run is deterministic and
+  spends no tokens. Open spec to swap the stub for a real provider when you
+  want a live run.
+{% endcall %}
+
+{% if error %}
+<div class="callout callout-error" role="alert">
+  <span class="callout-icon" aria-hidden="true">✕</span>
+  <div><span class="callout-title">The demo did not launch</span> {{ error }}</div>
+</div>
+{% endif %}
+
+<section class="panel" aria-labelledby="pipeline-heading">
+  <div class="panel-head">
+    <div>
+      <h2 id="pipeline-heading">What a run actually does</h2>
+      <p class="subtle">The trace shows the same seven stages in order. Every stage is a stored row, not a mental model.</p>
+    </div>
+  </div>
+  <ol class="pipeline" aria-label="Run pipeline">
+    {% for stage in pipeline %}
+    <li class="pipeline-stage"><span class="pipeline-index">{{ loop.index }}</span><span>{{ stage }}</span></li>
+    {% endfor %}
+  </ol>
+</section>
+
+<section class="demo-grid" aria-label="Demo scenarios">
+  {% for demo in demos %}
+  <article class="card demo-card" aria-labelledby="demo-{{ demo.slug }}">
+    <div class="demo-card-head">
+      <h2 id="demo-{{ demo.slug }}">{{ demo.title }}</h2>
+      {% if demo.materialized %}<span class="chip">spec copied</span>{% else %}<span class="chip">bundled</span>{% endif %}
+    </div>
+    <p class="demo-question">{{ demo.question }}</p>
+    <dl class="demo-facts">
+      <div><dt>What varies</dt><dd>{{ demo.varies }}</dd></div>
+      <div><dt>What to look for</dt><dd>{{ demo.look_for }}</dd></div>
+      <div><dt>Expected read</dt><dd>{{ demo.expected }}</dd></div>
+    </dl>
+    <p class="demo-meta">
+      <span class="meta-item">{{ demo.cost_note }}</span>
+      <span aria-hidden="true">·</span>
+      <span class="meta-item">{{ demo.duration_note }}</span>
+      <span aria-hidden="true">·</span>
+      <span class="meta-item mono">{{ demo.spec_name }}.yaml</span>
+    </p>
+    <div class="demo-actions">
+      <form method="post" action="{{ url_for('demo_run', slug=demo.slug) }}">
+        <button type="submit" class="btn btn-primary">Run demo</button>
+      </form>
+      <form method="post" action="{{ url_for('demo_open', slug=demo.slug) }}">
+        <button type="submit" class="btn btn-secondary">Open spec</button>
+      </form>
+    </div>
+  </article>
+  {% endfor %}
+</section>
+{% endblock %}

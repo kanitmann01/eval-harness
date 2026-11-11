@@ -31,12 +31,7 @@ from evalharness.core.cost import (
     provider_cost_rows,
 )
 from evalharness.core.events import EventEmitter
-from evalharness.core.executor import (
-    CandidateSummary,
-    ExecutionResult,
-    execute_run,
-    summarise,
-)
+from evalharness.core.executor import CandidateSummary, execute_run
 from evalharness.core.models import (
     Aggregate,
     Case,
@@ -286,43 +281,43 @@ def execute(
                 resumed=resume_run_id is not None,
             )
         )
-        all_cells = repository.list_cells(run.run_id)
+        # The executor hands back every stored cell and check. Sorting keeps
+        # the stored order the console and the CLI already show; the executor
+        # plans cells in the spec's seeded order.
+        cells = sorted(
+            execution.cells,
+            key=lambda cell: (cell.candidate, cell.case_id, cell.replica),
+        )
         checks_by_cell = {
-            cell.cell_id: repository.list_checks(run.run_id, cell.cell_id)
-            for cell in all_cells
+            cell.cell_id: execution.checks.get(cell.cell_id, [])
+            for cell in cells
         }
         aggregates = aggregate_cells(
-            run_id=run.run_id,
+            run_id=execution.run.run_id,
             cases={case.case_id: case for case in cases},
-            cells=all_cells,
+            cells=cells,
             checks_by_cell=checks_by_cell,
             metric_keys=list(resolved.metrics),
             replicas=resolved.spec.replicas,
         )
         repository.record_aggregates(aggregates)
         gates = evaluate_gates(resolved.spec.gates, aggregates)
-        repository.record_gates(run.run_id, gates)
-        provider_costs = provider_cost_rows(run.run_id, all_cells)
-        repository.record_provider_costs(run.run_id, provider_costs)
-        result = ExecutionResult(
-            run=execution.run,
-            cells=all_cells,
-            checks=checks_by_cell,
-            summaries=summarise(resolved, all_cells),
-        )
+        repository.record_gates(execution.run.run_id, gates)
+        provider_costs = provider_cost_rows(execution.run.run_id, cells)
+        repository.record_provider_costs(execution.run.run_id, provider_costs)
         return RunOutcome(
-            run=result.run,
-            cells=result.cells,
-            checks=result.checks,
-            summaries=result.summaries,
+            run=execution.run,
+            cells=cells,
+            checks=checks_by_cell,
+            summaries=execution.summaries,
             aggregates=aggregates,
             gates=gates,
             provider_costs=provider_costs,
             exit_code=exit_codes.for_run(
-                status=result.run.status,
+                status=execution.run.status,
                 gate_failed=any(not gate.passed for gate in gates),
             ),
-            reason=_run_reason(result.run, cancel_token.reason),
+            reason=_run_reason(execution.run, cancel_token.reason),
         )
     finally:
         database.dispose()

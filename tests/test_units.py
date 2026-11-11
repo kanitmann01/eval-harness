@@ -450,7 +450,29 @@ def test_contains_metric_passes_and_fails():
     assert asyncio.run(metric.check(failing, context))[0].passed is False
 
 
-def test_json_sink_derives_artifact_directory(workdir):
+def test_json_sink_writes_under_the_recorded_artifact_directory(workdir):
+    sink = build_json_sink("sink", {"artifacts_dir": str(workdir)})
+    run = RunRecord(run_id="run-sink", started_at=utc_now())
+    sink.open_run(run)
+    artifact_dir = workdir / "custom" / "cell-sink"
+    cell = CellRecord(
+        cell_id="cell-sink",
+        run_id="run-sink",
+        candidate="candidate",
+        case_id="case",
+        replica=1,
+        answer="42",
+        artifact_dir=str(artifact_dir),
+    )
+    sink.record_cell(cell, [])
+    sink.close_run(run)
+    assert (artifact_dir / "cell.json").is_file()
+    assert (artifact_dir / "answer.txt").read_text(encoding="utf-8") == "42"
+    assert (workdir / "run-sink" / "run.json").is_file()
+    assert not (workdir / "run-sink" / "cell-sink").exists()
+
+
+def test_json_sink_refuses_a_cell_without_an_artifact_directory(workdir):
     sink = build_json_sink("sink", {"artifacts_dir": str(workdir)})
     run = RunRecord(run_id="run-sink", started_at=utc_now())
     sink.open_run(run)
@@ -460,12 +482,11 @@ def test_json_sink_derives_artifact_directory(workdir):
         candidate="candidate",
         case_id="case",
         replica=1,
-        answer="42",
     )
-    sink.record_cell(cell, [])
-    sink.close_run(run)
-    assert (workdir / "run-sink" / "cell-sink" / "cell.json").is_file()
-    assert (workdir / "run-sink" / "run.json").is_file()
+    with pytest.raises(SpecError) as raised:
+        sink.record_cell(cell, [])
+    assert raised.value.field == "cell.artifact_dir"
+    assert "cannot record cell" in str(raised.value)
 
 
 def test_load_spec_returns_the_model(workdir):

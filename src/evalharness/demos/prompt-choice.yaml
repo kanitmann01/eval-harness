@@ -1,0 +1,73 @@
+spec_version: 1
+name: demo-prompt-choice
+description: >
+  Demo 1: one case, two prompt variants. The strict candidate answers "42" and
+  passes exact_match; the explained candidate answers with a clause and fails
+  it while passing contains. The pooled gate then fails, which is the lesson:
+  the gate defines what "better" means.
+seed: 7
+
+source:
+  adapter: evalharness.adapters.sources.inline:build
+  options:
+    cases:
+      - case_id: case-1
+        prompt: What is 6 times 7?
+        expected: {answer: "42"}
+        tier: 1
+
+prompts:
+  concise: Answer with digits only, no other words.
+  explained: Answer with the number and one short clause.
+
+contexts:
+  none: []
+
+credentials:
+  - name: stub
+    provider: none
+
+candidates:
+  - name: strict
+    adapter: evalharness.adapters.candidates.stub:build
+    credential: stub
+    model: stub-1
+    options:
+      prompt: concise
+      context: none
+      answer: "42"
+      prompt_tokens: 12
+      completion_tokens: 4
+  - name: explained
+    adapter: evalharness.adapters.candidates.stub:build
+    credential: stub
+    model: stub-1
+    options:
+      prompt: explained
+      context: none
+      answer: "42 because 6 times 7 is 42"
+      prompt_tokens: 30
+      completion_tokens: 12
+
+replicas: 1
+concurrency: 1
+budget_usd: 1.00
+
+metrics:
+  - key: exact_match
+    adapter: evalharness.adapters.metrics.exact_match:build
+    options: {}
+  - key: contains
+    adapter: evalharness.adapters.metrics.contains:build
+    options: {}
+
+judges: []
+
+gates:
+  - metric: exact_match
+    min: 0.90
+
+prices:
+  stub-1:
+    input: 0.15
+    output: 0.60

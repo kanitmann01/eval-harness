@@ -1,0 +1,32 @@
+<div class="tour" id="tour" data-tour-root hidden>
+  <div class="tour-bubble" role="dialog" aria-modal="false" aria-labelledby="tour-title">
+    <div class="tour-head">
+      <span class="eyebrow">Quick tour</span>
+      <span class="chip" id="tour-progress">1 / 5</span>
+    </div>
+    <h2 class="tour-title" id="tour-title">Find your way around</h2>
+    <ol class="tour-steps" id="tour-steps">
+      <li class="tour-step" data-tour-target="[data-tour='nav-runs']" hidden>
+        <p><strong>Runs</strong> is the home page. Every evaluation you execute lands here with its verdict, cost and gate result.</p>
+      </li>
+      <li class="tour-step" data-tour-target="[data-tour='nav-demos']" hidden>
+        <p><strong>Demos</strong> is the shortcut. Four scripted walkthroughs copy a real spec, run offline and open the trace, so you can see the engine before writing anything.</p>
+      </li>
+      <li class="tour-step" data-tour-target="[data-tour='nav-specs']" hidden>
+        <p><strong>Specs</strong> holds the YAML that declares cases, candidates, metrics and gates. Start here when you want to change what is evaluated.</p>
+      </li>
+      <li class="tour-step" data-tour-target="[data-tour='new-comparison']" hidden>
+        <p><strong>New comparison</strong> puts two runs side by side: what changed, which checks moved, and whether the difference is real.</p>
+      </li>
+      <li class="tour-step" data-tour-target="[data-tour='nav-credentials']" hidden>
+        <p><strong>Credentials</strong> stores provider keys encrypted. The bundled demos use a stub and need no key.</p>
+      </li>
+    </ol>
+    <div class="tour-actions">
+      <button type="button" class="btn btn-ghost btn-sm" id="tour-skip">Skip tour</button>
+      <span class="tour-spacer"></span>
+      <button type="button" class="btn btn-secondary btn-sm" id="tour-back">Back</button>
+      <button type="button" class="btn btn-primary btn-sm" id="tour-next">Next</button>
+    </div>
+  </div>
+</div>

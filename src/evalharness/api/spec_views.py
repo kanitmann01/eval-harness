@@ -9,12 +9,15 @@ earlier run of the same spec measured when one exists.
 
 from __future__ import annotations
 
+import threading
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from evalharness.api.credential_views import CredentialChoice, credential_choices
+from evalharness.api.spec_projection import project_spec
 from evalharness.api.spec_store import SpecFile, SpecStore
 from evalharness.api.templating import format_usd, format_usd_exact
 from evalharness.core.context import RunContext
@@ -76,6 +79,13 @@ class SpecRow:
     check: SpecCheck
 
 
+_CHECK_CACHE: dict[str, tuple[tuple[int, datetime], SpecCheck]] = {}
+"""One cached check per spec path, with the file identity it was computed for."""
+
+_CHECK_CACHE_LOCK = threading.Lock()
+"""Guards the cache while the console serves requests from a thread pool."""
+
+
 def check_document(text: str, repository: Repository) -> SpecCheck:
     """Validate YAML text with the CLI's validator and estimate its cells.
 
@@ -126,23 +136,57 @@ def editor_credentials(repository: Repository) -> list[CredentialChoice]:
     return credential_choices(repository.list_credentials())
 
 
+def list_rows(
+    files: Sequence[SpecFile],
+    store: SpecStore,
+    repository: Repository,
+) -> list[SpecRow]:
+    """Return the list projection, reusing the check of every unchanged file."""
+    return [row_for(file, store, repository) for file in files]
+
+
 def row_for(
     file: SpecFile,
     store: SpecStore,
     repository: Repository,
 ) -> SpecRow:
-    """Validate one spec file and build its list row."""
-    check = check_document(store.read(file.name), repository)
+    """Build one list row, reusing its cached check while the file is unchanged."""
+    check = _list_check(file, store, repository)
     resolved = check.resolved
+    projection = project_spec(resolved.spec) if resolved is not None else None
     return SpecRow(
         name=file.name,
         path=file.path,
         size=file.size,
         modified=file.modified,
-        spec_name=resolved.spec.name if resolved is not None else "",
-        candidates=len(resolved.spec.candidates) if resolved is not None else 0,
+        spec_name=projection.name if projection is not None else "",
+        candidates=len(projection.candidates) if projection is not None else 0,
         check=check,
     )
+
+
+def _list_check(
+    file: SpecFile,
+    store: SpecStore,
+    repository: Repository,
+) -> SpecCheck:
+    """Return one file's check, computing it only when its identity changes.
+
+    The list already read the path, size and modified time, so those three form
+    the identity: a repeat request does no file read, validation, adapter
+    build, source load or median lookup, and an edited file is checked again at
+    once. One entry per path means the cache cannot grow with edits.
+    """
+    path = str(file.path)
+    identity = (file.size, file.modified)
+    with _CHECK_CACHE_LOCK:
+        entry = _CHECK_CACHE.get(path)
+        if entry is not None and entry[0] == identity:
+            return entry[1]
+    check = check_document(store.read(file.name), repository)
+    with _CHECK_CACHE_LOCK:
+        _CHECK_CACHE[path] = (identity, check)
+    return check
 
 
 def field_value(value: Any) -> str:

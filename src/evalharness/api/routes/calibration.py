@@ -17,8 +17,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from evalharness.api.calibration_views import calibration_data
 from evalharness.api.deps import get_database, get_repository, render
 from evalharness.core.calibration import CalibrationReport, calibration_report
-from evalharness.core.models import RunRecord, utc_now
+from evalharness.core.models import utc_now
 from evalharness.errors import SpecError
+from evalharness.read_model import RunRead, load_run_read
 from evalharness.storage.db import Database
 from evalharness.storage.labels import HumanLabel, LabelStore
 from evalharness.storage.repository import Repository
@@ -46,12 +47,12 @@ def calibration_json(
     database: Database = Depends(get_database),
 ) -> dict[str, Any]:
     """Return the calibration report as JSON, or a 404 for an unknown run."""
-    run = repository.get_run(run_id)
-    if run is None:
+    read = load_run_read(repository, run_id)
+    if read is None:
         raise HTTPException(
             status_code=404, detail=f"run {run_id} does not exist"
         )
-    return calibration_data(_report(run, repository, database))
+    return calibration_data(_report(read, database))
 
 
 @router.post(
@@ -64,11 +65,12 @@ async def calibration_label_save(
     database: Database = Depends(get_database),
 ) -> Response:
     """Save or update one human verdict and return to the calibration page."""
-    if repository.get_run(run_id) is None:
+    read = load_run_read(repository, run_id)
+    if read is None:
         return _not_found(request, run_id)
     values = dict(await request.form())
     try:
-        cell_id, metric = _check_target(values, run_id, repository)
+        cell_id, metric = _check_target(values, run_id, read)
         verdict = str(values.get("verdict", "")).strip()
         if verdict not in {"pass", "fail"}:
             raise SpecError(
@@ -91,7 +93,13 @@ async def calibration_label_save(
         )
     except SpecError as error:
         return _page(
-            request, repository, database, run_id, error=error, status_code=400
+            request,
+            repository,
+            database,
+            run_id,
+            error=error,
+            status_code=400,
+            read=read,
         )
     return RedirectResponse(url=f"/runs/{run_id}/calibration", status_code=303)
 
@@ -106,14 +114,21 @@ async def calibration_label_clear(
     database: Database = Depends(get_database),
 ) -> Response:
     """Delete one human verdict; clearing an absent label is still a success."""
-    if repository.get_run(run_id) is None:
+    read = load_run_read(repository, run_id)
+    if read is None:
         return _not_found(request, run_id)
     values = dict(await request.form())
     try:
-        cell_id, metric = _check_target(values, run_id, repository)
+        cell_id, metric = _check_target(values, run_id, read)
     except SpecError as error:
         return _page(
-            request, repository, database, run_id, error=error, status_code=400
+            request,
+            repository,
+            database,
+            run_id,
+            error=error,
+            status_code=400,
+            read=read,
         )
     LabelStore(database).delete(run_id, cell_id, metric)
     return RedirectResponse(url=f"/runs/{run_id}/calibration", status_code=303)
@@ -126,50 +141,49 @@ def _page(
     run_id: str,
     error: SpecError | None = None,
     status_code: int = 200,
+    read: RunRead | None = None,
 ) -> Response:
     """Render the calibration page, or its not-found page for a missing run."""
-    run = repository.get_run(run_id)
-    if run is None:
+    if read is None:
+        read = load_run_read(repository, run_id)
+    if read is None:
         return _not_found(request, run_id)
     return render(
         request,
         "calibration.html",
         {
-            "run": run,
-            "report": _report(run, repository, database),
+            "run": read.run,
+            "report": _report(read, database),
             "error": error,
         },
         status_code=status_code,
     )
 
 
-def _report(
-    run: RunRecord, repository: Repository, database: Database
-) -> CalibrationReport:
-    """Build one run's calibration report from stored rows."""
+def _report(read: RunRead, database: Database) -> CalibrationReport:
+    """Build one run's calibration report from an already loaded run."""
     return calibration_report(
-        run,
-        repository.list_cells(run.run_id),
-        repository.list_checks_for_run(run.run_id),
-        LabelStore(database).list_for_run(run.run_id),
+        read.run,
+        read.cells,
+        read.checks_by_cell,
+        LabelStore(database).list_for_run(read.run.run_id),
     )
 
 
 def _check_target(
-    values: dict[str, Any], run_id: str, repository: Repository
+    values: dict[str, Any], run_id: str, read: RunRead
 ) -> tuple[str, str]:
     """Return the cell and metric a form names, or raise an actionable error."""
     cell_id = str(values.get("cell_id", "")).strip()
     metric = str(values.get("metric", "")).strip()
-    if repository.get_cell(run_id, cell_id) is None:
+    if not any(cell.cell_id == cell_id for cell in read.cells):
         raise SpecError(
             "cell_id",
             cell_id,
             f"cell {cell_id!r} is not part of run {run_id}",
             "choose a cell id from the calibration review table",
         )
-    checks = repository.list_checks(run_id, cell_id)
-    if not any(check.metric == metric for check in checks):
+    if not any(check.metric == metric for check in read.checks_for(cell_id)):
         raise SpecError(
             "metric",
             metric,

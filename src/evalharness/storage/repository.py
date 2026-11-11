@@ -11,6 +11,8 @@ from typing import Any
 from sqlalchemy import case, delete, func, select
 from sqlalchemy.orm import Session
 
+from evalharness.core.cost import cost_total
+from evalharness.core.credential_names import unknown_credential
 from evalharness.core.events import Event
 from evalharness.core.models import (
     Aggregate,
@@ -515,15 +517,10 @@ class Repository:
 
 
 def _credential_row(session: Session, name: str) -> CredentialRow:
-    """Return one credential row, or raise the CLI's actionable unknown error."""
+    """Return one credential row, or raise the shared actionable unknown error."""
     row = session.get(CredentialRow, name)
     if row is None:
-        raise SpecError(
-            f"credentials.{name}",
-            name,
-            "unknown credential",
-            "list the stored credentials with 'evalh credentials list'",
-        )
+        raise unknown_credential(name)
     return row
 
 
@@ -648,6 +645,20 @@ def _run_record(row: RunRow) -> RunRecord:
 
 
 def _cell_row(cell: CellRecord) -> CellRow:
+    """Return the stored row for a cell, with the total and split consistent.
+
+    A caller may record only a total and leave the split at zero, for example a
+    deterministic grader or an imported cell. Reads trust the split columns, so
+    when all three parts are zero and the total is not, the total is stored as
+    the answer part. A caller that supplies a split keeps it, and the stored
+    total is recomputed with the canonical helper so an inconsistent caller
+    cannot persist a total that disagrees with its parts.
+    """
+    answer_usd = cell.answer_cost_usd
+    judge_usd = cell.judge_cost_usd
+    tool_usd = cell.tool_cost_usd
+    if not answer_usd and not judge_usd and not tool_usd and cell.cost_usd:
+        answer_usd = cell.cost_usd
     return CellRow(
         cell_id=cell.cell_id,
         run_id=cell.run_id,
@@ -660,10 +671,10 @@ def _cell_row(cell: CellRecord) -> CellRow:
         prompt_tokens=cell.prompt_tokens,
         completion_tokens=cell.completion_tokens,
         tool_calls=cell.tool_calls,
-        cost_usd=cell.cost_usd,
-        answer_cost_usd=cell.answer_cost_usd,
-        judge_cost_usd=cell.judge_cost_usd,
-        tool_cost_usd=cell.tool_cost_usd,
+        cost_usd=cost_total(answer_usd, judge_usd, tool_usd),
+        answer_cost_usd=answer_usd,
+        judge_cost_usd=judge_usd,
+        tool_cost_usd=tool_usd,
         judge_prompt_tokens=cell.judge_prompt_tokens,
         judge_completion_tokens=cell.judge_completion_tokens,
         usage_source=cell.usage_source,
@@ -679,6 +690,16 @@ def _cell_row(cell: CellRecord) -> CellRow:
 
 
 def _cell_record(row: CellRow) -> CellRecord:
+    """Return one stored cell with its cost split rebuilt and summed.
+
+    The split columns are nullable so a database written before the split
+    existed can gain them in place; a missing part counts as zero and the total
+    is recomputed with the canonical cost helper, so the invariant
+    answer + judge + tool holds for old rows and new ones alike.
+    """
+    answer_usd = row.answer_cost_usd or 0.0
+    judge_usd = row.judge_cost_usd or 0.0
+    tool_usd = row.tool_cost_usd or 0.0
     return CellRecord(
         cell_id=row.cell_id,
         run_id=row.run_id,
@@ -691,10 +712,10 @@ def _cell_record(row: CellRow) -> CellRecord:
         prompt_tokens=row.prompt_tokens,
         completion_tokens=row.completion_tokens,
         tool_calls=row.tool_calls,
-        cost_usd=row.cost_usd,
-        answer_cost_usd=row.answer_cost_usd or 0.0,
-        judge_cost_usd=row.judge_cost_usd or 0.0,
-        tool_cost_usd=row.tool_cost_usd or 0.0,
+        cost_usd=cost_total(answer_usd, judge_usd, tool_usd),
+        answer_cost_usd=answer_usd,
+        judge_cost_usd=judge_usd,
+        tool_cost_usd=tool_usd,
         judge_prompt_tokens=row.judge_prompt_tokens or 0,
         judge_completion_tokens=row.judge_completion_tokens or 0,
         usage_source=row.usage_source,

@@ -8,7 +8,9 @@ ticket asks for equivalence or end-to-end proof, so no server and no network.
 from __future__ import annotations
 
 import asyncio
+import os
 import re
+import time
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, Iterator
@@ -23,6 +25,7 @@ from evalharness.core.config import Settings
 from evalharness.core.models import Check
 from evalharness.storage.db import Database
 from evalharness.storage.repository import Repository
+from tests.adapters import CountingSource
 from tests.helpers import base_spec, write_spec
 from tests.test_api_console import Console, _client, _seed
 
@@ -605,3 +608,55 @@ async def test_specs_path_falls_back_to_the_directory_name_outside_the_cwd(
     async with _client(editor.app) as client:
         page = await client.get("/specs")
         assert f'<code title="{specs_dir}">{specs_dir.name}</code>' in page.text
+
+
+async def test_the_spec_list_checks_each_file_once_until_it_changes(
+    editor: Console,
+) -> None:
+    """A repeat list request reuses the check; an edited file is checked again."""
+    specs_dir = editor.settings.specs_dir
+    specs_dir.mkdir(parents=True)
+    spec = base_spec()
+    spec["name"] = "cached-spec"
+    spec["source"] = {
+        "adapter": "test:counting_source",
+        "options": {
+            "cases": [
+                {
+                    "case_id": "count-1",
+                    "prompt": "What is 6 times 7?",
+                    "expected": {"answer": "42"},
+                }
+            ]
+        },
+    }
+    path = specs_dir / "cached.yaml"
+    write_spec(path, spec)
+    CountingSource.builds = 0
+    CountingSource.loads = 0
+    async with _client(editor.app) as client:
+        first = (await client.get("/api/specs")).json()
+        assert first[0]["valid"] is True
+        assert first[0]["spec_name"] == "cached-spec"
+        assert CountingSource.loads == 1
+        assert CountingSource.builds == 1
+
+        builds = CountingSource.builds
+        second = (await client.get("/api/specs")).json()
+        assert second == first
+        assert CountingSource.loads == 1
+        assert CountingSource.builds == builds
+
+        renamed = dict(spec, name="cached-sped")
+        write_spec(path, renamed)
+        stamp = time.time_ns() + 10_000_000_000
+        os.utime(path, ns=(stamp, stamp))
+        third = (await client.get("/api/specs")).json()
+        assert third[0]["spec_name"] == "cached-sped"
+        assert CountingSource.loads == 2
+
+        path.write_text("spec_version: 1\n", encoding="utf-8")
+        fourth = (await client.get("/api/specs")).json()
+        assert fourth[0]["valid"] is False
+        assert fourth[0]["error"]["field"] == "name"
+        assert CountingSource.loads == 2

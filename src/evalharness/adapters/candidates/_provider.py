@@ -49,6 +49,7 @@ class ProviderCandidate:
         timeout_s: float = 30.0,
         auth: str = BEARER,
         header_name: str = "",
+        headers: Mapping[str, str] | None = None,
         system: str = "",
         temperature: float = 0.0,
         max_tokens: int = DEFAULT_MAX_TOKENS,
@@ -83,6 +84,7 @@ class ProviderCandidate:
         self._timeout_s = timeout_s
         self._auth = auth
         self._header_name = header_name
+        self._headers = dict(headers or {})
         self._system = system
         self._temperature = temperature
         self._max_tokens = max_tokens
@@ -104,12 +106,14 @@ class ProviderCandidate:
                 artifacts={"source": "conformance-hook"},
             )
         secret = ctx.credential.secret if ctx.credential is not None else ""
+        extra_headers = dict(self._dialect.extra_headers)
+        extra_headers.update(self._headers)
         headers = auth_headers(
             self._auth,
             secret,
             label=f"candidate {self.name!r}",
             header_name=self._header_name,
-            extra=self._dialect.extra_headers,
+            extra=extra_headers,
         )
         prompt = prompt_text(case, ctx)
         payload = self._dialect.payload(
@@ -158,6 +162,7 @@ def candidate_options(options: Mapping[str, Any]) -> dict[str, Any]:
         "timeout_s": float(options.get("timeout_s", 30.0)),
         "auth": str(options.get("auth", BEARER)),
         "header_name": str(options.get("header_name", "")),
+        "headers": _headers(options.get("headers")),
         "system": str(options.get("system", "")),
         "temperature": float(options.get("temperature", 0.0)),
         "max_tokens": int(options.get("max_tokens", DEFAULT_MAX_TOKENS)),
@@ -166,3 +171,21 @@ def candidate_options(options: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "fail": str(options.get("fail", "")),
     }
+
+
+def _headers(value: Any) -> dict[str, str]:
+    """Validate the optional custom request headers from a spec."""
+    if value is None:
+        return {}
+    if not isinstance(value, Mapping):
+        raise ValueError(
+            "options.headers must be a mapping of header names to string values"
+        )
+    headers: dict[str, str] = {}
+    for name, header_value in value.items():
+        if not isinstance(name, str) or not isinstance(header_value, str):
+            raise ValueError(
+                "options.headers must map string header names to string values"
+            )
+        headers[name] = header_value
+    return headers

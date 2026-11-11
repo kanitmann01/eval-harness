@@ -14,12 +14,12 @@ computed numbers and independent of how the console renders it.
 from __future__ import annotations
 
 import hashlib
-import json
 from dataclasses import dataclass
 from typing import Any, Iterable, Mapping
 
 from evalharness.core.judges import judge_config_hash
 from evalharness.core.models import CellRecord, Check, JudgeSpec, RunRecord
+from evalharness.core.prices import price_table_identity
 from evalharness.core.stats import (
     delta_or_none,
     difference_interval,
@@ -278,31 +278,13 @@ def _side(
 
 
 def _price_table(run: RunRecord) -> PriceTable:
-    """Return the run's price snapshot with a sha256 identity over its content.
+    """Return the run's resolved prices with their canonical sha256 identity.
 
-    A version 2 snapshot nests the table by provider and is flattened to
-    `provider/model` keys; a provider-agnostic entry keeps the bare model key,
-    so the display stays readable. A snapshot written before issue #17 is
-    already flat and is read as it stands.
+    The flattening and the fingerprint live in evalharness.core.prices, so the
+    compare page and the run receipt quote the same table and the same identity
+    for a run.
     """
-    snapshot = dict(run.prices_snapshot)
-    if snapshot.get("version") == 2:
-        providers = snapshot.get("providers") or {}
-        prices = {
-            (
-                f"{provider}/{model}" if provider else str(model)
-            ): {str(key): float(value) for key, value in dict(price).items()}
-            for provider, models in providers.items()
-            for model, price in models.items()
-        }
-    else:
-        prices = {
-            str(model): {str(key): float(value) for key, value in dict(price).items()}
-            for model, price in snapshot.items()
-        }
-    identity = hashlib.sha256(
-        json.dumps(prices, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    ).hexdigest()
+    identity, prices = price_table_identity(run.prices_snapshot)
     return PriceTable(id=identity, prices=prices)
 
 

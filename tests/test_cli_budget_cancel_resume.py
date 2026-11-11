@@ -11,6 +11,7 @@ import pytest
 
 import tests.adapters  # noqa: F401 - importing registers the test adapters
 from evalharness.cli import main
+from evalharness.core.config import Settings
 from evalharness.storage.db import Database
 from evalharness.storage.repository import Repository
 from tests.helpers import (
@@ -203,6 +204,15 @@ def test_budget_abort_mid_run_keeps_completed_cells_and_exits_three(
         cancelled = [cell for cell in cells if cell.status == "cancelled"]
         assert "budget exceeded" in cancelled[0].output["reason"]
         assert repository.list_checks(run_id, cancelled[0].cell_id) == []
+        settings = Settings.from_env()
+        for cell in cells:
+            artifact_dir = Path(cell.artifact_dir or "")
+            assert artifact_dir == settings.artifacts_dir / run_id / cell.cell_id
+            assert artifact_dir.is_dir()
+            assert (artifact_dir / "cell.json").is_file()
+            assert (artifact_dir / "answer.txt").is_file()
+            stored = (artifact_dir / "cell.json").read_text(encoding="utf-8")
+            assert f'"status": "{cell.status}"' in stored
         kinds = [event.kind for event in repository.list_events(run_id)]
         assert "budget_exceeded" in kinds
     finally:
@@ -231,17 +241,23 @@ def test_cancel_after_one_cancels_the_rest_and_exits_zero(
         assert run is not None
         assert run.status == "cancelled"
         assert run.n_cells == 3 and run.n_ok == 1
-        statuses = sorted(cell.status for cell in repository.list_cells(run_id))
+        cells = repository.list_cells(run_id)
+        statuses = sorted(cell.status for cell in cells)
         assert statuses == ["cancelled", "cancelled", "ok"]
-        cancelled = [
-            cell
-            for cell in repository.list_cells(run_id)
-            if cell.status == "cancelled"
-        ]
+        cancelled = [cell for cell in cells if cell.status == "cancelled"]
         assert all(
             cell.output["reason"] == "--cancel-after 1 reached"
             for cell in cancelled
         )
+        settings = Settings.from_env()
+        for cell in cells:
+            artifact_dir = Path(cell.artifact_dir or "")
+            assert artifact_dir == settings.artifacts_dir / run_id / cell.cell_id
+            assert artifact_dir.is_dir()
+            assert (artifact_dir / "cell.json").is_file()
+            assert (artifact_dir / "answer.txt").is_file()
+            stored = (artifact_dir / "cell.json").read_text(encoding="utf-8")
+            assert f'"status": "{cell.status}"' in stored
         aggregates = repository.list_aggregates(run_id)
         overall = [row for row in aggregates if row.tier is None]
         assert len(overall) == 1
@@ -277,6 +293,15 @@ def test_cancel_before_any_cell_with_a_failing_gate_exits_one(
         cells = repository.list_cells(run_id)
         assert len(cells) == 2
         assert all(cell.status == "cancelled" for cell in cells)
+        settings = Settings.from_env()
+        for cell in cells:
+            artifact_dir = Path(cell.artifact_dir or "")
+            assert artifact_dir == settings.artifacts_dir / run_id / cell.cell_id
+            assert artifact_dir.is_dir()
+            assert (artifact_dir / "cell.json").is_file()
+            assert (artifact_dir / "answer.txt").is_file()
+            stored = (artifact_dir / "cell.json").read_text(encoding="utf-8")
+            assert f'"status": "{cell.status}"' in stored
         aggregates = repository.list_aggregates(run_id)
         assert {row.tier for row in aggregates} == {None, 1}
         assert all(row.n == 0 and row.value is None for row in aggregates)

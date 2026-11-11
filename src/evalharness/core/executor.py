@@ -8,9 +8,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterable, Mapping, cast
 
+from evalharness.core.artifacts import cell_artifact_dir
 from evalharness.core.cancel import CancellationToken
 from evalharness.core.context import CredentialStore, RunContext
-from evalharness.core.cost import split_cost
+from evalharness.core.cost import cost_total, split_cost
 from evalharness.core.events import EventEmitter
 from evalharness.core.judges import build_judge_sessions
 from evalharness.core.models import (
@@ -202,6 +203,17 @@ class _Execution:
                     run.run_id, existing.cell_id
                 )
 
+    def _artifact_dir(self, cell_id: str) -> str:
+        """Return the cell's artifact directory, creating it on disk."""
+        return str(
+            cell_artifact_dir(
+                self.artifacts_root,
+                self.run_record.run_id,
+                cell_id,
+                create=True,
+            )
+        )
+
     async def run(self, cells: list[PlannedCell]) -> ExecutionResult:
         """Drive the worker pool and close the run."""
         pending = [cell for cell in cells if cell.cell_id not in self.records]
@@ -384,9 +396,7 @@ class _Execution:
             provider=provider,
             answer=str(output_data.get("answer", "")),
             output=output_data,
-            artifact_dir=str(
-                self.artifacts_root / self.run_record.run_id / cell.cell_id
-            ),
+            artifact_dir=self._artifact_dir(cell.cell_id),
         )
         score_ctx = ScoreContext(
             run_id=self.run_record.run_id,
@@ -454,8 +464,8 @@ class _Execution:
                 "judge_prompt_tokens": judge_prompt,
                 "judge_completion_tokens": judge_completion,
                 "judge_provider_usage": provider_usage,
-                "cost_usd": (
-                    record.answer_cost_usd + judge_usd + record.tool_cost_usd
+                "cost_usd": cost_total(
+                    record.answer_cost_usd, judge_usd, record.tool_cost_usd
                 ),
             }
         )
@@ -484,9 +494,7 @@ class _Execution:
                 "error": self.redactor.redact(str(exc)),
                 "error_type": type(exc).__name__,
             },
-            artifact_dir=str(
-                self.artifacts_root / self.run_record.run_id / cell.cell_id
-            ),
+            artifact_dir=self._artifact_dir(cell.cell_id),
         )
         self.errors += 1
         self._store(failed, [])
@@ -537,9 +545,7 @@ class _Execution:
             status="cancelled",
             provider=self.resolved.candidate_providers.get(cell.candidate, ""),
             output={"reason": reason},
-            artifact_dir=str(
-                self.artifacts_root / self.run_record.run_id / cell.cell_id
-            ),
+            artifact_dir=self._artifact_dir(cell.cell_id),
         )
         self._store(cancelled, [])
         self.emitter.emit(

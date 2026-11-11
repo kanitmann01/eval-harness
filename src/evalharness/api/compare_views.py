@@ -15,7 +15,6 @@ from typing import Any
 from urllib.parse import urlencode
 
 from evalharness.api.graph_views import SpecGraph, run_graph
-from evalharness.api.provenance_views import diff_data
 from evalharness.api.templating import format_usd
 from evalharness.core.compare import (
     BETTER,
@@ -30,8 +29,9 @@ from evalharness.core.compare import (
     OneSidedCase,
     compare_runs,
 )
-from evalharness.core.models import CellRecord, RunRecord
+from evalharness.core.models import CellRecord
 from evalharness.core.stats import required_sample_size
+from evalharness.read_model import RunRead, load_run_read, run_diff_data
 from evalharness.storage.repository import Repository, RunSummary
 
 GRAPH_WIDTH = 640.0
@@ -131,33 +131,43 @@ def load_comparison(
     selection = select(a, b, run, candidate_a, candidate_b)
     if selection is None:
         return None
-    run_a = _run(repository, selection.a)
-    run_b = _run(repository, selection.b)
-    cells_a = repository.list_cells(selection.a)
-    cells_b = repository.list_cells(selection.b)
-    _require_candidate(cells_a, selection.candidate_a, selection.a)
-    _require_candidate(cells_b, selection.candidate_b, selection.b)
+    return _compare(selection, _load_reads(repository, selection))
+
+
+def _load_reads(
+    repository: Repository, selection: Selection
+) -> dict[str, RunRead]:
+    """Load each distinct run in a selection once, keyed by run id."""
+    reads: dict[str, RunRead] = {}
+    for run_id in (selection.a, selection.b):
+        if run_id in reads:
+            continue
+        read = load_run_read(repository, run_id)
+        if read is None:
+            raise CompareError(
+                f"run {run_id} does not exist; open / for the list of runs, or "
+                "start one with 'evalh run spec.yaml'"
+            )
+        reads[run_id] = read
+    return reads
+
+
+def _compare(selection: Selection, reads: dict[str, RunRead]) -> Comparison:
+    """Compare two loaded sides, refusing an unknown candidate."""
+    read_a = reads[selection.a]
+    read_b = reads[selection.b]
+    _require_candidate(read_a.cells, selection.candidate_a, selection.a)
+    _require_candidate(read_b.cells, selection.candidate_b, selection.b)
     return compare_runs(
-        run_a,
-        cells_a,
-        repository.list_checks_for_run(run_a.run_id),
-        run_b,
-        cells_b,
-        repository.list_checks_for_run(run_b.run_id),
+        read_a.run,
+        read_a.cells,
+        read_a.checks_by_cell,
+        read_b.run,
+        read_b.cells,
+        read_b.checks_by_cell,
         candidate_a=selection.candidate_a,
         candidate_b=selection.candidate_b,
     )
-
-
-def _run(repository: Repository, run_id: str) -> RunRecord:
-    """Read one run, or raise an actionable error naming the fix."""
-    record = repository.get_run(run_id)
-    if record is None:
-        raise CompareError(
-            f"run {run_id} does not exist; open / for the list of runs, or "
-            "start one with 'evalh run spec.yaml'"
-        )
-    return record
 
 
 def _require_candidate(
@@ -293,9 +303,7 @@ def comparison_page(
     raises :class:`CompareError` so the route can answer with a 404 page.
     """
     runs = repository.list_run_summaries()
-    comparison = load_comparison(
-        repository, a=a, b=b, run=run, candidate_a=candidate_a, candidate_b=candidate_b
-    )
+    selection = select(a, b, run, candidate_a, candidate_b)
     context: dict[str, Any] = {
         "runs": runs,
         "run_choices": [
@@ -313,44 +321,33 @@ def comparison_page(
         "json_url": _json_url(a, b, run, candidate_a, candidate_b),
         "swap_url": _swap_url(a, b, run, candidate_a, candidate_b),
     }
-    if comparison is not None:
-        context["comparison"] = comparison_view(comparison)
-        context["graph_a"], context["graph_b"] = side_graphs(repository, comparison)
-        if comparison.a.run_id != comparison.b.run_id:
-            context["spec_diff"] = diff_data(
-                repository, comparison.b.run_id, comparison.a.run_id
-            )
+    if selection is None:
+        return context
+    reads = _load_reads(repository, selection)
+    comparison = _compare(selection, reads)
+    context["comparison"] = comparison_view(comparison)
+    context["graph_a"] = _side_graph(reads[selection.a])
+    context["graph_b"] = _side_graph(reads[selection.b])
+    if selection.a != selection.b:
+        context["spec_diff"] = run_diff_data(
+            reads[selection.b], reads[selection.a]
+        )
     return context
 
 
-def side_graphs(
-    repository: Repository,
-    comparison: Comparison,
-) -> tuple[SpecGraph, SpecGraph]:
-    """Return one spec graph per compared side.
+def _side_graph(read: RunRead) -> SpecGraph:
+    """Return the spec graph of one already loaded side.
 
-    Parameters:
-        repository: The run store.
-        comparison: A loaded comparison; load_comparison has already refused a
-            selection whose runs do not exist.
-
-    Each side reads its own cells and gates, so the picture reports real run
-    outcomes rather than the pending draft the wizard rail shows.
+    The graph uses the run's stored cells and gates, so the picture reports
+    real run outcomes rather than the pending draft the wizard rail shows.
     """
-    graphs: list[SpecGraph] = []
-    for side in (comparison.a, comparison.b):
-        run = repository.get_run(side.run_id)
-        assert run is not None
-        graphs.append(
-            run_graph(
-                run,
-                repository.list_cells(side.run_id),
-                repository.list_gates(side.run_id),
-                width=GRAPH_WIDTH,
-                short_labels=True,
-            )
-        )
-    return graphs[0], graphs[1]
+    return run_graph(
+        read.run,
+        read.cells,
+        read.gates,
+        width=GRAPH_WIDTH,
+        short_labels=True,
+    )
 
 
 def _run_label(summary: RunSummary) -> str:

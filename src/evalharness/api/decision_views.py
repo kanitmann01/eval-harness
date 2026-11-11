@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from evalharness.api.templating import format_usd
 from evalharness.core.decision import CandidateDecision, DecisionReport, decide_run
 from evalharness.core.models import RunRecord
+from evalharness.read_model import load_run_read
 from evalharness.storage.repository import Repository
 
 CHART_WIDTH = 640.0
@@ -99,15 +100,11 @@ class ParetoChart:
 
 def load_decision(repository: Repository, run_id: str) -> DecisionSnapshot | None:
     """Load one run with its cells and checks, or None when it does not exist."""
-    run = repository.get_run(run_id)
-    if run is None:
+    read = load_run_read(repository, run_id)
+    if read is None:
         return None
-    report = decide_run(
-        run,
-        repository.list_cells(run_id),
-        repository.list_checks_for_run(run_id),
-    )
-    return DecisionSnapshot(run=run, report=report)
+    report = decide_run(read.run, read.cells, read.checks_by_cell)
+    return DecisionSnapshot(run=read.run, report=report)
 
 
 def decision_page(snapshot: DecisionSnapshot) -> dict[str, object]:

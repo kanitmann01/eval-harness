@@ -292,6 +292,21 @@ class EmptySource:
         return []
 
 
+class CountingSource:
+    """A source that counts how often validation builds and loads it."""
+
+    builds = 0
+    loads = 0
+
+    def __init__(self, cases: list[Case]) -> None:
+        self._cases = cases
+
+    def load(self, spec: Any, ctx: RunContext) -> list[Case]:
+        """Return the configured cases and record the load."""
+        type(self).loads += 1
+        return list(self._cases)
+
+
 def _flaky(identity: str, options: Mapping[str, Any]) -> FlakyCandidate:
     return FlakyCandidate(identity)
 
@@ -350,6 +365,14 @@ def _empty_source(identity: str, options: Mapping[str, Any]) -> EmptySource:
     return EmptySource()
 
 
+def _counting_source(
+    identity: str, options: Mapping[str, Any]
+) -> CountingSource:
+    CountingSource.builds += 1
+    cases = list(options.get("cases") or [])
+    return CountingSource([Case.model_validate(case) for case in cases])
+
+
 def _spec_error_source(
     identity: str, options: Mapping[str, Any]
 ) -> SpecErrorSource:
@@ -397,6 +420,7 @@ register("test:judge", _judge)
 register("test:wrong_key_metric", _wrong_key)
 register("test:failing_source", _failing_source)
 register("test:empty_source", _empty_source)
+register("test:counting_source", _counting_source)
 register("test:spec_error_source", _spec_error_source)
 register("test:boom_candidate", _boom)
 register("test:boom_sink", _boom)

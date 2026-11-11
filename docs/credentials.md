@@ -78,7 +78,7 @@ The `credentials` table holds only ciphertext and metadata:
 | Column | Meaning |
 | --- | --- |
 | `name` | Logical credential name used by the spec. Primary key. |
-| `provider` | Auth shape selector, for example `openai`, `anthropic`, `azure-openai`, `none`. |
+| `provider` | Auth shape selector, for example `openai`, `anthropic`, `azure-openai`, `opencode`, `none`. |
 | `ciphertext` | Fernet token. The secret exists nowhere else in the database. |
 | `created_at` | When the credential was added. |
 | `last_ok_at` | The last successful verification, or NULL. |
@@ -101,7 +101,7 @@ false default, so a row stored by issue #6 reads back as enabled.
 
 | Provider | Header |
 | --- | --- |
-| default, `openai`, `openai-compatible`, `custom` | `Authorization: Bearer <secret>` |
+| default, `openai`, `openai-compatible`, `opencode`, `custom` | `Authorization: Bearer <secret>` |
 | `anthropic` | `x-api-key: <secret>` |
 | `azure-openai` | `api-key: <secret>` |
 | `none` | no auth header |

@@ -11,7 +11,7 @@
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
   {% set path = request.url.path %}
-  {% set section = "runs" if path == "/" or path.startswith("/runs/") else ("specs" if path.startswith("/specs") or path.startswith("/comparisons") else ("compare" if path.startswith("/compare") else ("launch" if path.startswith("/launch") else ("credentials" if path.startswith("/credentials") else "")))) %}
+  {% set section = "runs" if path == "/" or path.startswith("/runs/") else ("specs" if path.startswith("/specs") or path.startswith("/comparisons") else ("demos" if path.startswith("/demos") else ("compare" if path.startswith("/compare") else ("launch" if path.startswith("/launch") else ("credentials" if path.startswith("/credentials") else ""))))) %}
   <header class="topbar">
     <div class="topbar-inner">
       <a class="brand" href="{{ url_for('run_list') }}" aria-label="evalharness console home">
@@ -19,14 +19,15 @@
         <span>evalharness</span> <span class="brand-sub">console</span>
       </a>
       <nav class="site-nav" aria-label="Primary">
-        <a href="{{ url_for('run_list') }}"{% if section == "runs" %} aria-current="page"{% endif %}>Runs</a>
-        <a href="{{ url_for('spec_list') }}"{% if section == "specs" %} aria-current="page"{% endif %}>Specs</a>
+        <a href="{{ url_for('run_list') }}" data-tour="nav-runs"{% if section == "runs" %} aria-current="page"{% endif %}>Runs</a>
+        <a href="{{ url_for('demo_list') }}" data-tour="nav-demos"{% if section == "demos" %} aria-current="page"{% endif %}>Demos</a>
+        <a href="{{ url_for('spec_list') }}" data-tour="nav-specs"{% if section == "specs" %} aria-current="page"{% endif %}>Specs</a>
         <a href="{{ url_for('compare') }}"{% if section == "compare" %} aria-current="page"{% endif %}>Compare</a>
         <a href="{{ url_for('launch_page') }}"{% if section == "launch" %} aria-current="page"{% endif %}>Launch</a>
-        <a href="{{ url_for('credential_list') }}"{% if section == "credentials" %} aria-current="page"{% endif %}>Credentials</a>
+        <a href="{{ url_for('credential_list') }}" data-tour="nav-credentials"{% if section == "credentials" %} aria-current="page"{% endif %}>Credentials</a>
       </nav>
       <div class="topbar-actions">
-        <a class="btn btn-primary btn-sm" href="{{ url_for('comparison_new') }}">New comparison</a>
+        <a class="btn btn-primary btn-sm" href="{{ url_for('comparison_new') }}" data-tour="new-comparison">New comparison</a>
         {% if run is defined and run.status == "running" %}
         <span class="live-indicator"><span class="live-dot" aria-hidden="true"></span>Running</span>
         <form class="nav-cancel" method="post" action="{{ url_for('cancel_run_page', run_id=run.run_id) }}">
@@ -49,7 +50,9 @@
     <span class="footer-sep" aria-hidden="true">/</span>
     <p>No secrets in logs, events, artifacts or HTML.</p>
   </footer>
+  {% include "_tour.html" %}
   <script src="{{ url_for('static', path='console.js') }}" defer></script>
+  <script src="{{ url_for('static', path='tour.js') }}" defer></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

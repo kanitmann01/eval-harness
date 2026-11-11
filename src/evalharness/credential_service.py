@@ -10,16 +10,13 @@ from __future__ import annotations
 from typing import Iterable
 
 from evalharness.adapters.verify.http_verifier import build as build_verifier
+from evalharness.core.credential_names import unknown_credential
 from evalharness.core.models import CredentialRecord, CredentialState
 from evalharness.core.protocols import VerificationResult
 from evalharness.core.redaction import Redactor, SecretRedactor
 from evalharness.core.vault import Vault, VaultCredentialStore
 from evalharness.errors import SpecError
 from evalharness.storage.repository import Repository
-
-UNKNOWN_CREDENTIAL_FIX = "list the stored credentials with 'evalh credentials list'"
-"""The fix every unknown-credential error names, in the CLI and the console."""
-
 
 def add_credential(
     repository: Repository,
@@ -82,12 +79,7 @@ async def verify_credential(
     store = VaultCredentialStore(vault, repository)
     handle = store.get(name)
     if handle is None:
-        raise SpecError(
-            f"credentials.{name}",
-            name,
-            "unknown credential",
-            UNKNOWN_CREDENTIAL_FIX,
-        )
+        raise unknown_credential(name)
     if not verify_url:
         raise SpecError(
             "EVALH_VERIFY_URL",

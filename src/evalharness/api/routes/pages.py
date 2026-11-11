@@ -17,6 +17,7 @@ from evalharness.api.views import (
     run_thumbnails,
     run_verdict,
 )
+from evalharness.read_model import load_run_read
 from evalharness.storage.repository import Repository
 
 router = APIRouter()
@@ -81,43 +82,42 @@ def _detail_page(
     selected_cell_id: str,
 ) -> HTMLResponse:
     """Render a run with the optional selected cell, or a 404 page."""
-    run = repository.get_run(run_id)
-    if run is None:
+    read = load_run_read(repository, run_id, with_events=True)
+    if read is None:
         return _not_found(request, f"run {run_id} does not exist")
-    cells = repository.list_cells(run_id)
-    checks_by_cell = repository.list_checks_for_run(run_id)
     selected = None
     if selected_cell_id:
         selected = next(
-            (cell for cell in cells if cell.cell_id == selected_cell_id), None
+            (cell for cell in read.cells if cell.cell_id == selected_cell_id),
+            None,
         )
         if selected is None:
             return _not_found(
                 request,
                 f"cell {selected_cell_id} is not part of run {run_id}",
             )
-    columns, rows = heatmap(cells, checks_by_cell, run_id, selected_cell_id)
-    finished = run.finished_at
-    duration_s = (finished - run.started_at).total_seconds() if finished else None
-    selected_checks = checks_by_cell.get(selected.cell_id, []) if selected else []
-    gates = repository.list_gates(run_id)
-    checks = [check for items in checks_by_cell.values() for check in items]
-    graph = run_graph(run, cells, gates)
+    columns, rows = heatmap(
+        read.cells, read.checks_by_cell, run_id, selected_cell_id
+    )
+    selected_checks = read.checks_for(selected.cell_id) if selected else []
+    graph = run_graph(read.run, read.cells, read.gates)
     return render(
         request,
         "run_detail.html",
         {
-            "run": run,
-            "duration_s": duration_s,
-            "verdict": run_verdict(run, cells, checks, gates),
-            "progress": progress_summary(run, cells),
+            "run": read.run,
+            "duration_s": read.duration_s,
+            "verdict": run_verdict(
+                read.run, read.cells, read.checks, read.gates
+            ),
+            "progress": progress_summary(read.run, read.cells),
             "columns": columns,
             "rows": rows,
             "graph": graph,
-            "contexts": context_summary(cells),
-            "aggregates": repository.list_aggregates(run_id),
-            "gates": gates,
-            "events": repository.list_events(run_id),
+            "contexts": context_summary(read.cells),
+            "aggregates": read.aggregates,
+            "gates": read.gates,
+            "events": read.events,
             "selected_cell": selected,
             "selected_checks": selected_checks,
             "selected_citations": citations_for(selected) if selected else [],

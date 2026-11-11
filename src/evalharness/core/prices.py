@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
@@ -101,3 +103,47 @@ def resolved_price_table(spec: Spec, defaults: PriceTable) -> PriceTable:
     for provider, models in spec.provider_prices.items():
         table.setdefault(provider, {}).update(models)
     return PriceTable(providers=table)
+
+
+def flatten_price_snapshot(
+    snapshot: Mapping[str, Any],
+) -> dict[str, dict[str, float]]:
+    """Return a run's price snapshot as display rates, legacy or version 2.
+
+    A version 2 snapshot nests the table by provider and is flattened to
+    `provider/model` keys; a provider-agnostic entry keeps the bare model key,
+    so the display stays readable. A snapshot written before issue #17 is
+    already flat and is read as it stands. An empty mapping is allowed so a run
+    recorded without prices still reads back as zero rates.
+    """
+    data = dict(snapshot or {})
+    if data.get("version") == 2:
+        providers = data.get("providers") or {}
+        return {
+            (f"{provider}/{model}" if provider else str(model)): {
+                str(key): float(value) for key, value in dict(price).items()
+            }
+            for provider, models in providers.items()
+            for model, price in models.items()
+        }
+    return {
+        str(model): {str(key): float(value) for key, value in dict(price).items()}
+        for model, price in data.items()
+    }
+
+
+def price_table_identity(
+    snapshot: Mapping[str, Any],
+) -> tuple[str, dict[str, dict[str, float]]]:
+    """Return the flattened rates and the sha256 identity a receipt records.
+
+    The identity is the SHA-256 of the canonical JSON flattening, and it is the
+    key both the compare page and the run receipt quote. Every stored receipt
+    hash was computed with exactly this expression, so it must not change
+    without migrating the runs that already recorded one.
+    """
+    prices = flatten_price_snapshot(snapshot)
+    identity = hashlib.sha256(
+        json.dumps(prices, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+    return identity, prices

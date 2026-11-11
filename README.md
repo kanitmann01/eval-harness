@@ -319,6 +319,7 @@ and never render a secret.
 | --- | --- |
 | `/` | Run list: candidate and metric filters, spec graph thumbnail, status, pass rate, cost, duration and start time. |
 | `/runs/{id}` | Run detail: verdict bar, candidate by case heatmap, per-cell evidence, gate cards and live progress. |
+| `/runs/{id}/trace` | Trace view: every case side by side by candidate, with the effective prompt, context chunks, full answer, checks and word diff. Add `?replay=1` to play the recorded timing and events. |
 | `/runs/{id}/decision` | Ranked candidates: checks, pass rate with its 95 percent interval, cost per correct answer, p50/p95 latency, cells, a conservative dominance call and a Pareto scatter. |
 | `/runs/{id}/receipt` | One-page provenance: spec hash, harness revision, operator, seed, timestamps, candidates, judge pins, price snapshot, gates and the diff to the previous run. |
 | `/runs/{id}/diff?against={id}` | Structured spec diff between two runs, grouped into case, candidate, judge, price, run field and gate changes, plus judge drift. |
@@ -330,11 +331,31 @@ and never render a secret.
 | `/launch` | Cost estimate from observed medians, budget cap and Launch. |
 | `/compare` | Compare chooser: two runs, or one run and two candidates, with deltas and intervals. |
 | `/credentials` | BYOK vault: add, mask, test, disable, enable and delete provider keys. |
+| `/demos` | Demo library: four scripted walkthroughs of the engine, each with what to look for, the expected read and a one-click Run demo. |
 
-Navigation carries `Runs`, `Specs`, `Compare`, `Launch` and `Credentials`; `New
-comparison` is the primary action in the top bar. The run page links to `Decision`,
-`Receipt`, `Calibration`, `Compare` and `All runs`, and a spec row links to
-`Launch`.
+Navigation carries `Runs`, `Specs`, `Demos`, `Compare`, `Launch` and `Credentials`;
+`New comparison` is the primary action in the top bar. The run page links to `Trace`,
+`Decision`, `Receipt`, `Calibration`, `Compare` and `All runs`, and a spec row links
+to `Launch`.
+
+### Demo library and trace
+
+`/demos` is a library of ready-made comparisons, not a blank form. Each card names
+the question, what varies, what to look for and the expected read. `Run demo`
+materializes the bundled spec as `demo-<slug>.yaml` in the specs directory, records
+the first run, and opens its trace; later plays replay that same recorded run and
+execute nothing. `Open spec` materializes it in the raw editor so the stub candidate
+can be swapped for a real provider. The bundled demos are scripted and offline: the
+stub answers are fixed, and the page says so. Run demo refuses a spec edited to a
+live provider; that spec must be launched from Launch. Replays reuse the recorded
+run, so a second play burns no tokens and still shows the same timing and event
+log.
+
+The trace at `/runs/{id}/trace` puts the candidates for each case next to each
+other. Each column shows the effective prompt (including a per-candidate override),
+the context chunks the candidate received, the full answer, every check with its
+reason and evidence, token and cost accounting, and any transport error. With two
+candidates the page offers a word-level diff.
 
 ![A run detail page with the heatmap and evidence](docs/evidence/detail-after.jpg)
 

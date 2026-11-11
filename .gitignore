@@ -23,3 +23,7 @@ tmp/
 .tmp-probe/
 pytest-cache-files-*/
 *.log
+.env.live
+.env.live.test
+.evalh-live/
+.evalh-live-test/

@@ -26,11 +26,16 @@ the only signal.
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from evalharness.core.models import CellRecord, GateResult, RunRecord
+from evalharness.api.spec_projection import (
+    ProjectedGate,
+    SpecProjection,
+    projection_for,
+)
+from evalharness.core.models import CellRecord, GateResult, RunRecord, Spec
 
 _STATE_BY_TONE = {
     "neutral": "pending",
@@ -158,17 +163,19 @@ class _GateFace:
 
 
 def spec_graph(
-    spec: Mapping[str, Any],
+    spec: Spec | SpecProjection | Mapping[str, Any],
     *,
     cells: Sequence[CellRecord] = (),
     gates: Sequence[GateResult] = (),
     width: float = 960.0,
     short_labels: bool = False,
 ) -> SpecGraph:
-    """Return the spec graph for one resolved spec, optionally with run data.
+    """Return the spec graph for one spec, optionally with run data.
 
     Parameters:
-        spec: The resolved spec mapping, typically RunRecord.spec_snapshot.
+        spec: A validated core spec, its typed projection, or a raw snapshot
+            mapping (typically RunRecord.spec_snapshot). All three become one
+            projection before any layout happens.
         cells: Stored cells of the run, used for box tones and wire weights.
         gates: Gate results of the run. When omitted, declared gates show as
             pending.
@@ -180,7 +187,7 @@ def spec_graph(
     remove boxes, they never raise.
     """
     return _build_graph(
-        spec,
+        projection_for(spec),
         cells=cells,
         gates=gates,
         width=width,
@@ -209,9 +216,8 @@ def run_graph(
     A run that is still pending or running shows its verdict as pending even
     when gate results are already present.
     """
-    spec = run.spec_snapshot if isinstance(run.spec_snapshot, Mapping) else {}
     return _build_graph(
-        spec,
+        projection_for(run.spec_snapshot),
         cells=cells,
         gates=gates,
         width=width,
@@ -321,11 +327,12 @@ def compact_graph(graph: SpecGraph) -> SpecGraph:
     )
 
 
-def rail_graph(spec: Mapping[str, Any]) -> SpecGraph:
+def rail_graph(spec: Spec | SpecProjection | Mapping[str, Any]) -> SpecGraph:
     """Return the compact graph drawn inside the wizard rail.
 
     Parameters:
-        spec: The draft spec being edited.
+        spec: The draft spec being edited, as a document, core spec or typed
+            projection.
     """
     return compact_graph(spec_graph(spec, width=_RAIL_WIDTH))
 
@@ -352,7 +359,7 @@ def _rebuild_edges(
 
 
 def _build_graph(
-    spec: Mapping[str, Any],
+    spec: SpecProjection,
     *,
     cells: Sequence[CellRecord],
     gates: Sequence[GateResult],
@@ -361,31 +368,21 @@ def _build_graph(
     short: bool = False,
 ) -> SpecGraph:
     """Assemble the columns, boxes, wires and aria sentence for one graph."""
-    source = _mapping(spec.get("source"))
-    raw_cases = _sequence(_mapping(source.get("options")).get("cases"))
-
-    case_ids: list[str] = []
-    for index, case in enumerate(raw_cases, start=1):
-        case_ids.append(_text(_field(case, "case_id")) or f"case-{index}")
-
-    candidates: list[tuple[str, str, Mapping[str, Any]]] = []
-    for index, candidate in enumerate(_sequence(spec.get("candidates")), start=1):
-        name = _text(_field(candidate, "name")) or f"candidate-{index}"
-        options = _mapping(_field(candidate, "options"))
-        candidates.append((name, f"candidate:{name}", options))
-
-    metric_names: list[str] = []
-    for metric in _sequence(spec.get("metrics")):
-        key = _text(_field(metric, "key"))
-        if key and key not in metric_names:
-            metric_names.append(key)
-
-    prompts = _mapping(spec.get("prompts"))
-    contexts = _mapping(spec.get("contexts"))
-    prompt_names = list(_text_keys(prompts))
-    context_names = list(_text_keys(contexts))
-    faces = _gate_faces(gates, spec)
-    replicas = _replicas(spec)
+    case_ids = list(spec.cases)
+    candidates = [
+        (
+            candidate.name,
+            f"candidate:{candidate.name}",
+            candidate.prompt,
+            candidate.context,
+        )
+        for candidate in spec.candidates
+    ]
+    metric_names = list(spec.metrics)
+    prompt_names = [prompt.name for prompt in spec.prompts]
+    context_names = [context.name for context in spec.contexts]
+    faces = _gate_faces(gates, spec.gates)
+    replicas = spec.replicas
 
     columns = _columns(width, short=short)
 
@@ -403,26 +400,26 @@ def _build_graph(
     ]
 
     feed_nodes: list[GraphNode] = []
-    for index, name in enumerate(prompt_names):
-        text = _text(prompts.get(name))
+    for index, prompt in enumerate(spec.prompts):
+        detail = f"{len(prompt.text) if prompt.text is not None else 0} chars"
         feed_nodes.append(
             _node(
-                key=f"prompt:{name}",
+                key=f"prompt:{prompt.name}",
                 column="feeds",
-                label=name,
-                detail=f"{len(text) if text is not None else 0} chars",
+                label=prompt.name,
+                detail=detail,
                 tone="neutral",
                 column_view=columns[1],
                 index=index,
             )
         )
-    for index, name in enumerate(context_names):
+    for index, context in enumerate(spec.contexts):
         feed_nodes.append(
             _node(
-                key=f"context:{name}",
+                key=f"context:{context.name}",
                 column="feeds",
-                label=name,
-                detail=_plural(len(_sequence(contexts.get(name))), "chunk"),
+                label=context.name,
+                detail=_plural(context.chunks, "chunk"),
                 tone="neutral",
                 column_view=columns[1],
                 index=len(prompt_names) + index,
@@ -430,7 +427,7 @@ def _build_graph(
         )
 
     candidate_nodes: list[GraphNode] = []
-    for index, (name, key, _options) in enumerate(candidates):
+    for index, (name, key, _prompt, _context) in enumerate(candidates):
         own = _cells_for_candidate(cells, name)
         candidate_nodes.append(
             _node(
@@ -495,7 +492,7 @@ def _build_graph(
     for case_id in case_ids:
         case_cells = _cells_for_case(cells, case_id)
         case_key = f"case:{case_id}"
-        for name, candidate_key, _options in candidates:
+        for name, candidate_key, _prompt, _context in candidates:
             count = sum(1 for cell in case_cells if cell.candidate == name)
             _add_edge(
                 edges,
@@ -505,14 +502,13 @@ def _build_graph(
                 by_key[case_key].tone,
             )
 
-    for name, candidate_key, options in candidates:
+    for name, candidate_key, prompt, context in candidates:
         count = len(_cells_for_candidate(cells, name))
-        for slot, prefix, known in (
-            ("prompt", "prompt", prompt_names),
-            ("context", "context", context_names),
+        for prefix, known, value in (
+            ("prompt", prompt_names, prompt),
+            ("context", context_names, context),
         ):
-            value = _text(options.get(slot))
-            if value in known:
+            if value is not None and value in known:
                 _add_edge(
                     edges,
                     by_key[f"{prefix}:{value}"],
@@ -521,7 +517,7 @@ def _build_graph(
                     "neutral",
                 )
 
-    for name, candidate_key, _options in candidates:
+    for name, candidate_key, _prompt, _context in candidates:
         count = len(_cells_for_candidate(cells, name))
         tone = by_key[candidate_key].tone
         for metric in metric_names:
@@ -672,7 +668,7 @@ def _add_edge(
 
 def _gate_faces(
     gates: Sequence[GateResult],
-    spec: Mapping[str, Any],
+    declared: Sequence[ProjectedGate],
 ) -> tuple[_GateFace, ...]:
     """Return gate faces from results, or from declarations when empty."""
     if gates:
@@ -685,19 +681,15 @@ def _gate_faces(
             )
             for gate in gates
         )
-    faces: list[_GateFace] = []
-    for index, declared in enumerate(_sequence(spec.get("gates")), start=1):
-        metric = _text(_field(declared, "metric")) or f"gate-{index}"
-        candidate = _text(_field(declared, "candidate"))
-        faces.append(
-            _GateFace(
-                label=metric,
-                metric=metric,
-                tone="pending",
-                candidate=candidate or None,
-            )
+    return tuple(
+        _GateFace(
+            label=gate.label,
+            metric=gate.metric,
+            tone="pending",
+            candidate=gate.candidate,
         )
-    return tuple(faces)
+        for gate in declared
+    )
 
 
 def _cells_for_case(cells: Sequence[CellRecord], case_id: str) -> list[CellRecord]:
@@ -784,45 +776,3 @@ def _aria(
 def _plural(count: int, word: str) -> str:
     """Return the count with a singular or plural noun."""
     return f"{count} {word}" if count == 1 else f"{count} {word}s"
-
-
-def _replicas(spec: Mapping[str, Any]) -> int:
-    """Return a positive replica count, defaulting to one when unusable."""
-    value = spec.get("replicas")
-    if isinstance(value, bool) or not isinstance(value, int) or value < 1:
-        return 1
-    return value
-
-
-def _text_keys(value: Any) -> Iterator[str]:
-    """Yield the string keys of a named mapping in insertion order."""
-    for key in _mapping(value):
-        name = _text(key)
-        if name is not None:
-            yield name
-
-
-def _mapping(value: Any) -> Mapping[str, Any]:
-    """Return the value when it is a mapping, otherwise an empty mapping."""
-    if isinstance(value, Mapping):
-        return value
-    return {}
-
-
-def _sequence(value: Any) -> Sequence[Any]:
-    """Return the value when it is a list or tuple, otherwise empty."""
-    if isinstance(value, (list, tuple)):
-        return value
-    return []
-
-
-def _field(value: Any, name: str) -> Any:
-    """Return one field from a mapping without requiring the key."""
-    return _mapping(value).get(name)
-
-
-def _text(value: Any) -> str | None:
-    """Return a string value, or None when the value is absent."""
-    if isinstance(value, str):
-        return value
-    return None

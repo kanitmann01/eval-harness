@@ -237,7 +237,7 @@ may omit the field entirely. See [http-candidate.md](http-candidate.md) and
 | adapter | string | yes | Registered name or module:attr dotted path. |
 | credential | string | no | A name declared under credentials or stored in the vault. Optional only when the adapter needs no secret, for example an HTTP candidate with `auth: none`. |
 | model | string | yes | Must have a resolved price (see prices). A provider adapter uses it as the model it calls and reports its provider's price. |
-| options | mapping | no | Adapter options. prompt, context and answers are the ones this ticket uses. The HTTP candidate's options are base_url, path, timeout_s, auth and header_name; the provider candidates add system, temperature and max_tokens. |
+| options | mapping | no | Adapter options. prompt, context and answers are the ones this ticket uses. The HTTP candidate's options are base_url, path, timeout_s, auth and header_name; the provider candidates add system, temperature, max_tokens and headers. |
 
 The candidate name is the identity passed to its factory. Prompt and context
 are ambient: the candidate reads them from RunContext, not from settings.

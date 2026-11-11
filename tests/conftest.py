@@ -60,6 +60,23 @@ def workdir() -> Iterator[Path]:
 
 
 @pytest.fixture
+def tmp_path() -> Iterator[Path]:
+    """Give tests that ask for tmp_path a disposable workspace directory.
+
+    pytest's own temp base sits outside the sandbox's writable area on Windows,
+    so the built-in fixture fails while creating or cleaning it. This override
+    keeps the same contract, unique path per test and removal afterwards, and
+    uses the workspace scratch location that is writable here.
+    """
+    base = Path.cwd() / ".test-work"
+    base.mkdir(exist_ok=True)
+    path = base / uuid.uuid4().hex
+    path.mkdir()
+    yield path
+    shutil.rmtree(path, ignore_errors=True)
+
+
+@pytest.fixture
 def evalh_home(workdir: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     """Point EVALH_HOME at a fresh directory and strip other harness env."""
     home = workdir / "home"

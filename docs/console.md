@@ -45,6 +45,7 @@ status through its own middleware and never logs the query, headers or bodies.
 | --- | --- | --- |
 | Runs | `GET /` | Status, spec name, candidates, cells ok, pass rate, cost, duration and start time, newest first. Query parameters `candidate=` and `metric=` narrow the list. |
 | Run detail | `GET /runs/{run_id}` | Candidate by case heatmap, a context panel with the selector, digest and chunk ids each candidate received, aggregates with 95 percent Wilson intervals and pass@k / pass^k, gates, the spec graph and the selected cell. Add `?cell=<cell_id>` to select one. |
+| Trace | `GET /runs/{run_id}/trace` | Every case side by side by candidate: effective prompt, context chunks, full answer, checks with evidence, usage and errors, plus a word diff when there are two candidates. Add `?replay=1` to replay the recorded events and timing. |
 | Cell detail | `GET /runs/{run_id}/cells/{cell_id}` | The same run detail page with that cell selected. |
 | Artifact | `GET /runs/{run_id}/cells/{cell_id}/artifact` | The stored `cell.json` for the cell. Add `?file=answer.txt` for the answer file. |
 | Specs | `GET /specs` | Every spec in the specs directory: name, candidates, cells, estimate, size, modified time, validation state and the Launch, Edit, YAML and Duplicate actions. `/comparisons` redirects here. |
@@ -58,13 +59,15 @@ status through its own middleware and never logs the query, headers or bodies.
 | Spec diff | `GET /runs/{run_id}/diff?against={run_id}` | Structured changes from the baseline run to this one, plus judge drift and a like-for-like refusal. |
 | Calibration | `GET /runs/{run_id}/calibration` | Human labels per stored check, agreement and interval, per-judge stamps and the disagreements. |
 | Credentials | `GET` and `POST /credentials` | Every stored credential, masked: name, provider, fingerprint prefix, created and last verified times, last error, state and actions. |
+| Demos | `GET /demos` | Four scripted engine walkthroughs: the question, what varies, what to look for, the expected read and Run demo / Open spec actions. The first Run demo records the bundled spec once; later plays replay that run. |
+| Tour | any page | A hidden five-step coach-mark layer, shown once per browser: Runs, Demos, New comparison, Specs and Credentials. Seen state is `evalh:console-tour:v1` in localStorage; no cookie and no request. |
 | Not found | any unknown id or path | A 404 page that names what was asked and links back to the run list. |
 | Refused | a cancel this console does not drive, a changed spec, a missing vault key | A 409 or 503 page with the reason and the next action, never a stack trace. |
 
-Navigation carries `Runs`, `Specs`, `Compare`, `Launch` and `Credentials`, plus a
-`New comparison` primary action in the top bar; a run page links to `Compare this
-run` and a spec row links to `Launch`. The active section carries
-`aria-current="page"`.
+Navigation carries `Runs`, `Demos`, `Specs`, `Compare`, `Launch` and `Credentials`,
+plus a `New comparison` primary action in the top bar; a run page links to `Trace`
+and `Compare this run`, and a spec row links to `Launch`. The active section
+carries `aria-current="page"`.
 
 Every displayed timestamp is UTC and uses `YYYY-MM-DD HH:MM:SS UTC`; the database
 stores timezone-aware UTC values and no page converts to the visitor's zone, so
@@ -207,9 +210,10 @@ the ciphertext.
 
 The provider choices are the verifier's auth table, so the form offers exactly
 the shapes `adapters/verify/http_verifier.py` knows: `openai` (Bearer token),
-`anthropic` (`x-api-key`), `azure-openai` (`api-key`) and `none` (no auth
-header). A provider outside that table is refused with a `provider` error
-naming the choices; the CLI still accepts any provider and treats it as bearer.
+`opencode` (Bearer token), `anthropic` (`x-api-key`), `azure-openai`
+(`api-key`) and `none` (no auth header). A provider outside that table is
+refused with a `provider` error naming the choices; the CLI still accepts any
+provider and treats it as bearer.
 
 ### Masking and states
 

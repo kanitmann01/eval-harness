@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Mapping
 
+from evalharness.core.artifacts import cell_artifact_dir
 from evalharness.core.context import RunContext
 from evalharness.core.events import EventEmitter
 from evalharness.core.models import (
@@ -671,6 +672,7 @@ def _sink_roundtrip(target: ConformanceContext) -> Path:
         case_id=CASE_ID,
         replica=1,
         answer="42",
+        artifact_dir=str(cell_artifact_dir(root, RUN_ID, "conformance-cell")),
     )
     sink.open_run(run)
     sink.record_cell(cell, [Check(metric=METRIC_KEY, passed=True)])

@@ -6,14 +6,14 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from evalharness.api.graph_views import SpecGraph, spec_graph, thumbnail
 from evalharness.core.models import (
-    Aggregate,
     CellRecord,
     Check,
     GateResult,
     RunRecord,
 )
-from evalharness.api.graph_views import SpecGraph, spec_graph, thumbnail
+from evalharness.read_model import RunRead
 from evalharness.core.stats import wilson_interval
 from evalharness.storage.repository import RunSummary
 
@@ -132,28 +132,17 @@ def run_summary_data(summary: RunSummary) -> dict[str, Any]:
     }
 
 
-def run_detail_data(
-    run: RunRecord,
-    cells: list[CellRecord],
-    checks_by_cell: dict[str, list[Check]],
-    aggregates: list[Aggregate],
-    gates: list[GateResult],
-) -> dict[str, Any]:
-    """Return the JSON shape of one run, including cells and aggregates."""
-    checks = [check for items in checks_by_cell.values() for check in items]
-    passed = sum(1 for check in checks if check.passed)
-    finished = run.finished_at
-    duration = (
-        (finished - run.started_at).total_seconds() if finished is not None else None
-    )
+def run_detail_data(read: RunRead) -> dict[str, Any]:
+    """Return the JSON shape of one loaded run, including cells and aggregates."""
+    run = read.run
     return {
         "run_id": run.run_id,
         "spec_name": str(run.spec_snapshot.get("name", "")),
         "status": run.status,
         "cost_usd": run.cost_usd,
         "budget_usd": run.budget_usd,
-        "pass_rate": passed / len(checks) if checks else None,
-        "duration_s": duration,
+        "pass_rate": read.pass_rate,
+        "duration_s": read.duration_s,
         "n_cells": run.n_cells,
         "n_ok": run.n_ok,
         "seed": run.seed,
@@ -161,10 +150,12 @@ def run_detail_data(
         "error": run.error,
         "started_at": _isoformat(run.started_at),
         "finished_at": _isoformat(run.finished_at),
-        "aggregates": [aggregate.model_dump(mode="json") for aggregate in aggregates],
-        "gates": [gate.model_dump(mode="json") for gate in gates],
+        "aggregates": [
+            aggregate.model_dump(mode="json") for aggregate in read.aggregates
+        ],
+        "gates": [gate.model_dump(mode="json") for gate in read.gates],
         "cells": [
-            cell_data(cell, checks_by_cell.get(cell.cell_id, [])) for cell in cells
+            cell_data(cell, read.checks_for(cell.cell_id)) for cell in read.cells
         ],
     }
 

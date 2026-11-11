@@ -10,8 +10,6 @@ contract.
 
 from __future__ import annotations
 
-import hashlib
-import json
 from typing import Any, Mapping
 
 from evalharness.core.judge_pins import (
@@ -20,11 +18,13 @@ from evalharness.core.judge_pins import (
     judge_drift,
     pins_for_run,
 )
-from evalharness.core.models import Check, RunRecord
+from evalharness.core.models import RunRecord
+from evalharness.core.prices import price_table_identity
 from evalharness.core.spec_diff import (
     diff_run_snapshots,
     spec_diff_data,
 )
+from evalharness.read_model import RunRead, load_run_read, run_diff_data
 from evalharness.storage.repository import Repository
 
 
@@ -42,9 +42,10 @@ def receipt_data(repository: Repository, run_id: str) -> dict[str, Any]:
     Raises:
         ProvenanceError: when the run does not exist.
     """
-    run = _require_run(repository, run_id)
+    read = _require_read(repository, run_id)
+    run = read.run
     spec = repository.get_spec(run.spec_id) or {}
-    checks = _checks_for(repository, run.run_id)
+    checks = read.checks
     pins = pins_for_run(run, checks)
     drifts = judge_drift(run, checks)
     previous = _previous_run(repository, run)
@@ -60,7 +61,7 @@ def receipt_data(repository: Repository, run_id: str) -> dict[str, Any]:
         if previous is not None
         else None
     )
-    price_id, rates = _price_table(run.prices_snapshot)
+    price_id, rates = price_table_identity(run.prices_snapshot)
     spec_sha = str(spec.get("sha") or "")
     return {
         "run_id": run.run_id,
@@ -96,7 +97,7 @@ def receipt_data(repository: Repository, run_id: str) -> dict[str, Any]:
                 "observed": gate.observed,
                 "n": gate.n,
             }
-            for gate in repository.list_gates(run.run_id)
+            for gate in read.gates
         ],
         "previous": (
             _previous_data(previous) if previous is not None else None
@@ -122,55 +123,24 @@ def diff_data(
     Raises:
         ProvenanceError: when either run does not exist or against is empty.
     """
-    current = _require_run(repository, run_id)
     if not against:
         raise ProvenanceError(
             "a diff needs ?against=<run id> naming the baseline run"
         )
-    baseline = _require_run(repository, against)
-    diff = diff_run_snapshots(
-        baseline.spec_snapshot,
-        current.spec_snapshot,
-        baseline.prices_snapshot,
-        current.prices_snapshot,
-        a_source=baseline.source_snapshot,
-        b_source=current.source_snapshot,
-    )
-    drifts = judge_drift(
-        baseline,
-        _checks_for(repository, baseline.run_id),
-        current,
-        _checks_for(repository, current.run_id),
-    )
-    return {
-        "current": _run_side(current),
-        "against": _run_side(baseline),
-        "diff": spec_diff_data(diff),
-        "drift": [_drift_data(drift) for drift in drifts],
-        "diff_url": (
-            f"/runs/{current.run_id}/diff?against={baseline.run_id}"
-        ),
-        "swap_url": (
-            f"/runs/{baseline.run_id}/diff?against={current.run_id}"
-        ),
-    }
+    current = _require_read(repository, run_id)
+    baseline = _require_read(repository, against)
+    return run_diff_data(current, baseline)
 
 
-def _require_run(repository: Repository, run_id: str) -> RunRecord:
-    """Return one run or raise the actionable not-found error."""
-    run = repository.get_run(run_id)
-    if run is None:
+def _require_read(repository: Repository, run_id: str) -> RunRead:
+    """Return one loaded run or raise the actionable not-found error."""
+    read = load_run_read(repository, run_id)
+    if read is None:
         raise ProvenanceError(
             f"run {run_id} does not exist; open the run list or start a run "
             "with evalh run <spec.yaml>"
         )
-    return run
-
-
-def _checks_for(repository: Repository, run_id: str) -> list[Check]:
-    """Return every check a run stored, flattened across its cells."""
-    by_cell = repository.list_checks_for_run(run_id)
-    return [check for checks in by_cell.values() for check in checks]
+    return read
 
 
 def _run_name(run: RunRecord) -> str:
@@ -251,54 +221,3 @@ def _previous_data(previous: RunRecord) -> dict[str, Any]:
         "receipt_url": f"/runs/{previous.run_id}/receipt",
         "run_url": f"/runs/{previous.run_id}",
     }
-
-
-def _run_side(run: RunRecord) -> dict[str, Any]:
-    """Return the header facts for one side of the diff page."""
-    return {
-        "run_id": run.run_id,
-        "spec_name": _run_name(run),
-        "status": run.status,
-        "seed": run.seed,
-        "operator": run.operator,
-        "operator_recorded": bool(run.operator),
-        "started_at": run.started_at,
-        "finished_at": run.finished_at,
-        "receipt_url": f"/runs/{run.run_id}/receipt",
-        "run_url": f"/runs/{run.run_id}",
-    }
-
-
-def _price_table(
-    snapshot: Mapping[str, Any],
-) -> tuple[str, dict[str, dict[str, float]]]:
-    """Return the price snapshot's fingerprint and flattened rates.
-
-    The flattening mirrors core.compare so a receipt's fingerprint matches the
-    one the compare page shows for the same run. A version 2 snapshot nests the
-    table by provider; an older snapshot is already flat.
-    """
-    prices: dict[str, dict[str, float]]
-    snapshot = dict(snapshot or {})
-    if snapshot.get("version") == 2:
-        providers = snapshot.get("providers") or {}
-        prices = {
-            (
-                f"{provider}/{model}" if provider else str(model)
-            ): {str(key): float(value) for key, value in dict(price).items()}
-            for provider, models in providers.items()
-            for model, price in models.items()
-        }
-    else:
-        prices = {
-            str(model): {
-                str(key): float(value) for key, value in dict(price).items()
-            }
-            for model, price in snapshot.items()
-        }
-    identity = hashlib.sha256(
-        json.dumps(prices, sort_keys=True, separators=(",", ":")).encode(
-            "utf-8"
-        )
-    ).hexdigest()
-    return identity, prices

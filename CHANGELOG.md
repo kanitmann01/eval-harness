@@ -5,6 +5,19 @@ All notable changes to this project are recorded here. The format follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html), and every release is
 compared against the spec of record in issue #1.
 
+## [Unreleased]
+
+### Added
+
+- A trace at `GET /runs/{run_id}/trace`: candidates side by side per case with
+  the effective prompt, context chunks, answers, checks and evidence, usage,
+  errors and a word diff. `?replay=1` replays the recorded events and timing.
+- A demo library at `GET /demos` with four offline walkthroughs of the engine
+  (prompt choice, context grounding, model tradeoff, failure path). `Run demo`
+  records a bundled spec once and later replays that run without executing it;
+  `Open spec` opens it in the editor. A first-visit tour marks the main
+  navigation and actions.
+
 ## [0.4.0] - 2026-11-03
 
 The Context release: the code under test becomes a named, content-addressed input,

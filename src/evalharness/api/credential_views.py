@@ -20,6 +20,7 @@ from evalharness.adapters.verify.http_verifier import (
     KNOWN_PROVIDERS,
     provider_choices,
 )
+from evalharness.core import credential_names
 from evalharness.core.models import CredentialRecord
 from evalharness.core.vault import Vault
 from evalharness.errors import SpecError
@@ -233,13 +234,8 @@ def error_data(error: SpecError) -> dict[str, Any]:
 
 
 def unknown_credential(name: str) -> SpecError:
-    """Return the actionable error for a name the vault does not store."""
-    return SpecError(
-        f"credentials.{name}",
-        name,
-        "unknown credential",
-        "list the stored credentials with 'evalh credentials list'",
-    )
+    """Return the shared actionable error for a name the vault does not store."""
+    return credential_names.unknown_credential(name)
 
 
 def _row(record: CredentialRecord, fingerprint: str | None) -> CredentialRow:

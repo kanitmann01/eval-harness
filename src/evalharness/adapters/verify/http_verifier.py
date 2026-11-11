@@ -6,6 +6,7 @@ from typing import Any, Mapping
 
 import httpx
 
+from evalharness.adapters.provider_wire import DEFAULT_ANTHROPIC_VERSION
 from evalharness.core.protocols import VerificationResult
 
 BEARER = "bearer"
@@ -24,9 +25,15 @@ PROVIDER_AUTH: dict[str, tuple[str, str]] = {
     "openai": (BEARER, "Authorization"),
     "anthropic": (HEADER, "x-api-key"),
     "azure-openai": (HEADER, "api-key"),
+    "opencode": (BEARER, "Authorization"),
     "none": (NONE, ""),
 }
 """The auth shapes the verifier knows; an unlisted provider is bearer."""
+
+PROVIDER_EXTRA_HEADERS: dict[str, dict[str, str]] = {
+    "anthropic": {"anthropic-version": DEFAULT_ANTHROPIC_VERSION},
+}
+"""Headers a provider requires on every request, beyond its auth header."""
 
 KNOWN_PROVIDERS: tuple[str, ...] = tuple(PROVIDER_AUTH)
 """The provider names the console offers, in the table's order."""
@@ -89,8 +96,11 @@ def _auth_headers(provider: str, secret: str) -> dict[str, str]:
     if shape == NONE:
         return {}
     if shape == HEADER:
-        return {header: secret}
-    return {"Authorization": f"Bearer {secret}"}
+        headers = {header: secret}
+    else:
+        headers = {"Authorization": f"Bearer {secret}"}
+    headers.update(PROVIDER_EXTRA_HEADERS.get(provider, {}))
+    return headers
 
 
 def _provider_message(response: httpx.Response) -> str:

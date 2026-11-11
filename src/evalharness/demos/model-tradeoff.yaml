@@ -1,0 +1,61 @@
+spec_version: 1
+name: demo-model-tradeoff
+description: >
+  Demo 3: two models both answer 42. The cheap one spends 40 prompt and 12
+  completion tokens; the strong one spends 420 and 64. Both checks pass and the
+  gate clears, so the trace has to show the cost spread for the tradeoff.
+seed: 7
+
+source:
+  adapter: evalharness.adapters.sources.inline:build
+  options:
+    cases:
+      - case_id: case-1
+        prompt: What is 6 times 7?
+        expected: {answer: "42"}
+        tier: 1
+
+credentials:
+  - name: stub
+    provider: none
+
+candidates:
+  - name: cheap
+    adapter: evalharness.adapters.candidates.stub:build
+    credential: stub
+    model: cheap-1
+    options:
+      answer: "42"
+      prompt_tokens: 40
+      completion_tokens: 12
+  - name: strong
+    adapter: evalharness.adapters.candidates.stub:build
+    credential: stub
+    model: strong-1
+    options:
+      answer: "42"
+      prompt_tokens: 420
+      completion_tokens: 64
+
+replicas: 1
+concurrency: 1
+budget_usd: 1.00
+
+metrics:
+  - key: exact_match
+    adapter: evalharness.adapters.metrics.exact_match:build
+    options: {}
+
+judges: []
+
+gates:
+  - metric: exact_match
+    min: 0.90
+
+prices:
+  cheap-1:
+    input: 0.10
+    output: 0.40
+  strong-1:
+    input: 3.00
+    output: 15.00

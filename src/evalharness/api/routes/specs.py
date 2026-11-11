@@ -18,7 +18,7 @@ from evalharness.api.spec_views import (
     SpecCheck,
     check_document,
     editor_credentials,
-    row_for,
+    list_rows,
 )
 from evalharness.core.config import Settings
 from evalharness.errors import SpecError
@@ -34,9 +34,9 @@ def spec_list(
     repository: Repository = Depends(get_repository),
     settings: Settings = Depends(get_settings),
 ) -> HTMLResponse:
-    """Render every spec file with the outcome of validating it now."""
+    """Render every spec file with its cached or freshly checked outcome."""
     store = SpecStore(settings.specs_dir)
-    rows = [row_for(file, store, repository) for file in store.list()]
+    rows = list_rows(store.list(), store, repository)
     return render(
         request,
         "specs.html",

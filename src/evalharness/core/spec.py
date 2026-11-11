@@ -12,6 +12,7 @@ from urllib.parse import urlsplit
 import yaml
 from pydantic import ValidationError
 
+from evalharness.core.credential_names import unknown_credential
 from evalharness.core.models import (
     CandidateSpec,
     ContextChunk,
@@ -227,15 +228,9 @@ def _declared_credential(
     name: str | None,
     field: str,
 ) -> None:
+    """Raise the shared unknown-credential error for an undeclared name."""
     if name is not None and name not in known:
-        choices = ", ".join(sorted(known)) or "none declared"
-        raise SpecError(
-            field,
-            name,
-            "unknown credential",
-            "declare it under credentials:, add it with 'evalh credentials "
-            f"add', or use one of: {choices}",
-        )
+        raise unknown_credential(name, field=field, available=known)
 
 
 def _usable_credential(
@@ -477,13 +472,8 @@ def _validate_source_credential(
             "remove source.credential or declare a repository with an https url",
         )
     if name not in known_credentials:
-        choices = ", ".join(sorted(known_credentials)) or "none declared"
-        raise SpecError(
-            "source.credential",
-            name,
-            "unknown credential",
-            f"declare it under credentials:, add it with 'evalh credentials add', "
-            f"or use one of: {choices}",
+        raise unknown_credential(
+            name, field="source.credential", available=known_credentials
         )
     _usable_credential(
         states,

@@ -295,6 +295,9 @@ def test_both_auth_shapes_send_the_expected_headers(
     evalh_home, workdir, capsys, monkeypatch, provider_stub
 ):
     spec = _stored_two_provider_spec(capsys, monkeypatch, provider_stub.base_url)
+    spec["candidates"][0]["options"]["headers"] = {
+        "x-opencode-session": "test-session"
+    }
 
     _run_and_read(workdir, capsys, spec)
 
@@ -307,6 +310,16 @@ def test_both_auth_shapes_send_the_expected_headers(
         else:
             assert request.headers["Authorization"] == f"Bearer {SECRET}"
             assert "x-api-key" not in request.headers
+    custom = [
+        request
+        for request in provider_stub.requests
+        if "x-opencode-session" in request.headers
+    ]
+    assert custom
+    assert all(
+        request.headers["x-opencode-session"] == "test-session"
+        for request in custom
+    )
     paths = {request.path for request in provider_stub.requests}
     assert paths == {"/chat/completions", "/v1/messages"}
 
@@ -847,6 +860,18 @@ def test_a_provider_judge_needs_a_declared_model(
         (OPENAI_CANDIDATE, OPENAI_MODEL, {"base_url": ""}, "options.base_url is required"),
         (OPENAI_CANDIDATE, OPENAI_MODEL, {"base_url": "http://x", "auth": "oauth"}, "options.auth must be one of"),
         (ANTHROPIC_CANDIDATE, ANTHROPIC_MODEL, {"base_url": "http://x", "auth": "header"}, "options.header_name is required"),
+        (
+            OPENAI_CANDIDATE,
+            OPENAI_MODEL,
+            {"base_url": "http://x", "headers": "nope"},
+            "options.headers must be a mapping",
+        ),
+        (
+            OPENAI_CANDIDATE,
+            OPENAI_MODEL,
+            {"base_url": "http://x", "headers": {"x-session": 7}},
+            "options.headers must map string",
+        ),
     ],
 )
 def test_invalid_provider_candidate_options_fail_validation(

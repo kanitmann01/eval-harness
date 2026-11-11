@@ -1,0 +1,67 @@
+spec_version: 1
+name: demo-failure-path
+description: >
+  Demo 4: two cases and three candidates. The failing candidate raises a
+  transport error, so its cells are recorded as errors with no checks. The
+  remaining checks pass the gate and the run is partial, not silently clean.
+seed: 7
+
+source:
+  adapter: evalharness.adapters.sources.inline:build
+  options:
+    cases:
+      - case_id: case-1
+        prompt: What is 6 times 7?
+        expected: {answer: "42"}
+        tier: 1
+      - case_id: case-2
+        prompt: What is 7 times 6?
+        expected: {answer: "42"}
+        tier: 1
+
+credentials:
+  - name: stub
+    provider: none
+
+candidates:
+  - name: ok
+    adapter: evalharness.adapters.candidates.stub:build
+    credential: stub
+    model: stub-1
+    options:
+      answer: "42"
+      prompt_tokens: 16
+      completion_tokens: 3
+  - name: slow
+    adapter: evalharness.adapters.candidates.stub:build_slow
+    credential: stub
+    model: stub-1
+    options:
+      answer: "42"
+      prompt_tokens: 16
+      completion_tokens: 3
+  - name: failing
+    adapter: evalharness.adapters.candidates.stub:build_failing
+    credential: stub
+    model: stub-1
+    options: {}
+
+replicas: 1
+concurrency: 2
+budget_usd: 1.00
+
+metrics:
+  - key: exact_match
+    adapter: evalharness.adapters.metrics.exact_match:build
+    options: {}
+
+judges: []
+
+gates:
+  - metric: exact_match
+    min: 1.0
+
+prices:
+  stub-1:
+    input: 0.15
+    output: 0.60

@@ -1,0 +1,283 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status, copy_button, help_tip with context %}
+{% block title %}Trace &middot; {{ run.spec_snapshot.name or "Run" }} &middot; evalharness console{% endblock %}
+{% block content %}
+<nav class="crumbs" aria-label="Breadcrumb">
+  <a href="{{ url_for('run_list') }}">Runs</a>
+  <span class="separator" aria-hidden="true">/</span>
+  <a href="{{ url_for('run_detail', run_id=run.run_id) }}" class="mono" title="{{ run.run_id }}">{{ run.run_id[:8] }}</a>
+  <span class="separator" aria-hidden="true">/</span>
+  <span>Trace</span>
+</nav>
+
+<div class="page-header">
+  <div class="page-header-main">
+    <p class="eyebrow">Trace</p>
+    <h1>{{ run.spec_snapshot.name or "(unnamed spec)" }}</h1>
+    <p class="lede">
+      One case at a time, every candidate side by side. The prompt shown is the
+      one the candidate received, not the variant label. Every check keeps its
+      evidence; a failed gate is stated, never softened.
+    </p>
+    <p class="identity">
+      <span class="mono">{{ run.run_id }}</span>
+      {{ copy_button(run.run_id, "Copy run ID", "run ID") }}
+      <span aria-hidden="true">·</span>
+      <span>seed {{ run.seed }}</span>
+      <span aria-hidden="true">·</span>
+      <span>{{ trace.cells_recorded }} of {{ trace.cells_total }} cells recorded</span>
+    </p>
+  </div>
+  <div class="page-actions">
+    <a class="btn btn-ghost" href="{{ url_for('run_detail', run_id=run.run_id) }}">Run detail</a>
+    <a class="btn btn-ghost" href="{{ url_for('run_decision', run_id=run.run_id) }}">Decision</a>
+    <a class="btn btn-ghost" href="{{ url_for('compare') }}?a={{ run.run_id }}" title="Compare this run as side A">Compare</a>
+    <a class="btn btn-ghost" href="{{ url_for('run_receipt', run_id=run.run_id) }}">Receipt</a>
+  </div>
+</div>
+
+<section class="run-verdict" aria-labelledby="verdict-heading">
+  <h2 id="verdict-heading" class="sr-only">Run verdict</h2>
+  <div class="verdict-main">
+    <span class="verdict-badge {{ 'is-ok' if verdict.tone == 'ok' else ('is-warn' if verdict.tone in ('warn', 'neutral') else ('is-bad' if verdict.tone == 'bad' else 'is-info')) }}" aria-hidden="true">{{ verdict.glyph }}</span>
+    <div class="verdict-body">
+      <div class="verdict-kicker">
+        {{ status(run.status) }}
+        {% if verdict.label|lower != run.status|lower %}<span class="chip">{{ verdict.label }}</span>{% endif %}
+      </div>
+      <p class="verdict-headline">{{ verdict.headline }}</p>
+      <p class="verdict-sub">
+        {{ verdict.checks_passed }} of {{ verdict.checks_total }} checks passed
+        · {{ verdict.cells_recorded }} of {{ verdict.cells_total }} cells recorded
+        {% if verdict.cells_errored %} · {{ verdict.cells_errored }} errored{% endif %}
+      </p>
+    </div>
+  </div>
+  <div class="verdict-grid">
+    <div class="verdict-stat">
+      <span class="stat-label">Gates {{ help_tip("trace-help-gates", "gates", "A gate is a minimum on an aggregate. A run can finish ok and still fail a gate.") }}</span>
+      <span class="stat-value">{{ verdict.gates_passed }}/{{ verdict.gates_total }}</span>
+      <span class="stat-detail">{% if verdict.failed_gates %}failed: {{ verdict.failed_gates|join(", ") }}{% elif verdict.gates_total %}all gates passed{% else %}no gates declared{% endif %}</span>
+    </div>
+    <div class="verdict-stat">
+      <span class="stat-label">Check pass rate</span>
+      <span class="stat-value">{{ verdict.pass_rate|pct }}</span>
+      <span class="stat-detail">{{ verdict.checks_passed }} of {{ verdict.checks_total }} checks</span>
+    </div>
+    <div class="verdict-stat">
+      <span class="stat-label">Cost</span>
+      <span class="stat-value" title="{{ run.cost_usd|usdexact }}">{{ run.cost_usd|usd }}</span>
+      <span class="stat-detail">of {{ run.budget_usd|usd }} budget</span>
+    </div>
+  </div>
+</section>
+
+{% if trace.running %}
+<div class="callout callout-info" role="status">
+  <span class="callout-icon" aria-hidden="true">i</span>
+  <div>
+    <span class="callout-title">This run is still in progress</span>
+    {{ trace.cells_recorded }} of {{ trace.cells_total }} cells are recorded. Missing
+    columns are waiting, not failures. <a href="{{ url_for('run_trace', run_id=run.run_id) }}?replay=1">Refresh the trace</a>.
+  </div>
+</div>
+{% endif %}
+
+{% if replay %}
+<section class="panel replay-panel" id="replay-panel" hidden aria-labelledby="replay-heading" data-replay>
+  <div class="panel-head">
+    <div>
+      <h2 id="replay-heading">Replay</h2>
+      <p class="subtle">
+        <strong>recorded run</strong> · <strong>timings simulated</strong>.
+        The lines below are the stored events, replayed with the timing the run
+        recorded. No model is called and no token is spent.
+      </p>
+    </div>
+    <span class="chip" id="replay-count">{{ replay_events|length }} events</span>
+  </div>
+  <div class="progress-track" role="progressbar" aria-label="Replay progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="replay-track">
+    <span class="progress-fill" id="replay-fill" style="transform: scaleX(0)"></span>
+  </div>
+  <ol class="event-log replay-log" id="replay-log" aria-live="polite"></ol>
+  <p class="subtle" id="replay-status">Preparing the replay…</p>
+  <noscript><p class="empty-state">Enable JavaScript to replay the stored events; the trace below is complete without it.</p></noscript>
+</section>
+<script type="application/json" id="replay-events">{{ replay_events|tojson }}</script>
+{% endif %}
+
+{% if trace.cases %}
+{% for case in trace.cases %}
+<section class="panel trace-case" aria-labelledby="case-{{ loop.index }}-heading">
+  <div class="panel-head">
+    <div>
+      <p class="eyebrow">Case {{ loop.index }} of {{ trace.cases|length }}</p>
+      <h2 id="case-{{ loop.index }}-heading" class="mono">{{ case.case_id }}</h2>
+      <p class="case-prompt">{{ case.prompt or "(no prompt recorded in the snapshot)" }}</p>
+    </div>
+    <div class="panel-tools">
+      {% if case.candidate_count > 1 %}
+      <span class="chip {{ 'chip-ok' if case.answers_match else 'chip-warn' }}">{{ "identical" if case.answers_match else "differs" }}</span>
+      {% endif %}
+      <span class="chip">{{ case.columns|length }} candidate{{ "" if case.columns|length == 1 else "s" }}</span>
+    </div>
+  </div>
+
+  <div class="trace-grid" style="grid-template-columns: repeat({{ case.columns|length if case.columns else 1 }}, minmax(0, 1fr))">
+    {% for column in case.columns %}
+    <article class="trace-column" aria-label="{{ column.candidate }} for {{ case.case_id }}">
+      <header class="trace-column-head">
+        <h3>{{ column.candidate }}</h3>
+        <span class="subtle">{{ column.checks_passed }}/{{ column.checks_total }} checks{% if column.errored %} · {{ column.errored }} errored{% endif %}</span>
+      </header>
+      {% if column.cells %}
+      {% for cell in column.cells %}
+      <div class="trace-cell">
+        <div class="trace-cell-head">
+          {{ status(cell.status) }}
+          <span class="chip">replica {{ cell.replica }}</span>
+          <span class="mono subtle" title="{{ cell.cell_id }}">{{ cell.cell_id[:10] }}</span>
+        </div>
+
+        {% if cell.error %}
+        <div class="callout callout-error" role="alert">
+          <span class="callout-icon" aria-hidden="true">✕</span>
+          <div><span class="callout-title">Candidate failed</span> {{ cell.error }}</div>
+        </div>
+        {% endif %}
+
+        <section class="trace-block" aria-label="Effective prompt for {{ column.candidate }}">
+          <h4>Effective prompt</h4>
+          <pre class="prompt">{{ cell.effective_prompt or "(no prompt override; the case prompt is used)" }}</pre>
+          <p class="trace-chips">
+            {% if cell.prompt_variant %}<span class="chip">prompt: {{ cell.prompt_variant }}</span>{% endif %}
+            <span class="chip">context: {{ cell.context_name }}</span>
+            {% if cell.model %}<span class="chip mono">{{ cell.model }}</span>{% endif %}
+          </p>
+        </section>
+
+        <section class="trace-block" aria-label="Answer from {{ column.candidate }}">
+          <h4>Answer</h4>
+          <pre class="answer">{{ cell.answer or "(no answer recorded)" }}</pre>
+        </section>
+
+        <section class="trace-block" aria-label="Context for {{ column.candidate }}">
+          <h4>Context</h4>
+          {% if cell.context_chunks %}
+          <ul class="chunk-list">
+            {% for chunk in cell.context_chunks %}
+            <li>
+              <details>
+                <summary class="mono">{{ chunk.chunk_id or "(unnamed chunk)" }}{% if chunk.path %} <span class="subtle">{{ chunk.path }}</span>{% endif %}</summary>
+                <pre class="context-text">{{ chunk.text }}</pre>
+              </details>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="subtle">No context was injected for this cell.</p>
+          {% endif %}
+        </section>
+
+        <section class="trace-block" aria-label="Checks for {{ column.candidate }}">
+          <h4>Checks</h4>
+          {% if cell.checks %}
+          <div class="checks">
+            {% for check in cell.checks %}
+            <article class="check {{ 'check-pass' if check.passed else 'check-fail' }}">
+              <header>
+                <span class="gate-glyph" aria-hidden="true">{{ "✓" if check.passed else "✗" }}</span>
+                <strong>{{ check.metric }}</strong>
+                {{ status("ok" if check.passed else "error", "pass" if check.passed else "fail") }}
+                {% if check.score is not none %}<span class="score">score {{ check.score }}</span>{% endif %}
+              </header>
+              {% if check.reason %}<p>{{ check.reason }}</p>{% endif %}
+              <details class="evidence-details">
+                <summary>Evidence JSON</summary>
+                <pre class="evidence">{{ check.evidence|tojson(indent=2) }}</pre>
+              </details>
+            </article>
+            {% endfor %}
+          </div>
+          {% else %}
+          <p class="subtle">No checks were recorded for this cell. An errored candidate has an answer error but no metric verdict.</p>
+          {% endif %}
+        </section>
+
+        <footer class="trace-usage">
+          <dl class="facts">
+            <div><dt>Prompt tokens</dt><dd>{{ cell.prompt_tokens }}</dd></div>
+            <div><dt>Completion tokens</dt><dd>{{ cell.completion_tokens }}</dd></div>
+            <div><dt>Tool calls</dt><dd>{{ cell.tool_calls }}</dd></div>
+            <div><dt>Latency</dt><dd>{{ cell.wall_ms }} ms</dd></div>
+            <div><dt>Cost</dt><dd title="{{ cell.cost_usd|usdexact }}">{{ cell.cost_usd|usd }}</dd></div>
+            <div><dt>Usage source</dt><dd>{{ cell.usage_source }}</dd></div>
+            <div><dt>Provider</dt><dd>{{ cell.provider or "not reported" }}</dd></div>
+          </dl>
+          <a class="btn btn-secondary btn-sm" href="{{ cell.artifact_url }}">Raw artifact</a>
+        </footer>
+      </div>
+      {% endfor %}
+      {% elif trace.running %}
+      <div class="trace-cell pending">
+        <p class="subtle">Not recorded yet. This candidate is waiting for the run to finish.</p>
+      </div>
+      {% else %}
+      <div class="trace-cell pending">
+        <p class="subtle">No cell was recorded for this candidate and case.</p>
+      </div>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+
+  {% if case.diff_segments %}
+  <details class="trace-diff">
+    <summary>Word diff: {{ case.diff_left }} vs {{ case.diff_right }}</summary>
+    <pre class="diff" aria-label="Word diff between the two candidate answers">{% for kind, text in case.diff_segments %}<span class="diff-{{ kind }}">{{ text }}</span>{% if not loop.last %} {% endif %}{% endfor %}</pre>
+    <p class="field-hint">Del is only in {{ case.diff_left }}; add is only in {{ case.diff_right }}. The diff is word-level and never changes the stored answers.</p>
+  </details>
+  {% endif %}
+</section>
+{% endfor %}
+{% else %}
+<div class="empty-state">
+  <span class="empty-icon" aria-hidden="true">∅</span>
+  <h2>No cases recorded</h2>
+  <p>This run has no cells yet, so there is nothing to trace. A running run fills in as each cell finishes.</p>
+</div>
+{% endif %}
+
+<section class="panel" aria-labelledby="gates-heading">
+  <div class="panel-head">
+    <div>
+      <h2 id="gates-heading">Gates</h2>
+      <p class="subtle">The gate sees only recorded checks. A cell that errored contributes no check, so read the errored count beside the gate result.</p>
+    </div>
+  </div>
+  {% if gates %}
+  <ul class="gate-list">
+    {% for gate in gates %}
+    <li class="gate {{ 'gate-pass' if gate.passed else 'gate-fail' }}">
+      <span class="gate-glyph" aria-hidden="true">{{ "✓" if gate.passed else "✗" }}</span>
+      <div class="gate-text">
+        <strong>{{ gate.metric }}</strong> {{ "passed" if gate.passed else "failed" }}
+        <span class="gate-meta">
+          observed {{ gate.observed|pct if gate.observed is not none else "undefined" }}
+          {% if gate.threshold is not none %}· {{ gate.comparison or "minimum" }} {{ gate.threshold|pct }}{% endif %}
+          · n={{ gate.n }}
+          {% if gate.detail.reason %}· {{ gate.detail.reason }}{% endif %}
+        </span>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty-state">No gates were declared for this run.</p>
+  {% endif %}
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='trace.js') }}" defer></script>
+{% endblock %}

@@ -1,0 +1,72 @@
+spec_version: 1
+name: demo-context-grounding
+description: >
+  Demo 2: one refund-policy case, two candidates that differ only in whether
+  the policy chunk is in context. The grounded answer passes exact_match; the
+  ungrounded answer admits it lacks the policy and fails. The gate fails.
+seed: 7
+
+source:
+  adapter: evalharness.adapters.sources.inline:build
+  options:
+    cases:
+      - case_id: refund-window
+        prompt: A customer asks how long they have to return an item. What should I tell them?
+        expected: {answer: "30 days"}
+        tier: 1
+
+prompts:
+  grounded: Answer from the policy text in context. Keep it to the number and unit.
+  ungrounded: Answer the customer's question.
+
+contexts:
+  none: []
+  refund-policy:
+    - chunk_id: refund-policy-1
+      text: Refunds are accepted within 30 days of delivery.
+
+credentials:
+  - name: stub
+    provider: none
+
+candidates:
+  - name: grounded
+    adapter: evalharness.adapters.candidates.stub:build
+    credential: stub
+    model: stub-1
+    options:
+      prompt: grounded
+      context: refund-policy
+      answer: "30 days"
+      prompt_tokens: 48
+      completion_tokens: 4
+  - name: ungrounded
+    adapter: evalharness.adapters.candidates.stub:build
+    credential: stub
+    model: stub-1
+    options:
+      prompt: ungrounded
+      context: none
+      answer: "I do not have the policy text."
+      prompt_tokens: 16
+      completion_tokens: 9
+
+replicas: 1
+concurrency: 1
+budget_usd: 1.00
+
+metrics:
+  - key: exact_match
+    adapter: evalharness.adapters.metrics.exact_match:build
+    options: {}
+
+judges: []
+
+gates:
+  - metric: exact_match
+    min: 1.0
+
+prices:
+  stub-1:
+    input: 0.15
+    output: 0.60

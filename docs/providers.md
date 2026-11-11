@@ -42,6 +42,21 @@ or on `JudgeRequest.credential` (judge). No adapter reads settings.
 The version header is a dialect constant, not a secret; a different API version
 becomes a future dialect rather than an option on this one.
 
+### Custom request headers
+
+`options.headers` adds request headers for a proxy or a gateway that requires
+routing metadata. It is a mapping of header names to string values. It cannot
+carry the credential; the auth shape owns that header. OpenCode Go requires a
+stable `x-opencode-session` header:
+
+```yaml
+options:
+  base_url: https://opencode.ai/inference/go/openai/v1
+  auth: bearer
+  headers:
+    x-opencode-session: eval-harness-live
+```
+
 `auth: none` is the explicit endpoint-owned case, used by the demo and by
 conformance so neither needs a stored secret. A missing credential for
 `bearer` or `header` is a spec error before any cell runs, naming

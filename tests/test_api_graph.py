@@ -16,8 +16,9 @@ from evalharness.api.graph_views import (
     spec_graph,
     thumbnail,
 )
+from evalharness.api.spec_projection import project_spec
 from evalharness.api.views import run_thumbnails
-from evalharness.core.models import CellRecord, GateResult, RunRecord
+from evalharness.core.models import CellRecord, GateResult, RunRecord, Spec
 from evalharness.storage.repository import RunSummary
 
 TEMPLATES = Path(__file__).parents[1] / "src" / "evalharness" / "api" / "templates"
@@ -595,3 +596,116 @@ def test_run_thumbnails_builds_one_mini_graph_per_run() -> None:
     assert all(graph.width == 96.0 for graph in thumbnails.values())
     assert all(graph.height == 32.0 for graph in thumbnails.values())
     assert all(graph.variant == "thumb" for graph in thumbnails.values())
+
+
+def _typed_spec() -> Spec:
+    """Build a validated core spec whose document round-trips to the same graph."""
+    return Spec.model_validate(
+        {
+            "spec_version": 1,
+            "name": "typed-spec",
+            "source": {
+                "adapter": "inline",
+                "options": {"cases": [{"case_id": "case-1"}, {}]},
+            },
+            "prompts": {"concise": "Answer with digits only."},
+            "contexts": {
+                "none": [],
+                "policy": {"adapter": "test:context_fake", "options": {}},
+            },
+            "candidates": [
+                {
+                    "name": "solo",
+                    "adapter": "stub",
+                    "model": "stub-1",
+                    "options": {"prompt": "concise", "context": "none"},
+                },
+                {"name": "quiet", "adapter": "stub", "model": "stub-1"},
+            ],
+            "metrics": [
+                {"key": "exact_match", "adapter": "exact_match"},
+                {"key": "exact_match", "adapter": "exact_match"},
+            ],
+            "gates": [
+                {"metric": "exact_match", "min": 0.5},
+                {"metric": "", "min": 0.1},
+            ],
+            "replicas": 2,
+        }
+    )
+
+
+def test_graph_reads_the_typed_projection_of_a_validated_spec() -> None:
+    """A validated spec, its projection and its document produce the same graph."""
+    spec = _typed_spec()
+    projected = project_spec(spec)
+    from_projection = spec_graph(projected)
+    assert spec_graph(spec) == from_projection
+    assert spec_graph(spec.model_dump(mode="json")) == from_projection
+    assert len(from_projection.nodes) == 11
+    assert len(from_projection.edges) == 11
+    assert {node.key for node in from_projection.nodes} == {
+        "case:case-1",
+        "case:case-2",
+        "prompt:concise",
+        "context:none",
+        "context:policy",
+        "candidate:solo",
+        "candidate:quiet",
+        "metric:exact_match",
+        "gate:0",
+        "gate:1",
+        "verdict",
+    }
+    assert from_projection.aria == (
+        "2 candidates over 2 cases produce 8 cells; 2 gates, 0 failed; "
+        "verdict pending."
+    )
+
+
+def test_a_minimal_spec_renders_its_cases_candidates_and_verdict() -> None:
+    """A one-case, one-candidate document draws only the boxes it can name."""
+    graph = spec_graph(
+        {
+            "source": {"options": {"cases": [{"case_id": "only-case"}]}},
+            "candidates": [{"name": "solo", "options": {}}],
+            "metrics": [{"key": "exact_match"}],
+        }
+    )
+    assert [node.key for node in graph.nodes] == [
+        "case:only-case",
+        "candidate:solo",
+        "metric:exact_match",
+        "verdict",
+    ]
+    assert [(edge.source_key, edge.target_key) for edge in graph.edges] == [
+        ("case:only-case", "candidate:solo"),
+        ("candidate:solo", "metric:exact_match"),
+    ]
+
+
+def test_projection_never_raises_on_unusable_names_and_values() -> None:
+    """Wrongly shaped fields drop boxes instead of raising while drawing."""
+    graph = spec_graph(
+        {
+            "source": {"options": {"cases": [{"case_id": 7}, {"case_id": ""}]}},
+            "prompts": {1: "not a name", "": "x", "ok": 7},
+            "contexts": {"chunks": "not-a-list"},
+            "candidates": [{"name": 5}, {"name": "solo", "options": "bad"}],
+            "metrics": [{"key": ""}, {"key": 5}, {"key": "exact_match"}],
+            "gates": [{"metric": 7, "candidate": 9}, "bad"],
+            "replicas": True,
+        }
+    )
+    nodes = {node.key: node for node in graph.nodes}
+    cases = [node.key for node in graph.nodes if node.key.startswith("case:")]
+    assert cases == ["case:case-1", "case:case-2"]
+    assert nodes["prompt:"].detail == "1 chars"
+    assert nodes["prompt:ok"].detail == "0 chars"
+    assert "context:chunks" in nodes
+    assert nodes["gate:0"].label == "gate-1"
+    assert nodes["gate:1"].label == "gate-2"
+    assert "candidate:candidate-1" in nodes
+    assert [node.key for node in graph.nodes if node.key.startswith("metric:")] == [
+        "metric:exact_match"
+    ]

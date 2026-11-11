@@ -505,7 +505,7 @@ async def test_the_page_works_without_javascript(
         assert 'name="name"' in page.text
         assert 'name="provider"' in page.text
         assert 'type="password"' in page.text
-        for provider in ("openai", "anthropic", "azure-openai", "none"):
+        for provider in ("openai", "anthropic", "azure-openai", "opencode", "none"):
             assert f'value="{provider}"' in page.text
         for auth in ("Bearer token", "x-api-key", "api-key", "no auth header"):
             assert auth in page.text

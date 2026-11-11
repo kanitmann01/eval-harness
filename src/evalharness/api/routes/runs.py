@@ -14,6 +14,7 @@ from evalharness.api.deps import get_repository, get_settings
 from evalharness.api.views import cell_data, run_detail_data, run_summary_data
 from evalharness.core.config import Settings
 from evalharness.core.events import Event
+from evalharness.read_model import load_run_read
 from evalharness.storage.repository import Repository
 
 router = APIRouter()
@@ -44,16 +45,10 @@ def get_run(
     repository: Repository = Depends(get_repository),
 ) -> dict[str, Any]:
     """Return one run with its aggregates, gates and cells."""
-    run = repository.get_run(run_id)
-    if run is None:
+    read = load_run_read(repository, run_id)
+    if read is None:
         raise HTTPException(status_code=404, detail=f"run {run_id} does not exist")
-    return run_detail_data(
-        run=run,
-        cells=repository.list_cells(run_id),
-        checks_by_cell=repository.list_checks_for_run(run_id),
-        aggregates=repository.list_aggregates(run_id),
-        gates=repository.list_gates(run_id),
-    )
+    return run_detail_data(read)
 
 
 @router.get("/api/runs/{run_id}/cells", name="api_run_cells")
@@ -62,15 +57,13 @@ def run_cells(
     repository: Repository = Depends(get_repository),
 ) -> dict[str, Any]:
     """Return every cell of a run with its checks."""
-    if repository.get_run(run_id) is None:
+    read = load_run_read(repository, run_id)
+    if read is None:
         raise HTTPException(status_code=404, detail=f"run {run_id} does not exist")
-    cells = repository.list_cells(run_id)
-    checks_by_cell = repository.list_checks_for_run(run_id)
     return {
         "run_id": run_id,
         "cells": [
-            cell_data(cell, checks_by_cell.get(cell.cell_id, []))
-            for cell in cells
+            cell_data(cell, read.checks_for(cell.cell_id)) for cell in read.cells
         ],
     }
 

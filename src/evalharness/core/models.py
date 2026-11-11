@@ -141,8 +141,9 @@ class ProviderUsage(BaseModel):
 class ProviderCost(BaseModel):
     """One provider's share of a run: cells, tokens and the three cost parts.
 
-    cost_usd is answer_cost_usd + judge_cost_usd + tool_cost_usd, exactly as
-    on a cell, so per-provider rows always sum to the run's stored total.
+    cost_usd is always answer_cost_usd + judge_cost_usd + tool_cost_usd; the
+    single definition of that total is evalharness.core.cost.cost_total, so
+    per-provider rows always sum to the run's stored total.
     """
 
     run_id: str
@@ -161,7 +162,8 @@ class ProviderCost(BaseModel):
 class CellRecord(BaseModel):
     """One executed cell: identity, usage, cost split, answer and artifacts.
 
-    cost_usd is always answer_cost_usd + judge_cost_usd + tool_cost_usd. The
+    cost_usd is always answer_cost_usd + judge_cost_usd + tool_cost_usd; the
+    single definition of that total is evalharness.core.cost.cost_total. The
     three components are stored separately so judge spend is visible against
     the answer it judged, and a deterministic run keeps judge cost at zero.
     """

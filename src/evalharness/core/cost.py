@@ -22,6 +22,7 @@ __all__ = [
     "CostEstimate",
     "CostSplit",
     "Price",
+    "cost_total",
     "estimate_cost",
     "observed_medians",
     "provider_cost_rows",
@@ -70,6 +71,21 @@ def usage_cost(
     )
 
 
+def cost_total(
+    answer_usd: float | None = None,
+    judge_usd: float | None = None,
+    tool_usd: float | None = None,
+) -> float:
+    """Return the one cost total: answer plus judge plus tool, in USD.
+
+    Every writer records this total beside the three parts, and every reader
+    recomputes it here, so a cell's cost_usd is always the sum. A None part
+    counts as zero because the split columns are nullable in a database written
+    before the split existed; those older rows read back as a zero split.
+    """
+    return (answer_usd or 0.0) + (judge_usd or 0.0) + (tool_usd or 0.0)
+
+
 def split_cost(
     price: Price,
     output: CandidateOutput,
@@ -87,7 +103,7 @@ def split_cost(
         answer_usd=answer_usd,
         judge_usd=judge_usd,
         tool_usd=tool_usd,
-        total_usd=answer_usd + judge_usd + tool_usd,
+        total_usd=cost_total(answer_usd, judge_usd, tool_usd),
     )
 
 
@@ -173,7 +189,9 @@ def provider_cost_rows(
             row.judge_completion_tokens += cell.judge_completion_tokens
             row.judge_cost_usd += cell.judge_cost_usd
     for row in rows.values():
-        row.cost_usd = row.answer_cost_usd + row.judge_cost_usd + row.tool_cost_usd
+        row.cost_usd = cost_total(
+            row.answer_cost_usd, row.judge_cost_usd, row.tool_cost_usd
+        )
     return sorted(rows.values(), key=lambda item: item.provider)
 
 

@@ -391,6 +391,52 @@ async def test_artifact_link_serves_the_stored_file_and_refuses_escapes(
         assert missing.status_code == 404
 
 
+def test_every_terminal_status_has_a_live_artifact_link(
+    console: Console,
+    workdir: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    spec = base_spec()
+    spec["name"] = "cancelled-spec"
+    spec["candidates"] = [spec["candidates"][0]]
+    spec["replicas"] = 2
+    spec["concurrency"] = 1
+    cancelled_spec = write_spec(workdir / "cancelled.yaml", spec)
+    assert main(["run", str(cancelled_spec), "--cancel-after", "0"]) == 0
+    cancelled_id = run_id_from(capsys.readouterr().out)
+
+    async def read_links() -> None:
+        async with _client(console.app) as client:
+            for status, run_id in (
+                ("ok", console.runs["alpha"]),
+                ("error", console.runs["gamma"]),
+                ("cancelled", cancelled_id),
+            ):
+                cell = next(
+                    item
+                    for item in console.repository.list_cells(run_id)
+                    if item.status == status
+                )
+                artifact_dir = Path(cell.artifact_dir or "")
+                assert artifact_dir == (
+                    console.settings.artifacts_dir / run_id / cell.cell_id
+                )
+                assert artifact_dir.is_dir()
+                assert (artifact_dir / "cell.json").is_file()
+                assert (artifact_dir / "answer.txt").is_file()
+                url = f"/runs/{run_id}/cells/{cell.cell_id}/artifact"
+                artifact = await client.get(url)
+                assert artifact.status_code == 200
+                assert artifact.json()["cell"]["status"] == status
+                page = await client.get(
+                    f"/runs/{run_id}", params={"cell": cell.cell_id}
+                )
+                assert page.status_code == 200
+                assert "Raw artifact (cell.json)" in page.text
+
+    asyncio.run(read_links())
+
+
 async def test_unknown_ids_are_404(console: Console) -> None:
     run_id = console.runs["alpha"]
     cell = console.repository.list_cells(run_id)[0]

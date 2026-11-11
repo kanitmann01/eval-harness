@@ -515,6 +515,44 @@ async def test_receipt_pins_the_judge_that_stored_each_check(
     assert pin["last_used_at"]
 
 
+async def test_receipt_reports_within_run_judge_drift(
+    provenance: Console,
+) -> None:
+    run_id = provenance.runs["judge_b"]
+    stored = provenance.repository.list_checks_for_run(run_id)
+    cell_id, checks = next(iter(stored.items()))
+    drifted_hash = "b" * 64
+    assert checks[0].judge_config_hash != drifted_hash
+    provenance.repository.record_checks(
+        run_id,
+        "drifted-cell",
+        [
+            Check(
+                metric=checks[0].metric,
+                passed=True,
+                reason="scored by a changed judge",
+                judge_config_hash=drifted_hash,
+            )
+        ],
+    )
+
+    async with _client(provenance.app) as client:
+        response = await client.get(f"/api/runs/{run_id}/receipt")
+
+    assert response.status_code == 200
+    drift = response.json()["drift"]
+    assert len(drift) == 1
+    row = drift[0]
+    assert row["kind"] == "within_run"
+    assert row["judge"] == "quality-judge"
+    assert row["metrics"] == ["citation_support"]
+    assert row["hashes"] == sorted(
+        [checks[0].judge_config_hash, drifted_hash]
+    )
+    assert row["runs"] == [run_id]
+    assert "not like-for-like." in row["reason"]
+
+
 async def test_diff_page_puts_the_spec_diff_above_judge_drift(
     provenance: Console,
 ) -> None:
