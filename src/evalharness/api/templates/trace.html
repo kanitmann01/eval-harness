@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_macros.html" import status, copy_button, help_tip with context %}
-{% block title %}Trace &middot; {{ run.spec_snapshot.name or "Run" }} &middot; evalharness console{% endblock %}
+{% block title %}Trace &middot; {{ run|run_name }} &middot; evalharness console{% endblock %}
 {% block content %}
 <nav class="crumbs" aria-label="Breadcrumb">
   <a href="{{ url_for('run_list') }}">Runs</a>
@@ -13,7 +13,7 @@
 <div class="page-header">
   <div class="page-header-main">
     <p class="eyebrow">Trace</p>
-    <h1>{{ run.spec_snapshot.name or "(unnamed spec)" }}</h1>
+    <h1>{{ run|run_name }}</h1>
     <p class="lede">
       One case at a time, every candidate side by side. The prompt shown is the
       one the candidate received, not the variant label. Every check keeps its

@@ -13,7 +13,7 @@ from evalharness.core.models import (
     GateResult,
     RunRecord,
 )
-from evalharness.read_model import RunRead
+from evalharness.read_model import RunRead, run_display_name
 from evalharness.core.stats import wilson_interval
 from evalharness.storage.repository import RunSummary
 
@@ -137,7 +137,7 @@ def run_detail_data(read: RunRead) -> dict[str, Any]:
     run = read.run
     return {
         "run_id": run.run_id,
-        "spec_name": str(run.spec_snapshot.get("name", "")),
+        "spec_name": run_display_name(run),
         "status": run.status,
         "cost_usd": run.cost_usd,
         "budget_usd": run.budget_usd,

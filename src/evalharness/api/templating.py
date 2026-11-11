@@ -8,6 +8,9 @@ from pathlib import Path
 
 from starlette.templating import Jinja2Templates
 
+from evalharness.core.models import RunRecord
+from evalharness.read_model import UNNAMED_SPEC, run_display_name
+
 
 def format_percent(value: float | None) -> str:
     """Format a proportion as a one-decimal percentage, or a dash."""
@@ -66,6 +69,11 @@ def format_time(value: datetime | None) -> str:
     return "-" if value is None else value.strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
+def format_run_name(run: RunRecord) -> str:
+    """Show one run's spec name, or the shared unnamed fallback."""
+    return run_display_name(run) or UNNAMED_SPEC
+
+
 def install_filters(templates: Jinja2Templates) -> None:
     """Register the display filters the console templates use."""
     templates.env.filters.update(
@@ -77,5 +85,6 @@ def install_filters(templates: Jinja2Templates) -> None:
             "usdexact": format_usd_exact,
             "shortpath": format_short_path,
             "timestamp": format_time,
+            "run_name": format_run_name,
         }
     )

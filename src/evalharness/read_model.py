@@ -23,7 +23,11 @@ from evalharness.core.models import (
     RunRecord,
 )
 from evalharness.core.spec_diff import diff_run_snapshots, spec_diff_data
+from evalharness.core.spec_projection import project_document
 from evalharness.storage.repository import Repository
+
+UNNAMED_SPEC = "(unnamed spec)"
+"""The one fallback string every HTML surface shows for a nameless run."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +72,11 @@ class RunRead:
             return None
         return (finished - self.run.started_at).total_seconds()
 
+    @property
+    def display_name(self) -> str:
+        """Return the name every page header shows for this run."""
+        return run_display_name(self.run) or UNNAMED_SPEC
+
     def checks_for(self, cell_id: str) -> list[Check]:
         """Return one cell's checks, or an empty list when it stored none."""
         return list(self.checks_by_cell.get(cell_id, []))
@@ -100,6 +109,27 @@ def load_run_read(
     )
 
 
+def run_display_name(run: RunRecord) -> str:
+    """Return the run's spec name, falling back to the stored snapshot.
+
+    Empty means the run recorded no name anywhere; JSON bodies keep the empty
+    string, HTML surfaces add the UNNAMED_SPEC fallback through display_name.
+    """
+    return run.spec_name or project_document(run.spec_snapshot or {}).name
+
+
+def drift_data(drift: JudgeDrift) -> dict[str, Any]:
+    """Return one judge drift as a JSON-ready mapping."""
+    return {
+        "kind": drift.kind,
+        "judge": drift.judge,
+        "metrics": list(drift.metrics),
+        "hashes": list(drift.hashes),
+        "runs": list(drift.runs),
+        "reason": drift.reason,
+    }
+
+
 def run_diff_data(current: RunRead, baseline: RunRead) -> dict[str, Any]:
     """Return the two-run spec diff and judge drift for two loaded runs.
 
@@ -126,7 +156,7 @@ def run_diff_data(current: RunRead, baseline: RunRead) -> dict[str, Any]:
         "current": _diff_side(current.run),
         "against": _diff_side(baseline.run),
         "diff": spec_diff_data(diff),
-        "drift": [_drift_data(drift) for drift in drifts],
+        "drift": [drift_data(drift) for drift in drifts],
         "diff_url": (
             f"/runs/{current.run.run_id}/diff?against={baseline.run.run_id}"
         ),
@@ -140,8 +170,7 @@ def _diff_side(run: RunRecord) -> dict[str, Any]:
     """Return the header facts for one side of the diff page."""
     return {
         "run_id": run.run_id,
-        "spec_name": run.spec_name
-        or str((run.spec_snapshot or {}).get("name") or ""),
+        "spec_name": run_display_name(run),
         "status": run.status,
         "seed": run.seed,
         "operator": run.operator,
@@ -150,16 +179,4 @@ def _diff_side(run: RunRecord) -> dict[str, Any]:
         "finished_at": run.finished_at,
         "receipt_url": f"/runs/{run.run_id}/receipt",
         "run_url": f"/runs/{run.run_id}",
-    }
-
-
-def _drift_data(drift: JudgeDrift) -> dict[str, Any]:
-    """Return one judge drift as a JSON-ready mapping."""
-    return {
-        "kind": drift.kind,
-        "judge": drift.judge,
-        "metrics": list(drift.metrics),
-        "hashes": list(drift.hashes),
-        "runs": list(drift.runs),
-        "reason": drift.reason,
     }

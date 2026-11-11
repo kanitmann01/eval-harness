@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "_macros.html" import status, copy_button, help_tip with context %}
 {% from "_graph.html" import render_graph %}
-{% block title %}{{ run.spec_snapshot.name or "Run detail" }} &middot; evalharness console{% endblock %}
+{% block title %}{{ run|run_name }} &middot; evalharness console{% endblock %}
 {% block content %}
 <nav class="crumbs" aria-label="Breadcrumb">
   <a href="{{ url_for('run_list') }}">Runs</a>
@@ -12,7 +12,7 @@
 <div class="page-header">
   <div class="page-header-main">
     <p class="eyebrow">Run detail</p>
-    <h1>{{ run.spec_snapshot.name or "(unnamed spec)" }}</h1>
+    <h1>{{ run|run_name }}</h1>
     <p class="lede">
       Started {{ run.started_at|timestamp }}{% if run.finished_at %}, finished {{ run.finished_at|timestamp }}{% endif %}.
       Rows are candidates, columns are cases; every recorded cell opens its evidence.

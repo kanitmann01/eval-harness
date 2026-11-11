@@ -17,7 +17,7 @@
     <p class="identity">
       <span class="mono">{{ run.run_id }}</span>
       <span aria-hidden="true">·</span>
-      <span>{{ run.spec_snapshot.name or "(unnamed spec)" }}</span>
+      <span>{{ run|run_name }}</span>
     </p>
   </div>
   <div class="page-actions">

@@ -13,7 +13,11 @@ from dataclasses import dataclass
 from evalharness.api.templating import format_usd
 from evalharness.core.decision import CandidateDecision, DecisionReport, decide_run
 from evalharness.core.models import RunRecord
-from evalharness.read_model import load_run_read
+from evalharness.read_model import (
+    UNNAMED_SPEC,
+    load_run_read,
+    run_display_name,
+)
 from evalharness.storage.repository import Repository
 
 CHART_WIDTH = 640.0
@@ -112,7 +116,7 @@ def decision_page(snapshot: DecisionSnapshot) -> dict[str, object]:
     report = snapshot.report
     return {
         "run": snapshot.run,
-        "spec_name": snapshot.run.spec_snapshot.get("name") or "(unnamed spec)",
+        "spec_name": run_display_name(snapshot.run) or UNNAMED_SPEC,
         "report": report,
         "candidates": tuple(_candidate_row(item) for item in report.candidates),
         "chart": _chart(report),
