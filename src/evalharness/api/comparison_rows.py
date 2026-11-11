@@ -881,7 +881,9 @@ def _adapter_label(adapter: str) -> str:
     plain = _PLAIN_ADAPTER_LABELS.get(f"{short}:{factory}")
     if plain is not None:
         return f"{plain} ({short.replace('.', '/')})"
-    return f"{short.replace('.', ' / ')} ({factory})"
+    # Unreachable with the shipped manifest: _PLAIN_ADAPTER_LABELS covers every
+    # source, candidate and metric entry it names. Kept for the next adapter.
+    return f"{short.replace('.', ' / ')} ({factory})"  # pragma: no cover
 
 
 _PLAIN_ADAPTER_LABELS: dict[str, str] = {

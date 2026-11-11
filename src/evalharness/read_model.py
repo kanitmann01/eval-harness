@@ -72,11 +72,6 @@ class RunRead:
             return None
         return (finished - self.run.started_at).total_seconds()
 
-    @property
-    def display_name(self) -> str:
-        """Return the name every page header shows for this run."""
-        return run_display_name(self.run) or UNNAMED_SPEC
-
     def checks_for(self, cell_id: str) -> list[Check]:
         """Return one cell's checks, or an empty list when it stored none."""
         return list(self.checks_by_cell.get(cell_id, []))

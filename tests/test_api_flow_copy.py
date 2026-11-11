@@ -74,7 +74,8 @@ async def test_the_specs_empty_state_states_the_count_and_the_next_action(
     assert "No spec files yet" in page.text
     assert "The directory holds <strong>0 specs</strong>" in page.text
     assert "new comparison wizard" in page.text
-    assert "PUT /api/specs/" in page.text
+    # The API is not the first-run path; the wizard and a copied file are.
+    assert "PUT /api/specs/" not in page.text
 
 
 async def test_the_wizard_says_which_surface_it_is(flow_console: Console) -> None:
