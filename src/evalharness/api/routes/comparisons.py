@@ -16,19 +16,21 @@ from urllib.parse import parse_qs, quote, urlencode
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from evalharness.api.comparisons_views import (
+from evalharness.api.comparison_draft import (
     REMOVABLE_KINDS,
-    WizardError,
-    WizardPage,
-    build_page,
-    collect_edit_errors,
-    collect_errors,
     default_draft,
     draft_text,
     merge_step,
     parse_action,
     parse_draft,
     remove_row,
+)
+from evalharness.api.comparison_rows import (
+    WizardError,
+    WizardPage,
+    build_page,
+    collect_edit_errors,
+    collect_errors,
 )
 from evalharness.api.deps import get_repository, get_settings, render
 from evalharness.api.routes.pages import _not_found
