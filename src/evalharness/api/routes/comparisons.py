@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import hashlib
 from typing import Any, Mapping
-from urllib.parse import parse_qs, quote, urlencode
+from urllib.parse import quote, urlencode
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
@@ -32,7 +32,7 @@ from evalharness.api.comparison_rows import (
     collect_edit_errors,
     collect_errors,
 )
-from evalharness.api.deps import get_repository, get_settings, render
+from evalharness.api.deps import get_repository, get_settings, render, form_fields
 from evalharness.api.routes.pages import _not_found
 from evalharness.api.spec_store import SpecFile, SpecStore, spec_stem
 from evalharness.api.spec_views import check_document, editor_credentials
@@ -109,7 +109,7 @@ async def comparison_edit_submit(
     document, _ = parse_draft(current)
     if document is None:
         return _not_found(request, f"spec {stem} is not readable as YAML")
-    fields = await _form_fields(request)
+    fields = await form_fields(request)
     credentials = editor_credentials(repository)
     current_digest = _digest(current)
     if fields.get("digest", "") != current_digest:
@@ -231,7 +231,7 @@ async def comparison_submit(
     index = _step_index(step)
     if index is None:
         return _not_found(request, f"step {step} is not a comparison wizard step")
-    fields = await _form_fields(request)
+    fields = await form_fields(request)
     credentials = editor_credentials(repository)
     raw_draft = fields.get("draft", "")
     document, draft_error = parse_draft(raw_draft)
@@ -333,13 +333,6 @@ def _template_document(template: str) -> dict[str, Any] | None:
         return None
     document, _error = parse_draft(bundled_text(scenario))
     return document
-
-
-async def _form_fields(request: Request) -> dict[str, str]:
-    """Parse a urlencoded form body without python-multipart."""
-    body = await request.body()
-    parsed = parse_qs(body.decode("utf-8"), keep_blank_values=True)
-    return {key: values[-1] for key, values in parsed.items()}
 
 
 def _draft_error(message: str) -> WizardError:

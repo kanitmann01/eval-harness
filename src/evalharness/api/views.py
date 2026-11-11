@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+from evalharness.api.templating import iso_or_none
 from dataclasses import dataclass
-from datetime import datetime
 from typing import Any
 
 from evalharness.api.graph_views import SpecGraph, spec_graph, thumbnail
@@ -123,8 +123,8 @@ def run_summary_data(summary: RunSummary) -> dict[str, Any]:
         "duration_s": summary.duration_s,
         "n_cells": summary.n_cells,
         "n_ok": summary.n_ok,
-        "started_at": _isoformat(summary.started_at),
-        "finished_at": _isoformat(summary.finished_at),
+        "started_at": iso_or_none(summary.started_at),
+        "finished_at": iso_or_none(summary.finished_at),
         "candidates": list(summary.candidates),
         "metrics": list(summary.metrics),
         "gate_failed": bool(summary.failed_gates),
@@ -148,8 +148,8 @@ def run_detail_data(read: RunRead) -> dict[str, Any]:
         "seed": run.seed,
         "harness_sha": run.harness_sha,
         "error": run.error,
-        "started_at": _isoformat(run.started_at),
-        "finished_at": _isoformat(run.finished_at),
+        "started_at": iso_or_none(run.started_at),
+        "finished_at": iso_or_none(run.finished_at),
         "aggregates": [
             aggregate.model_dump(mode="json") for aggregate in read.aggregates
         ],
@@ -537,6 +537,3 @@ def _tone_for(checks: list[Check]) -> str:
     return "pass" if passed else ("fail" if checks else "unknown")
 
 
-def _isoformat(value: datetime | None) -> str | None:
-    """Format a stored timestamp for JSON, or None."""
-    return value.isoformat() if value is not None else None

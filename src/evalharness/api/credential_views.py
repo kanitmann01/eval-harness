@@ -9,6 +9,7 @@ past successful test.
 
 from __future__ import annotations
 
+from evalharness.api.templating import iso_or_none
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -214,7 +215,7 @@ def row_data(row: CredentialRow) -> dict[str, Any]:
         "name": row.name,
         "provider": row.provider,
         "created_at": row.created_at.isoformat(),
-        "last_ok_at": _isoformat(row.last_ok_at),
+        "last_ok_at": iso_or_none(row.last_ok_at),
         "last_error": row.last_error,
         "disabled": row.disabled,
         "fingerprint": row.fingerprint,
@@ -269,6 +270,3 @@ def _shown(value: Any) -> str:
     return "<not text>"
 
 
-def _isoformat(value: datetime | None) -> str | None:
-    """Format a stored timestamp, or None when it was never recorded."""
-    return value.isoformat() if value is not None else None

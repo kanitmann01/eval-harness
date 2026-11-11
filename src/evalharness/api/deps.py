@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import parse_qs
 
 from fastapi import Request
 from starlette.responses import HTMLResponse
@@ -52,3 +53,16 @@ def render(
         context=context,
         status_code=status_code,
     )
+
+
+async def form_fields(request: Request) -> dict[str, str]:
+    """Read a urlencoded form body without adding a form-parsing dependency.
+
+    FastAPI's form parameters want python-multipart, which this project does
+    not depend on; the console forms are plain urlencoded POSTs. Undecodable
+    bytes are replaced rather than refused: a form a browser produced must
+    never turn into a 500.
+    """
+    body = (await request.body()).decode("utf-8", errors="replace")
+    parsed = parse_qs(body, keep_blank_values=True)
+    return {key: values[-1] for key, values in parsed.items()}

@@ -9,14 +9,13 @@ navigation partial instead of a second copy of the detail page.
 from __future__ import annotations
 
 from typing import Any
-from urllib.parse import parse_qs
 
 from fastapi import APIRouter, Body, Depends, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import Response
 
-from evalharness.api.deps import get_repository, get_settings, render
+from evalharness.api.deps import get_repository, get_settings, render, form_fields
 from evalharness.api.launch import (
     LaunchError,
     get_launches,
@@ -62,7 +61,7 @@ def launch_page(
 @router.post("/launch", response_class=HTMLResponse, name="launch_submit")
 async def launch_submit(request: Request) -> HTMLResponse:
     """Launch the spec chosen in the form, then land on its run page."""
-    fields = await _form_fields(request)
+    fields = await form_fields(request)
     spec_text = fields.get("spec", "")
     budget_text = fields.get("budget_override_usd", "")
     settings = get_settings(request)
@@ -140,17 +139,6 @@ def cancel_run_page(run_id: str, request: Request) -> Response:
         url=str(request.url_for("run_detail", run_id=run_id)),
         status_code=303,
     )
-
-
-async def _form_fields(request: Request) -> dict[str, str]:
-    """Read a urlencoded form body without adding a form-parsing dependency.
-
-    FastAPI's form parameters want python-multipart, which this project does
-    not depend on; the launch form is a plain urlencoded POST.
-    """
-    body = (await request.body()).decode("utf-8", errors="replace")
-    parsed = parse_qs(body, keep_blank_values=True)
-    return {key: values[-1] for key, values in parsed.items()}
 
 
 def _cancel_refusal(run_id: str, active_run_id: str | None) -> str:

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from evalharness.api.templating import iso_or_none
 from typing import Any
 
 from evalharness.core.calibration import (
@@ -27,7 +27,7 @@ def calibration_data(report: CalibrationReport) -> dict[str, Any]:
         "ci_low": report.interval_low,
         "ci_high": report.interval_high,
         "interval": {"low": report.interval_low, "high": report.interval_high},
-        "last_validated_at": _isoformat(report.last_validated_at),
+        "last_validated_at": iso_or_none(report.last_validated_at),
         "judges": [_judge_data(judge) for judge in report.judges],
         "disagreements": [
             _check_data(row) for row in report.disagreements
@@ -45,7 +45,7 @@ def _judge_data(judge: JudgeCalibration) -> dict[str, Any]:
         "labelled": judge.labelled,
         "agreements": judge.agreements,
         "agreement_rate": judge.agreement_rate,
-        "last_validated_at": _isoformat(judge.last_validated_at),
+        "last_validated_at": iso_or_none(judge.last_validated_at),
     }
 
 
@@ -67,12 +67,9 @@ def _check_data(row: CalibrationCheck) -> dict[str, Any]:
         "human_note": row.human_note,
         "operator": row.operator,
         "agreement": row.agreement,
-        "labelled_at": _isoformat(
+        "labelled_at": iso_or_none(
             None if row.label is None else row.label.created_at
         ),
     }
 
 
-def _isoformat(value: datetime | None) -> str | None:
-    """Render a UTC timestamp as ISO 8601, or null when it is absent."""
-    return None if value is None else value.isoformat()

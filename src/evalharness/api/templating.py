@@ -69,6 +69,11 @@ def format_time(value: datetime | None) -> str:
     return "-" if value is None else value.strftime("%Y-%m-%d %H:%M:%S UTC")
 
 
+def iso_or_none(value: datetime | None) -> str | None:
+    """Format a stored timestamp for a JSON body, or None."""
+    return value.isoformat() if value is not None else None
+
+
 def format_run_name(run: RunRecord) -> str:
     """Show one run's spec name, or the shared unnamed fallback."""
     return run_display_name(run) or UNNAMED_SPEC
